@@ -1,0 +1,4688 @@
+Directory structure:
+└── rancherlabs-application-collection-extension/
+    ├── README.md
+    ├── docker-compose.yaml
+    ├── Dockerfile
+    ├── metadata.json
+    ├── backend/
+    │   ├── app.js
+    │   ├── package.json
+    │   ├── clients/
+    │   │   ├── helm.js
+    │   │   └── notifications.js
+    │   └── routes/
+    │       ├── charts.js
+    │       ├── notifications.js
+    │       └── user.js
+    └── ui/
+        ├── index.html
+        ├── openapitools.json
+        ├── package.json
+        ├── tsconfig.json
+        ├── tsconfig.node.json
+        ├── vite.config.ts
+        └── src/
+            ├── App.tsx
+            ├── AuthContext.tsx
+            ├── Layout.tsx
+            ├── main.tsx
+            ├── stylesheet.css
+            ├── vite-env.d.ts
+            ├── clients/
+            │   ├── backend.ts
+            │   ├── docker.ts
+            │   ├── helm.ts
+            │   ├── kubectl.ts
+            │   └── util.ts
+            ├── components/
+            │   ├── Modal.tsx
+            │   ├── GitBranch/
+            │   │   └── GitBranch.tsx
+            │   ├── Helm/
+            │   │   ├── EditDialog.tsx
+            │   │   ├── FilePicker.tsx
+            │   │   ├── InstallDialog.tsx
+            │   │   ├── UninstallDialog.tsx
+            │   │   └── UpgradeDialog.tsx
+            │   └── NotificationsCenter/
+            │       ├── index.tsx
+            │       ├── NotificationsContext.tsx
+            │       └── NotificationItem/
+            │           ├── index.tsx
+            │           └── StatusIcon.tsx
+            └── pages/
+                ├── ApplicationDetailsPage/
+                │   ├── index.tsx
+                │   └── components/
+                │       └── BranchesList/
+                │           ├── BranchCard.tsx
+                │           ├── HintIcon.tsx
+                │           └── index.tsx
+                ├── ApplicationsPage/
+                │   ├── index.tsx
+                │   └── components/
+                │       ├── ApplicationCard.tsx
+                │       └── InfiniteScroll.tsx
+                ├── SettingsPage/
+                │   ├── index.tsx
+                │   └── components/
+                │       └── AuthenticationForm.tsx
+                ├── WorkloadDetailsPage/
+                │   ├── index.tsx
+                │   └── components/
+                │       └── HistoryTimeLine.tsx
+                └── WorkloadsPage/
+                    ├── index.tsx
+                    └── components/
+                        ├── StatusIcon.tsx
+                        └── WorkloadCard.tsx
+
+================================================
+FILE: README.md
+================================================
+# SUSE Application Collection
+
+![SUSE Application Collection](/assets/SUSE_ApplicationCollection_pos-green-horizontal.svg)
+
+This extension will help you installing, managing and uninstalling workloads from [SUSE Application Collection](https://apps.rancher.io).
+
+This project is composed of:
+
+* The [ui](./ui): a [React](https://es.react.dev/) app that handles the main user interation.
+* A [backend](./backend): an [express](https://expressjs.com/) server that extends the features of the frontend.
+
+## Get started
+
+In this section you will learn how to start playing with the extension.
+
+### Docker Desktop
+
+To install the extension:
+
+1. Open Docker Desktop.
+1. From the Docker Desktop dashboard, select the *Extensions* tab. The Extensions Marketplace opens on the *Browse* tab.
+1. Browse for "SUSE Application Collection".
+1. Select *Install*.
+
+From here, you can select *Open* to access the extension. The extension also appears in the left-hand menu and in the *Manage* tab.
+
+If this doesn't work, or the extension doesn't show up in the browser, you can also try running:
+
+```sh
+docker extension install rancher/application-collection-extension
+```
+
+Useful additional links:
+
+* [Working with marketplace extensions](https://docs.docker.com/extensions/marketplace/)
+* [Working with non-marketplace extensions](https://docs.docker.com/extensions/non-marketplace/)
+
+### Rancher Desktop
+
+To install the extension:
+
+1. Open Rancher Desktop.
+1. From the Rancher Desktop dashboard, select the *Extensions* tab. The Extensions Catalog opens on the *Catalog* tab.
+1. Search for "SUSE Application Collection".
+1. Select *Install*.
+
+Once installed, the extension will appear in the left-hand menu and in the *Installed* tab.
+
+If this doesn't work, or the extension doesn't show up in the browser, you can also try running:
+
+```sh
+rdctl extension install rancher/application-collection-extension
+```
+
+Useful additional links:
+
+* [Rancher Desktop extensions](https://docs.rancherdesktop.io/ui/extensions/)
+* [Installing and uninstalling Rancher Desktop extensions](https://docs.rancherdesktop.io/how-to-guides/installing-uninstalling-extensions)
+
+## Debug with Docker Desktop
+
+Docker Desktop lets you locally build, update and debug running extensions with nice features like hot reloading and Chrome development tools.
+
+If you work with Docker Desktop, these are the main guidelines you should follow to build and debug any extension:
+
+* [How to build a Docker extension](https://docs.docker.com/extensions/extensions-sdk/quickstart/#step-two-build-the-extension)
+* [Test and debug](https://docs.docker.com/extensions/extensions-sdk/dev/test-debug/)
+
+## Debug with Rancher Desktop
+
+Rancher Desktop also lets you build, update and debug running extensions with the development tools of any browser.
+ However, note that here there's no support for hot reloading yet.
+
+If you work with Rancher Desktop, these are the key guidelines to build and debug any extension:
+
+* [Installing and uninstalling Rancher Desktop Extensions](https://docs.rancherdesktop.io/how-to-guides/installing-uninstalling-extensions)
+* [Remote debugging an extension](https://github.com/rancher-sandbox/rancher-desktop/#remote-debugging-an-extension)
+
+
+
+================================================
+FILE: docker-compose.yaml
+================================================
+volumes:
+  helm:
+  data:
+
+services:
+  docker-desktop-extension:
+    image: ${DESKTOP_PLUGIN_IMAGE}
+    volumes:
+      - helm:/root/.config/helm
+      - data:/root/data
+
+
+
+================================================
+FILE: Dockerfile
+================================================
+FROM registry.suse.com/bci/bci-base:15.6 AS fetcher
+
+ARG TARGETARCH
+ENV BINS_DIR=/tmp/binaries/darwin
+ENV HELM_VERSION=3.17.3
+ENV KUBECTL_VERSION=1.33.0
+
+RUN mkdir -p ${BINS_DIR}
+RUN curl -s -o helm-v${HELM_VERSION}-darwin-${TARGETARCH}.tar.gz https://get.helm.sh/helm-v${HELM_VERSION}-darwin-${TARGETARCH}.tar.gz \
+    && tar -zxvf helm-v${HELM_VERSION}-darwin-${TARGETARCH}.tar.gz \
+    && mv darwin-${TARGETARCH}/helm ${BINS_DIR}/helm \
+    && curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/darwin/${TARGETARCH}/kubectl" \
+    && chmod +x ./kubectl \
+    && mv kubectl ${BINS_DIR}/kubectl
+
+ENV BINS_DIR=/tmp/binaries/linux
+RUN mkdir -p ${BINS_DIR}
+RUN curl -s -o helm-v${HELM_VERSION}-linux-${TARGETARCH}.tar.gz https://get.helm.sh/helm-v${HELM_VERSION}-linux-${TARGETARCH}.tar.gz \
+    && tar -zxvf helm-v${HELM_VERSION}-linux-${TARGETARCH}.tar.gz \
+    && mv linux-${TARGETARCH}/helm ${BINS_DIR}/helm \
+    && curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl" \
+    && chmod +x ./kubectl \
+    && mv kubectl ${BINS_DIR}/kubectl
+
+ENV BINS_DIR=/tmp/binaries/windows
+RUN mkdir -p ${BINS_DIR}
+RUN curl -s -o helm-v${HELM_VERSION}-windows-amd64.tar.gz https://get.helm.sh/helm-v${HELM_VERSION}-windows-amd64.tar.gz \
+    && tar -zxvf helm-v${HELM_VERSION}-windows-amd64.tar.gz \
+    && mv windows-amd64/helm.exe ${BINS_DIR}/helm.exe \
+    && curl -LO "https://dl.k8s.io/release/v${KUBECTL_VERSION}/bin/windows/amd64/kubectl.exe" \
+    && mv kubectl.exe ${BINS_DIR}/kubectl.exe
+
+FROM --platform=$BUILDPLATFORM openapitools/openapi-generator-cli:v6.6.0 AS backend-client-generator
+
+COPY ui /ui
+WORKDIR /ui
+
+RUN /usr/local/bin/docker-entrypoint.sh generate -g typescript-axios -i https://api.apps.rancher.io/api-docs -o autogenerated/client/backend --additional-properties usePromises=true --model-name-suffix=DTO
+
+FROM --platform=$BUILDPLATFORM dp.apps.rancher.io/containers/nodejs:22-dev AS client-builder
+WORKDIR /ui
+# cache packages in layer
+COPY ui/package.json /ui/package.json
+COPY ui/package-lock.json /ui/package-lock.json
+RUN --mount=type=cache,target=/usr/src/app/.npm \
+    npm set cache /usr/src/app/.npm && \
+    npm ci
+# install
+COPY ui /ui
+COPY --from=backend-client-generator /ui/autogenerated /ui/autogenerated
+RUN npm run build
+
+FROM --platform=$BUILDPLATFORM dp.apps.rancher.io/containers/nodejs:22-dev AS backend-builder
+WORKDIR /backend
+# cache packages in layer
+COPY backend/package.json /backend/package.json
+COPY backend/package-lock.json /backend/package-lock.json
+RUN --mount=type=cache,target=/usr/src/app/.npm \
+    npm set cache /usr/src/app/.npm && \
+    npm ci
+# install
+COPY backend /backend
+
+FROM dp.apps.rancher.io/containers/nodejs:22
+
+ARG RELEASE_VERSION=latest
+
+LABEL org.opencontainers.image.title="SUSE Application Collection" \
+    org.opencontainers.image.description="Integrate the Application Collection into your development lifecycle" \
+    org.opencontainers.image.vendor="SUSE LLC" \
+    com.docker.desktop.extension.api.version="0.3.4" \
+    com.docker.extension.categories="kubernetes,utility-tools" \
+    com.docker.desktop.extension.icon="https://raw.githubusercontent.com/rancherlabs/application-collection-extension/refs/heads/main/assets/rancher-logo-cow-blue.svg" \
+    com.docker.extension.screenshots="[\
+        {\"alt\":\"Collection\", \"url\":\"https://raw.githubusercontent.com/rancherlabs/application-collection-extension/refs/heads/main/assets/01_collection.png\"}, \
+        {\"alt\":\"Application details\", \"url\":\"https://raw.githubusercontent.com/rancherlabs/application-collection-extension/refs/heads/main/assets/02_application-details.png\"}, \
+        {\"alt\":\"Chart values form\", \"url\":\"https://raw.githubusercontent.com/rancherlabs/application-collection-extension/refs/heads/main/assets/03_install-form.png\"}, \
+        {\"alt\":\"Workloads\", \"url\":\"https://raw.githubusercontent.com/rancherlabs/application-collection-extension/refs/heads/main/assets/04_workloads.png\"}, \
+        {\"alt\":\"Workload details\", \"url\":\"https://raw.githubusercontent.com/rancherlabs/application-collection-extension/refs/heads/main/assets/05_workload-details.png\"}\
+    ]" \
+    com.docker.extension.detailed-description="\
+        Build and run cloud-native applications with SUSE's trusted, curated, and continuously updated application collection.\
+        <br />\
+        This extension helps you integrating the Collection into your local development environment by:\
+        <br />\
+        <ul>\
+            <li>Managing the authentication: docker, helm and kubernetes credentials are automatically configured</li>\
+            <li>Making apps plug&play: installs the workloads with a predefined set of values ready for local deployment</li>\
+            <li>Helping you stay up-to-date: detects application updates and helps you through the update process</li>\
+        </ul>\
+        <br />\
+        Usage:\
+        <br />\
+        <ol>\
+            <li>Have a target kubernetes cluster configured in your context</li>\
+            <li>Install the extension</li>\
+            <li><a href=\"https://docs.apps.rancher.io/get-started/authentication/#create-a-personal-access-token\">Generate an access token</a> and configure the authentication</li>\
+            <li>Start deploying workloads</li>\
+        </ol>\
+        " \
+    com.docker.extension.publisher-url="https://apps.rancher.io/" \
+    com.docker.extension.additional-urls="[\
+        {\"title\":\"Product page\",\"url\":\"https://www.suse.com/products/rancher/application-collection\"},\
+        {\"title\":\"Web application\",\"url\":\"https://apps.rancher.io\"},\
+        {\"title\":\"Documentation\",\"url\":\"https://docs.apps.rancher.io\"},\
+        {\"title\":\"Support\",\"url\":\"https://github.com/rancherlabs/application-collection-extension/discussions\"}\
+    ]" \
+    com.docker.extension.changelog="See full <a href=\"https://github.com/rancherlabs/application-collection-extension/releases/tag/${RELEASE_VERSION}\">change log</a>."
+
+COPY --from=fetcher /tmp/binaries /binaries
+COPY --from=fetcher /tmp/binaries/linux /usr/bin
+COPY docker-compose.yaml .
+COPY metadata.json .
+COPY assets/rancher-logo-cow-blue.svg .
+COPY --from=client-builder /ui/build ui
+COPY --from=backend-builder /backend backend
+WORKDIR /backend
+ENV PORT=/run/guest-services/application-collection-extension.sock
+
+USER root
+
+CMD ["./bin/www"]
+
+
+
+================================================
+FILE: metadata.json
+================================================
+{
+  "icon": "rancher-logo-cow-blue.svg",
+  "vm": {
+    "composefile": "docker-compose.yaml",
+    "exposes": {
+      "socket": "application-collection-extension.sock"
+    }
+  },
+  "ui": {
+    "dashboard-tab": {
+      "title": "Application Collection",
+      "src": "index.html",
+      "root": "ui",
+      "backend": { 
+        "socket": "application-collection-extension.sock" 
+      }
+    }
+  },
+  "host": {
+    "binaries": [
+      {
+        "darwin": [
+          {
+            "path": "/binaries/darwin/helm"
+          },
+          {
+            "path": "/binaries/darwin/kubectl"
+          }
+        ],
+        "windows": [
+          {
+            "path": "/binaries/windows/helm.exe"
+          },
+          {
+            "path": "/binaries/windows/kubectl.exe"
+          }
+        ],
+        "linux": [
+          {
+            "path": "/binaries/linux/helm"
+          },
+          {
+            "path": "/binaries/linux/kubectl"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+
+================================================
+FILE: backend/app.js
+================================================
+const express = require('express')
+const bodyParser = require('body-parser')
+
+const chartsRouter = require('./routes/charts')
+const notificationsRouter = require('./routes/notifications')
+const userRouter = require('./routes/user')
+
+const app = express()
+
+app.use(bodyParser.json())
+app.use(bodyParser.urlencoded({ extended: true }))
+
+app.use(express.json())
+app.use('/charts', chartsRouter)
+app.use('/notifications', notificationsRouter)
+app.use('/user', userRouter)
+
+module.exports = app
+
+
+
+================================================
+FILE: backend/package.json
+================================================
+{
+  "name": "backend",
+  "version": "0.4.1",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/www",
+    "lint": "eslint .",
+    "postversion": "git add package.json package-lock.json && git commit -a -m \"Prepare backend for release $npm_package_version\""
+  },
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "express": "^5.1.0",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@stylistic/eslint-plugin": "^2.10.1",
+    "eslint": "^8.57.1"
+  }
+}
+
+
+
+================================================
+FILE: backend/clients/helm.js
+================================================
+const { exec } = require('node:child_process')
+const fs = require('fs')
+const { parse } = require('yaml')
+
+const helm = 'helm'
+
+function getAuth() {
+  const registryConfig = '/root/.config/helm/registry/config.json'
+  const host = 'dp.apps.rancher.io'
+  if (fs.existsSync(registryConfig)) {
+    const rawConfig = fs.readFileSync(registryConfig)
+    const config = JSON.parse(rawConfig)
+    if (config.auths && config.auths[host] && config.auths[host]) {
+      return config.auths[host].auth
+    }
+  }
+
+  return null
+}
+
+async function login(username, password) {
+  return new Promise((resolve, reject) => {
+    exec(
+      `${helm} registry login dp.apps.rancher.io -u ${username} -p ${password}`, 
+      (err, stdout, stderr) => {
+        if (err && stderr) {
+          reject(stderr)
+        } else {
+          resolve(null)
+        }
+      })
+  })
+}
+
+async function logout() {
+  return new Promise((resolve, reject) => {
+    exec(
+      `${helm} registry logout dp.apps.rancher.io`, 
+      (err, stdout, stderr) => {
+        if (err && stderr) {
+          reject(stderr)
+        } else {
+          resolve(null)
+        }
+      })
+  })
+}
+
+async function localValues(name, version) {
+  return new Promise((resolve, reject) => {
+    fs.mkdtemp('application-collection', (err, tmpdir) => {
+      if (err) {
+        reject(err)
+      } else {
+        exec(
+          `${helm} pull oci://dp.apps.rancher.io/charts/${name} --version ${version} --untar --untardir ${tmpdir}`, 
+          (err, stdout, stderr) => {
+            if (err && stderr) {
+              reject(stderr)
+            } else {
+              if (fs.existsSync(`${tmpdir}/${name}/values.local.yaml`)) {
+                fs.readFile(`${tmpdir}/${name}/values.local.yaml`, { encoding: 'utf8' }, (err, data) => {
+                  if (err) {
+                    reject(err)
+                  } else {
+                    const yaml = parse(data)
+                    const flattened = flatten(yaml)
+                    resolve(Object.keys(flattened).map(k => { return { key: k, value: flattened[k] } }))
+                    fs.rm(tmpdir, { recursive: true, force: true }, (err) => {
+                      if (err) console.error('Unexpected error removing tmp dir', err)
+                    })
+                  }
+                })
+              } else {
+                resolve([])
+                fs.rm(tmpdir, { recursive: true, force: true }, (err) => {
+                  if (err) console.error('Unexpected error removing tmp dir', err)
+                })
+              }
+            }
+          })
+      }
+    })
+  })
+}
+
+function flatten(data) {
+  let result = {}
+
+  function recurse(cur, prop) {
+    if (Object(cur) !== cur) {
+      result[prop] = cur
+    } else if (Array.isArray(cur)) {
+
+      for(let i = 0, l = cur.length; i < l; i++) {
+        recurse(cur[i], prop + '[' + i + ']')
+        if (l == 0) result[prop] = []
+      }
+
+    } else {
+      let isEmpty = true
+
+      for (let p in cur) {
+        isEmpty = false
+        recurse(cur[p], prop ? prop+'.'+p : p)
+      }
+
+      if (isEmpty && prop) result[prop] = {}
+    }
+  }
+
+  recurse(data, '')
+
+  return result
+}
+
+module.exports = { getAuth, login, logout, localValues }
+
+
+
+================================================
+FILE: backend/clients/notifications.js
+================================================
+const fs = require('fs')
+
+const notificationsStore = '/root/data/.notifications.json'
+
+function deleteNotification(id) {
+  const currentNotifications = readNotifications()
+
+  const targetNotification = currentNotifications.find(n => n.id === id)
+  if (!targetNotification) {
+    throw new Error(`Notification does not exist [notificationId=${id}]`)
+  }
+
+  const finalNotifications = currentNotifications.filter(n => n.id !== id)
+  const stringNotifications = JSON.stringify(finalNotifications)
+  fs.writeFileSync(notificationsStore, stringNotifications)
+}
+
+function readNotifications() {
+  if (fs.existsSync(notificationsStore)) {
+    const rawFile = fs.readFileSync(notificationsStore)
+    return JSON.parse(rawFile)
+  }
+
+  return []
+}
+
+function saveNotification(notification) {
+  const currentNotifications = readNotifications()
+  if (currentNotifications.find(n => n.id === notification.id)) {
+    throw new Error(`Notification with the same id already exists [notificationId=${notification.id}]`)
+  }
+
+  currentNotifications.push(notification)
+
+  const stringNotifications = JSON.stringify(currentNotifications.sort((a, b) => b.timestamp - a.timestamp))
+  fs.writeFileSync(notificationsStore, stringNotifications)
+}
+
+function updateNotification(id, update) {
+  const currentNotifications = readNotifications()
+
+  const targetNotification = currentNotifications.find(n => n.id === id)
+  if (!targetNotification) {
+    throw new Error(`Notification does not exist [notificationId=${id}]`)
+  }
+
+  const updatedNotifications = currentNotifications.map(n => {
+    if (n.id !== id) return n
+    return Object.assign(n, update)
+  })
+  const stringNotifications = JSON.stringify(updatedNotifications)
+  fs.writeFileSync(notificationsStore, stringNotifications)
+}
+
+module.exports = { deleteNotification, readNotifications, saveNotification, updateNotification }
+
+
+
+================================================
+FILE: backend/routes/charts.js
+================================================
+var express = require('express')
+const { localValues } = require('../clients/helm')
+var router = express.Router()
+
+router.get('/:name/:version/local-values', function(req, res, next) {
+  const { name, version } = req.params
+  localValues(name, version)
+    .then(values => res.json({ values })) 
+    .catch(err => {
+      console.error('Unexpected error fetching local values', err)
+      res.json({})
+    })
+})
+
+module.exports = router
+
+
+
+================================================
+FILE: backend/routes/notifications.js
+================================================
+const express = require('express')
+const { readNotifications, saveNotification, deleteNotification, updateNotification } = require('../clients/notifications')
+var router = express.Router()
+
+router.delete('/:id', function (req, res) {
+  const { id } = req.params
+  try {
+    deleteNotification(id)
+    res.status(200)
+  } catch (err) {
+    console.error('Unexpected error deleting notification [notificationId=' + id + ']', err)
+    res.status(500)
+  }
+
+  res.end()
+})
+
+router.get('/', function (req, res) {
+  try {
+    const notifications = readNotifications()
+    res.json(notifications.sort((a, b) => b.timestamp - a.timestamp))
+  } catch (err) {
+    console.error('Unexpected error getting user notifications', err)
+    res.status(500)
+  }
+
+  res.end()
+})
+
+router.post('/', function (req, res) {
+  try {
+    const notification = req.body
+    saveNotification(notification)
+    res.status(200)
+  } catch (err) {
+    console.error('Unexpected error saving notification', err)
+    res.status(500)
+  }
+
+  res.end()
+})
+
+router.put('/:id', function (req, res) {
+  const { id } = req.params
+  try {
+    const update = req.body
+    updateNotification(id, update)
+    res.status(200)
+  } catch (err) {
+    console.error('Unexpected error updating notification [notificationId=' + id + ']', err)
+    res.status(500)
+  }
+
+  res.end()
+})
+
+module.exports = router
+
+
+
+================================================
+FILE: backend/routes/user.js
+================================================
+var express = require('express')
+const { getAuth, login, logout } = require('../clients/helm')
+var router = express.Router()
+
+router.get('/auth', function (req, res) {
+  try {
+    const auth = getAuth()
+    if (auth) {
+      res.json(auth)
+    } else {
+      res.status(404)
+    }
+  } catch (err) {
+    console.error('Unexpected error getting user auth', err)
+    res.status(500)
+  }
+      
+  res.end()
+})
+
+router.post('/login', function(req, res) {
+  const { username, password } = req.body
+  login(username, password)
+    .then(() => res.status(200).end()) 
+    .catch(err => {
+      console.error('Unexpected error login user', err)
+      res.status(500).end()
+    })
+})
+
+router.post('/logout', function(req, res) {
+  logout()
+    .then(() => res.status(200).end()) 
+    .catch(err => {
+      console.error('Unexpected error logout user', err)
+      res.status(500).end()
+    })
+})
+
+module.exports = router
+
+
+================================================
+FILE: ui/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link href='https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap' rel='stylesheet' />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+
+================================================
+FILE: ui/openapitools.json
+================================================
+{
+  "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.14.0"
+  }
+}
+
+
+
+================================================
+FILE: ui/package.json
+================================================
+{
+  "name": "ui",
+  "version": "0.4.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@docker/extension-api-client": "0.3.4",
+    "@emotion/react": "11.10.4",
+    "@emotion/styled": "11.10.4",
+    "@kubernetes/client-node": "^1.0.0",
+    "@mui/icons-material": "^7.2.0",
+    "@mui/lab": "^7.0.0-beta.14",
+    "@mui/material": "^7.2.0",
+    "axios": "^1.7.7",
+    "axios-retry": "^4.5.0",
+    "buffer": "^6.0.3",
+    "flat": "^6.0.1",
+    "moment": "^2.30.1",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^6.27.0",
+    "semver": "^7.6.3",
+    "uuid": "^11.1.0",
+    "yaml": "^2.7.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "lint": "eslint src/*",
+    "test": "jest src",
+    "generate-backend-client": "openapi-generator-cli generate -g typescript-axios -i https://api.apps.rancher.io/api-docs -o autogenerated/client/backend --model-name-suffix=DTO",
+    "postversion": "git add package.json package-lock.json && git commit -a -m \"Prepare UI for release $npm_package_version\""
+  },
+  "devDependencies": {
+    "@docker/extension-api-client-types": "0.3.4",
+    "@openapitools/openapi-generator-cli": "^2.21.0",
+    "@stylistic/eslint-plugin": "^2.10.1",
+    "@types/jest": "^29.1.2",
+    "@types/node": "^18.7.18",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/semver": "^7.5.8",
+    "@typescript-eslint/eslint-plugin": "^8.12.2",
+    "@typescript-eslint/parser": "^8.12.2",
+    "@vitejs/plugin-react": "^4.4.1",
+    "eslint": "^8.57.1",
+    "jest": "^29.1.2",
+    "typescript": "^4.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-svgr": "^4.3.0"
+  }
+}
+
+
+
+================================================
+FILE: ui/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+
+
+
+================================================
+FILE: ui/tsconfig.node.json
+================================================
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+
+
+
+================================================
+FILE: ui/vite.config.ts
+================================================
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import svgr from 'vite-plugin-svgr'
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react(), svgr()],
+  base: './',
+  build: {
+    outDir: 'build',
+    chunkSizeWarningLimit: 1000,
+  },
+  server: {
+    port: 3000,
+    strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'https://api.apps.rancher.io',
+        changeOrigin: true,
+        secure: false,
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
+  }
+})
+
+
+
+================================================
+FILE: ui/src/App.tsx
+================================================
+import { createTheme, ThemeProvider, useMediaQuery } from '@mui/material'
+import { createHashRouter, RouterProvider } from 'react-router-dom'
+import ApplicationsPage from './pages/ApplicationsPage'
+import ApplicationDetailsPage, { loader as ApplicationDetailsLoader } from './pages/ApplicationDetailsPage'
+import SettingsPage from './pages/SettingsPage'
+import WorkloadsPage from './pages/WorkloadsPage'
+import { AuthProvider } from './AuthContext'
+import { Layout } from './Layout'
+import { useMemo } from 'react'
+import NotificationsProvider from './components/NotificationsCenter/NotificationsContext'
+import WorkloadDetailsPage, { loader as WorkloadDetailsLoader } from './pages/WorkloadDetailsPage'
+
+const themeOptions = (mode: 'light' | 'dark' = 'light') => {
+  return {
+    components: {
+      MuiButton: {
+        styleOverrides: {
+          root: 'line-height: initial;'
+        }
+      },
+      MuiCardActionArea: {
+        styleOverrides: {
+          focusHighlight: {
+            backgroundColor: 'transparent'
+          }
+        }
+      },
+      MuiChip: {
+        styleOverrides: {
+          labelSmall: {
+            fontSize: '0.75rem'
+          }
+        }
+      },
+      MuiTableCell: {
+        styleOverrides: {
+          head: {
+            color: 'gray'
+          },
+          body: {
+            fontSize: '0.75rem'
+          }
+        }
+      }
+    },
+    typography: {
+      fontFamily: ['Poppins'].join(','),
+      code: {
+        fontFamily: 'monospace',
+        fontSize: '0.875rem',
+        lineHeight: '18px',
+      },
+      h1: {
+        fontSize: '2rem',
+        fontWeight: 'bold',
+        lineHeight: '38px',
+      },
+      h2: {
+        fontSize: '1.5rem',
+        fontWeight: '400',
+        lineHeight: '30px',
+        '+ h5, + h6': {
+          marginTop: '6px'
+        }
+      },
+      h3: {
+        fontSize: '1.25rem',
+        fontWeight: '400',
+        lineHeight: '26px',
+        '+ h5, + h6': {
+          marginTop: '6px'
+        }
+      },
+      h4: {
+        fontSize: '1.125rem',
+        fontWeight: '400',
+        lineHeight: '24px',
+        '+ h5, + h6': {
+          marginTop: '6px'
+        }
+      },
+      h5: {
+        fontSize: '1rem',
+        fontWeight: '400',
+        lineHeight: '22px',
+        color: mode === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
+        margin: undefined
+      },
+      h6: {
+        fontSize: '0.875rem',
+        fontWeight: '400',
+        lineHeight: '20px',
+        color: mode === 'dark' ? 'rgba(255, 255, 255, 0.6)' : 'rgba(0, 0, 0, 0.6)',
+        margin: undefined
+      },
+      body1: {
+        fontSize: '0.875rem',
+        lineHeight: '20px',
+      },
+      body2: {
+        lineHeight: '20px'
+      },
+      caption: {
+        lineHeight: '18px'
+      }
+    },
+    palette: {
+      mode: mode,
+      ochre: {
+        main: '#D3D026',
+        light: '#E9DB5D',
+        dark: '#A29415',
+        contrastText: '#242105',
+      },
+      primary: {
+        dark: '#2453ff',
+        light: '#3d98d3',
+        main: '#2453ff'
+      },
+      secondary: {
+        main: '#30BA78',
+      },
+      fog: {
+        main: '#efefef',
+        light: '#efefef',
+        dark: '#efefef',
+        contrastText: '#000000',
+      }
+    }
+  }
+}
+
+declare module '@mui/material/Chip' {
+  interface ChipPropsColorOverrides {
+    ochre: true;
+    fog: true;
+  }
+}
+
+declare module '@mui/material/styles' {
+  interface Palette {
+    ochre: Palette['primary'];
+    fog: Palette['primary'];
+  }
+
+  interface PaletteOptions {
+    ochre?: PaletteOptions['primary'];
+    fog?: PaletteOptions['primary'];
+  }
+
+  interface TypographyVariants {
+    code: React.CSSProperties;
+  }
+
+  // allow configuration using `createTheme`
+  interface TypographyVariantsOptions {
+    code?: React.CSSProperties;
+  }
+}
+
+// Update the Typography's variant prop options
+declare module '@mui/material/Typography' {
+  interface TypographyPropsVariantOverrides {
+    code: true;
+  }
+}
+
+const router = createHashRouter([
+  {
+    path: '/',
+    element: <Layout />,
+    children: [
+      {
+        element: <ApplicationsPage />,
+        index: true
+      },
+      {
+        path: 'applications/:slugName',
+        element: <ApplicationDetailsPage />,
+        loader: ApplicationDetailsLoader
+      },
+      {
+        path: 'settings',
+        element: <SettingsPage />
+      },
+      {
+        path: 'workloads',
+        children: [
+          {
+            index: true,
+            element: <WorkloadsPage />,
+          },
+          {
+            path: ':name',
+            element: <WorkloadDetailsPage />,
+            loader: WorkloadDetailsLoader
+          },
+        ]
+      }
+    ]
+  },
+])
+
+export function App() {
+  const prefersDarkMode = useMediaQuery('(prefers-color-scheme: dark)')
+
+  const theme = useMemo(
+    () => createTheme(themeOptions(prefersDarkMode ? 'dark' : 'light')),
+    [prefersDarkMode],
+  )
+  
+  return (
+    <ThemeProvider theme={ theme }>
+      <AuthProvider>
+        <NotificationsProvider>
+          <RouterProvider router={ router } />
+        </NotificationsProvider>
+      </AuthProvider>
+    </ThemeProvider>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/AuthContext.tsx
+================================================
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { createContext, useContext, useEffect, useReducer } from 'react'
+import { ServiceError } from '@docker/extension-api-client-types/dist/v1'
+
+type Auth = string | null | undefined
+
+type ReducerAction = {
+  type: 'set' | 'update' | 'delete' | 'dismiss_errors',
+  payload?: Auth
+}
+
+const TOKEN_KEY: string = 'token'
+
+function authReducer(auth: Auth, action: ReducerAction): Auth | undefined {
+  switch (action.type) {
+    case 'set':
+    case 'update':
+      if (action.payload) {
+        localStorage.setItem(TOKEN_KEY, action.payload)
+      }
+
+      return action.payload
+    case 'delete':
+      localStorage.removeItem(TOKEN_KEY)
+      return null
+    default:
+      return undefined
+  }
+}
+
+const AuthContext = createContext<Auth | undefined>(undefined)
+const AuthDispatchContext = createContext<(action: ReducerAction) => any>(() => undefined)
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const ddClient = createDockerDesktopClient()
+  const [ auth, dispatch ] = useReducer(authReducer, localStorage.getItem(TOKEN_KEY) || undefined)
+
+  useEffect(() => {
+    async function getCredentialsFromBackend(currentAttempt: number, maxAttempts: number, intervalWaitMillis: number) {
+      try {
+        const response = await ddClient.extension.vm?.service?.get('/user/auth') as any
+        const auth = response.data ? atob(response.data) : atob(response)
+
+        dispatch({ type: 'set', payload: auth })
+      } catch (e) {
+        console.error('Unexpected error fetching authentication from backend', e)
+        if (currentAttempt < maxAttempts && (!(e as ServiceError).statusCode || (e as ServiceError).statusCode >= 500)) {
+          setTimeout(() => getCredentialsFromBackend(currentAttempt + 1, maxAttempts, intervalWaitMillis), intervalWaitMillis)
+        } else {
+          dispatch({ type: 'set', payload: null })
+        }
+      }
+    }
+
+    getCredentialsFromBackend(0, 3, 500)
+  }, [])
+
+  return (
+    <AuthContext.Provider value={ auth }>
+      <AuthDispatchContext.Provider value={ dispatch }>
+        { children }
+      </AuthDispatchContext.Provider>
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth() {
+  return useContext(AuthContext)
+}
+
+export function useAuthDispatch() {
+  return useContext(AuthDispatchContext)
+}
+
+
+
+================================================
+FILE: ui/src/Layout.tsx
+================================================
+import Button from '@mui/material/Button'
+import { Badge, Box, Container, Stack, Theme, Typography, useMediaQuery } from '@mui/material'
+import { useAuth } from './AuthContext'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { AppsOutlined, EditOutlined, KeyboardArrowLeft, NotificationsNone, SettingsOutlined } from '@mui/icons-material'
+import AuthenticationForm from './pages/SettingsPage/components/AuthenticationForm'
+import { useNotificationsCenterOpenContext, useNotificationsCenterOpenDispatch, useNotificationsContext } from './components/NotificationsCenter/NotificationsContext'
+import NotificationsCenter from './components/NotificationsCenter'
+
+export function Layout() {
+  const notifications = useNotificationsContext()
+  const notificationsCenterOpen = useNotificationsCenterOpenContext()
+  const dispatchNotificationsCenterOpen = useNotificationsCenterOpenDispatch()
+
+  const auth = useAuth()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  const isSmallScreen = useMediaQuery((theme: Theme) => theme.breakpoints.down('lg'))
+
+  if (auth === null) {
+    return (
+      <Box component='main' sx={ { width: '100%', flexGrow: 1, py: 3 } }>
+        <Container maxWidth={ isSmallScreen ? 'md' : 'lg' }>
+          <Typography variant='h2'>Authorization required</Typography>
+          <Typography variant='h5' gutterBottom>This extension requires login.</Typography>
+          <Typography variant='body1' sx={ { my: 3 } }>Learn more about authentication methods in the Authentication section of our documentation site.</Typography>
+          <AuthenticationForm />
+        </Container>
+      </Box>
+    )
+  }
+
+  return (
+    <>
+      <Box component='main' sx={ { display: 'flex', alignItems: 'start', width: '100%', flexGrow: 1, py: 3 } }>
+        <Container maxWidth={ isSmallScreen ? 'md' : 'lg' } sx={ { overflow: 'hidden' } }>
+          <Outlet />
+        </Container>
+        <Stack direction='column' alignItems='start' width='fit-content' sx={ { mr: 2 } }>
+          <Button onClick={ () => dispatchNotificationsCenterOpen(true) }>
+            {
+              notifications.find(n => !n.dismissed) ?
+                <Badge 
+                  color={ notifications.filter(n => !n.dismissed).find(n => n.type === 'error') ? 'error' : 'primary' }
+                  variant='dot'
+                  sx={ { mr: 2 } } >
+                  <NotificationsNone />
+                </Badge> :
+                <NotificationsNone sx={ { mr: 2 } } />
+            }
+            Notifications
+          </Button>
+          <Button onClick={ () => navigate('/') }><AppsOutlined sx={ { mr: 2 } } />Applications</Button>
+          <Button onClick={ () => navigate('/workloads') }><SettingsOutlined sx={ { mr: 2 } } />Workloads</Button>
+          <Button onClick={ () => navigate('/settings') }><EditOutlined sx={ { mr: 2 } } />Settings</Button>
+          { 
+            location?.pathname !== '/' && 
+          location?.pathname !== '/applications' && 
+          location?.pathname !== '/workloads' &&
+          location?.pathname !== '/settings' &&
+          <Button onClick={ () => navigate(-1) }><KeyboardArrowLeft sx={ { mr: 2 } } /> Back</Button> 
+          }
+        </Stack>
+      </Box>
+      <NotificationsCenter
+        open={ notificationsCenterOpen }
+        onClose={ () => dispatchNotificationsCenterOpen(false) } />
+    </>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/main.tsx
+================================================
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import { App } from './App'
+
+import './stylesheet.css'
+
+ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(<React.StrictMode>
+  <App />
+</React.StrictMode>)
+
+
+
+================================================
+FILE: ui/src/stylesheet.css
+================================================
+* {
+    scrollbar-color: lightgray transparent;
+}
+
+
+================================================
+FILE: ui/src/vite-env.d.ts
+================================================
+/// <reference types="vite/client" />
+/// <reference types="vite-plugin-svgr/client" />
+
+
+
+================================================
+FILE: ui/src/clients/backend.ts
+================================================
+import { ApplicationsApi, ArtifactsApi, ComponentsApi, Configuration, ConfigurationApi, ServiceAccountsApi, StatisticsApi, TokensApi, UsersApi } from '../../autogenerated/client/backend'
+import axios, { AxiosInstance } from 'axios'
+import axiosRetry, { isRetryableError } from 'axios-retry'
+import { Buffer } from 'buffer'
+
+function configuration() {
+  const configuration = new Configuration()
+  configuration.basePath = import.meta.env.PROD ? 'https://api.apps.rancher.io' : 'http://localhost:3000/api'
+
+  return configuration
+}
+
+function instance(auth: string | null): AxiosInstance {
+  const instance = axios.create()
+  instance.interceptors.request.use((request) => {
+    if (auth) {
+      request.headers.Authorization = `Basic ${Buffer.from(auth).toString('base64')}`
+    }
+    return request
+  })
+
+  axiosRetry(instance, {
+    retries: 1,
+    retryCondition: isRetryableError, // network error or a 5xx error
+    onRetry: (count, error, requestConfig) => {
+      console.error(`Request attempt failed! [attempt=${count}, url=${requestConfig.url}, error=${error}]`)
+    }
+  })
+
+  return instance
+}
+
+export const applicationsClient = (auth: string | null): ApplicationsApi => {
+  return new ApplicationsApi(configuration(), undefined, instance(auth))
+}
+
+export const artifactsClient = (auth: string | null): ArtifactsApi => {
+  return new ArtifactsApi(configuration(), undefined, instance(auth))
+}
+
+export const componentsClient = (auth: string | null): ComponentsApi => {
+  return new ComponentsApi(configuration(), undefined, instance(auth))
+}
+
+export const configurationClient = (auth: string | null): ConfigurationApi => {
+  return new ConfigurationApi(configuration(), undefined, instance(auth))
+}
+
+export const tokensClient = (auth: string | null): TokensApi => {
+  return new TokensApi(configuration(), undefined, instance(auth))
+}
+
+export const serviceAccountsClient = (auth: string | null): ServiceAccountsApi => {
+  return new ServiceAccountsApi(configuration(), undefined, instance(auth))
+}
+
+export const statsClient = (auth: string | null): StatisticsApi => {
+  return new StatisticsApi(configuration(), undefined, instance(auth))
+}
+
+export const usersClient = (auth: string | null): UsersApi => {
+  return new UsersApi(configuration(), undefined, instance(auth))
+}
+
+
+
+================================================
+FILE: ui/src/clients/docker.ts
+================================================
+import { DockerDesktopClient } from '@docker/extension-api-client-types/dist/v1'
+
+export async function checkDocker(ddClient: DockerDesktopClient): Promise<void> {
+  await ddClient.docker.cli.exec('info', [])
+}
+
+export async function dockerLogout(ddClient: DockerDesktopClient): Promise<void> {
+  await ddClient.docker.cli.exec('logout', [ 
+    'dp.apps.rancher.io' 
+  ])
+}
+  
+export async function dockerLogin(ddClient: DockerDesktopClient, username: string, token: string): Promise<void> {
+  await ddClient.docker.cli.exec('login', [
+    'dp.apps.rancher.io/containers',
+    '-u', username,
+    '-p', token
+  ])
+}
+
+
+================================================
+FILE: ui/src/clients/helm.ts
+================================================
+import { DockerDesktopClient } from '@docker/extension-api-client-types/dist/v1'
+import { ArtifactDTO, ArtifactListItemReducedDTO } from '../../autogenerated/client/backend'
+import { findKubernetesSecret } from './kubectl'
+
+export const WorkloadStatus = {
+  NotRunning: 'NotRunning',
+  Running: 'Running',
+  Loading: 'Loading',
+  Error: 'Error'
+}
+
+export type WorkloadStatus = typeof WorkloadStatus[keyof typeof WorkloadStatus]
+
+const HelmReleaseStatus = {
+  Deployed: 'deployed',
+  Unknown: 'unknown',
+  Uninstalled: 'uninstalled',
+  Superseded: 'superseded',
+  Failed: 'failed',
+  Uninstalling: 'uninstalling',
+  PendingInstall: 'pending-install',
+  PendingUpgrade: 'pending-upgrade',
+  PendingRollback: 'pending-rollback'
+}
+
+type HelmReleaseStatus = typeof HelmReleaseStatus[keyof typeof HelmReleaseStatus]
+
+export type HelmListItem = {
+  app_version: string,
+  chart: string,
+  name: string,
+  namespace: string,
+  status: WorkloadStatus,
+  version: string,
+  notes?: string
+} 
+
+export type HelmHistoryItem = {
+  app_version: string,
+  description: string,
+  updated: string,
+  status: HelmReleaseStatus
+}
+
+type HelmInstall = {
+  name: string,
+  namespace: string,
+  info: {
+    status: HelmReleaseStatus,
+    notes: string
+  },
+  chart: {
+    metadata: {
+      appVersion: string
+    }
+  }
+}
+
+export type HelmReleaseDetails = HelmListItem & {
+  history: HelmHistoryItem[]
+}
+
+const MATCHER = 'source=application-collection-extension'
+
+type Description = {
+  message: string
+  version: string,
+  revision?: string,
+  digest?: string
+  branch?: string
+}
+
+export function mapStatus(status: HelmReleaseStatus): WorkloadStatus {
+  switch (status) {
+    case 'superseded':
+    case 'deployed':
+      return WorkloadStatus.Running
+    case 'unknown':
+    case 'failed':
+      return WorkloadStatus.Error
+    case 'uninstalling':
+    case 'pending-install':
+    case 'pending-upgrade':
+    case 'pending-rollback':
+      return WorkloadStatus.Loading
+    case 'uninstalled':
+    default:
+      return WorkloadStatus.NotRunning
+  }
+}
+
+export async function helmLogout(ddClient: DockerDesktopClient): Promise<void> {
+  await ddClient.extension.host?.cli.exec('helm', [
+    'registry', 'logout', 'dp.apps.rancher.io/charts'
+  ])
+}
+
+export async function helmLogin(ddClient: DockerDesktopClient, username: string, token: string): Promise<void> {
+  await ddClient.extension.host?.cli.exec('helm', [
+    'registry', 'login', 'dp.apps.rancher.io/charts',
+    '-u', username,
+    '-p', token
+  ])
+}
+
+export async function findAllHelmCharts(ddClient: DockerDesktopClient): Promise<HelmListItem[]> {
+  return new Promise((resolve, reject) => {
+    ddClient.extension.host?.cli.exec('helm', ['version'])
+      .then(() => {
+        ddClient.extension.host?.cli.exec('helm', [ 'list', '-a', '-A', '-o', 'json', '-l', MATCHER])
+          .then(async (listResult) => {
+            const list: HelmListItem[] = JSON.parse(listResult.stdout)
+            const releases = list.map(release => {
+              return {
+                ...release,
+                status: mapStatus(release.status),
+                version: release.chart.substring(release.chart.lastIndexOf('-') + 1)
+              }
+            })
+            resolve(releases.filter(r => r !== undefined) as HelmListItem[])
+          })
+          .catch(e => console.error('Unexpected error listing helm releases', e))
+      })
+      .catch(() => {
+        reject('helm required on host machine')
+      })
+  })
+}
+
+export async function findHelmChart(ddClient: DockerDesktopClient, componentName: string, branchPattern: RegExp): Promise<HelmListItem | undefined> {
+  return new Promise((resolve, reject) => {
+    ddClient.extension.host?.cli.exec('helm', ['version'])
+      .then(() => {
+        ddClient.extension.host?.cli.exec('helm', [ 'list', '-a', '-A', '-o', 'json', '-l', MATCHER ])
+          .then(async (listResult) => {
+            const list: HelmListItem[] = JSON.parse(listResult.stdout)
+            let result: HelmListItem | undefined
+
+            for (const release of list.filter(release => release.chart.startsWith(componentName))) {
+              const historyResult = await ddClient.extension.host?.cli.exec('helm', [ 'history', '-o', 'json', '-n', release.namespace, release.name ])
+    
+              if (historyResult) {
+                const history: HelmHistoryItem[] = JSON.parse(historyResult.stdout)
+                const lastRevision = history[history.length - 1]
+                if (branchPattern.test(lastRevision.app_version)) {
+                  result = {
+                    ...release,
+                    status: mapStatus(release.status),
+                    version: release.chart.substring(release.chart.lastIndexOf('-') + 1)
+                  }
+                  break
+                }
+              }
+            }
+
+            resolve(result)
+          })
+          .catch(e => console.error('Unexpected error listing helm releases', e))
+      })
+      .catch(() => {
+        reject('helm required on host machine')
+      })
+  })
+}
+
+export async function findRelease(ddClient: DockerDesktopClient, name: string): Promise<HelmReleaseDetails> {
+  return new Promise<HelmReleaseDetails>((resolve, reject) => {
+    ddClient.extension.host?.cli.exec('helm', [ 'list', '-a', '-A', '-o', 'json' ])
+      .then(async (listResult) => {
+        const list: HelmListItem[] = JSON.parse(listResult.stdout)
+        const release: HelmListItem | undefined = list.find(release => release.name === name)
+
+        if (!release) {
+          return reject('Workload does not exist')
+        }
+
+        Promise.all([
+          ddClient.extension.host?.cli.exec('helm', [ 'get', 'notes', '-n', release.namespace, release.name ]),
+          ddClient.extension.host?.cli.exec('helm', [ 'history', '-o', 'json', '-n', release.namespace, release.name ]),
+        ])
+          .then(([notes, historyResult]) => {
+            if (historyResult && notes) {
+              const history: HelmHistoryItem[] = JSON.parse(historyResult.stdout)
+              resolve({
+                ...release,
+                status: mapStatus(release.status),
+                version: release.chart.substring(release.chart.lastIndexOf('-') + 1),
+                history,
+                notes: notes.stdout
+              })
+            } else {
+              reject('Couldn\'t read workload history or notes.')
+            }
+          })
+          .catch(e => reject('Couldn\'t read workload history or notes: ' + e))
+
+        
+      })
+      .catch(e => reject('Unexpected error listing helm release: ' + e))
+  })
+}
+
+export async function installHelmChart(
+  ddClient: DockerDesktopClient, 
+  branchName: string, 
+  artifact: ArtifactListItemReducedDTO | ArtifactDTO, 
+  version: string, 
+  values: { key: string, value:string }[] = [{ key: 'global.imagePullSecrets[0].name', value: 'application-collection' }]
+): Promise<HelmListItem> {
+  return new Promise((resolve, reject) => {
+    findKubernetesSecret(ddClient)
+      .then(async (isSecretStored) => {
+        if (!isSecretStored) {
+          reject('Secret application-collection does not exist. Please refresh the authentication settings.')
+        } else {
+          const description: Description = {
+            message: 'Generated by Application Collection extension',
+            branch: branchName,
+            version: artifact.version as string,
+            revision: artifact.revision,
+            digest: artifact.digest.value
+          }
+
+          let stdout = ''
+          let stderr = ''
+
+          ddClient.extension.host?.cli.exec('helm', [ 
+            'install', `oci://dp.apps.rancher.io/charts/${artifact.name.split(':')[0]}`, 
+            '--version', artifact?.version as string, 
+            '--set', 'global.imagePullSecrets[0].name=application-collection',
+            ...values.flatMap(v => ['--set', v.key + '=' + v.value ]),
+            '--description', JSON.stringify(description),
+            '--generate-name',
+            '-l', MATCHER,
+            '-o', 'json', ], {
+            stream: { 
+              onOutput: (installResult) => {
+                if (installResult.stdout) {
+                  stdout += installResult.stdout
+                } else {
+                  stderr += installResult.stderr
+                }
+              },
+              onError: (e) => {
+                console.error('Unexpected error installing release', e)
+                reject(e)
+              },
+              onClose: (code) => {
+                if (code > 0) {
+                  console.error(`Unexpected exit code installing release [code=${code}, stderr=${stderr}, stdout=${stdout}]`)
+                  reject (stderr)
+                } else {
+                  const install = JSON.parse(stdout)
+                  resolve({
+                    name: install.name,
+                    namespace: install.namespace,
+                    status: mapStatus(install.info.status),
+                    app_version: version,
+                    chart: `${artifact.name.split(':')[0]}-${artifact.version}`,
+                    version: artifact.version as string,
+                    notes: install.info.notes
+                  })      
+                }
+              },
+            } })
+        }
+      })
+  })
+}
+export async function editHelmChart(
+  ddClient: DockerDesktopClient, 
+  release: HelmListItem,
+  values: { key: string, value:string }[] = [{ key: 'global.imagePullSecrets[0].name', value: 'application-collection' }]
+): Promise<HelmListItem> {
+  return upgradeHelmChart(ddClient, release, values)
+}
+
+export async function upgradeHelmChart(
+  ddClient: DockerDesktopClient,
+  release: HelmListItem,
+  values: { key: string, value:string }[] = [{ key: 'global.imagePullSecrets[0].name', value: 'application-collection' }],
+  artifact?: ArtifactListItemReducedDTO | ArtifactDTO, 
+): Promise<HelmListItem> {
+  return new Promise((resolve, reject) => {
+    findKubernetesSecret(ddClient)
+      .then((isSecretStored) => {
+        if (!isSecretStored) {
+          reject('Secret application-collection does not exist. Please refresh the authentication settings.')
+        } else {
+          const description: Description =  artifact ? 
+            {
+              message: `Upgrade from ${release.version} to ${artifact.version}`,
+              version: artifact.version as string,
+              revision: artifact.revision,
+              digest: artifact.digest.value
+            } :
+            {
+              message: `Edit version ${release.version} values`,
+              version: release.version
+            }
+
+          let stdout = ''
+          let stderr = ''
+
+          const repo = artifact ? 
+            `oci://dp.apps.rancher.io/charts/${artifact.name.split(':')[0]}` :
+            `oci://dp.apps.rancher.io/charts/${release.chart.split('-').slice(0, -1).join('-')}`
+
+          const additionalArgs: string[] = artifact ? [ '--version', artifact.version as string ] : []
+
+          ddClient.extension.host?.cli.exec('helm', [ 
+            'upgrade', release.name, repo, 
+            '-n', release.namespace,
+            ...values.flatMap(v => ['--set', v.key + '=' + v.value ]),
+            '--description', JSON.stringify(description),
+            '-o', 'json',
+            ...additionalArgs ], { 
+            stream: { 
+              onOutput: (installResult) => {
+                if (installResult.stdout) {
+                  stdout += installResult.stdout
+                } else {
+                  stderr += installResult.stderr
+                }
+              },
+              onError: (e) => {
+                console.error('Unexpected error upgrading release', e)
+                reject('Unexpected error upgrading release: ' + e.stderr)
+              },
+              onClose: (code) => {
+                if (code > 0) {
+                  console.error(`Unexpected exit code installing release [code=${code}, stderr=${stderr}, stdout=${stdout}]`)
+                  reject (stderr)
+                } else {
+                  const upgrade: HelmInstall = JSON.parse(stdout)
+                  resolve({
+                    name: upgrade.name,
+                    namespace: upgrade.namespace,
+                    status: mapStatus(upgrade.info.status),
+                    app_version: upgrade.chart.metadata.appVersion,
+                    chart: artifact ? `${artifact.name.split(':')[0]}-${artifact.version}` : release.chart,
+                    version: artifact ? artifact.version as string : release.version
+                  })
+                }
+              },
+            }
+          })
+        }
+      })
+  })
+}
+
+export async function uninstallHelmChart(ddClient: DockerDesktopClient, name: string, namespace: string = 'default'): Promise<void> {
+  return new Promise((resolve, reject) => {
+    ddClient.extension.host?.cli.exec('helm', [
+      'uninstall', name,
+      '-n', namespace,
+      '--wait'])
+      .then(() => {
+        resolve()
+      })
+      .catch(e => {
+        console.error(`Unexpected exception uninstalling relese [name=${name}, namespace=${namespace}]`, e)
+        reject('Unexpected exception uninstalling relese')
+      })
+  })
+}
+
+
+================================================
+FILE: ui/src/clients/kubectl.ts
+================================================
+import { DockerDesktopClient } from '@docker/extension-api-client-types/dist/v1'
+import { V1Service } from '@kubernetes/client-node'
+
+export async function checkKubernetes(ddClient: DockerDesktopClient): Promise<void> {
+  await ddClient.extension.host?.cli.exec('kubectl', [
+    'get', 'nodes'
+  ])
+}
+
+export async function kubernetesLogout(ddClient: DockerDesktopClient): Promise<void> {
+  await ddClient.extension.host?.cli.exec('kubectl', [
+    'delete', 'secret', 'application-collection',
+    '--wait'
+  ])
+}
+  
+export async function kubernetesLogin(ddClient: DockerDesktopClient, username: string, token: string): Promise<void> {
+  await ddClient.extension.host?.cli.exec('kubectl', [
+    'create', 'secret', 'docker-registry', 'application-collection',
+    '--docker-server', 'dp.apps.rancher.io',
+    '--docker-username', username,
+    '--docker-password', token
+  ])
+}
+
+type KubernetesResult = {
+  metadata: {
+    name: string
+  }
+}
+
+export async function findKubernetesSecret(ddClient: DockerDesktopClient): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    ddClient.extension.host?.cli.exec('kubectl', [
+      'get', 'secret', 'application-collection',
+      '-o', 'json'])
+      .then(getResult => {
+        const get: KubernetesResult = JSON.parse(getResult?.stdout)
+        resolve(get.metadata.name === 'application-collection')
+      })
+      .catch((e) => {
+        console.error('Unexpected error checking if application-collection secret exists', e)
+        resolve(false)
+      })
+  })
+}
+
+export async function getServices(ddClient: DockerDesktopClient, selectors: { key: string, value: string }[], namespace: string = 'default'): Promise<V1Service[]> {
+  return new Promise<V1Service[]>((resolve, reject) => {
+    ddClient.extension.host?.cli.exec('kubectl', [
+      'get', '-n', namespace, 'services', ...selectors.flatMap(({ key, value }) => ['-l', `${key}=${value}`]),
+      '-o', 'json'])
+      .then(getResult => {
+        const get: any = JSON.parse(getResult?.stdout)
+        resolve(get.items as V1Service[])
+      })
+      .catch((e) => {
+        reject('Unexpected error getting services')
+      })
+  })
+}
+
+export async function getContexts(ddClient: DockerDesktopClient): Promise<{ name: string, selected?: boolean }[]> {
+  return new Promise<{ name: string, selected?: boolean }[]>((resolve, reject) => {
+    ddClient.extension.host?.cli.exec('kubectl', [
+      'config', 'current-context'
+    ])
+      .then(currentContextResult => {
+        const selectedContext: string = currentContextResult.stdout.replace('\n', '')
+        ddClient.extension.host?.cli.exec('kubectl', [
+          'config', 'get-contexts',
+          '-o', 'name'
+        ])
+          .then(contextsResult => {
+            const contexts: string[] = contextsResult?.stdout.split('\n')
+            resolve(contexts.slice(0, contexts.length - 1).map(name => { return { name, selected: name == selectedContext } }))
+          })
+          .catch((e) => {
+            console.error('Unexpected error getting k8s contexts', e)
+            reject('Unexpected error reading kubernetes contexts')
+          })
+      })
+      .catch((e) => {
+        console.error('Unexpected error getting current k8s context', e)
+        reject('Unexpected error reading current kubernetes context')
+      })
+  })
+}
+
+export async function useContext(ddClient: DockerDesktopClient, context: string): Promise<void> {
+  await ddClient.extension.host?.cli.exec('kubectl', [
+    'config', 'use-context', context
+  ])
+}
+
+
+
+================================================
+FILE: ui/src/clients/util.ts
+================================================
+import { ArtifactCreateDTOPackagingFormatEnum, ArtifactDTO, ArtifactListItemReducedDTO } from '../../autogenerated/client/backend'
+import semver from 'semver'
+
+export function sortArtifacts(a: ArtifactListItemReducedDTO | ArtifactDTO, b: ArtifactListItemReducedDTO | ArtifactDTO): number {
+  const [ versionA, flavorA, revisionA ] = a.packaging_format === ArtifactCreateDTOPackagingFormatEnum.Rpm ? getRPMVersionFlavorRevision(a) : getOCIVersionFlavorRevision(a)
+  const [ versionB, flavorB, revisionB ] = b.packaging_format === ArtifactCreateDTOPackagingFormatEnum.Rpm ? getRPMVersionFlavorRevision(b) : getOCIVersionFlavorRevision(b)
+  
+  let diff = sort(versionA, flavorA, revisionA, versionB, flavorB, revisionB)
+  
+  if (diff === undefined) {
+    console.error(`Cannot compare artifact names ${a.name} and ${b.name}, will return registration date comparison`)
+    diff = new Date(a.registered_at).getTime() - new Date(b.registered_at).getTime()
+  }
+  
+  if (diff == 0 && a.architecture && b.architecture) {
+    diff =a.architecture.localeCompare(b.architecture)
+  }
+    
+  return diff
+}
+
+function getRPMVersionFlavorRevision(rpm: ArtifactListItemReducedDTO): string[] {
+  let chunks = rpm.name.split('-')
+  const version = rpm.version || chunks[chunks.length - 2]
+  const flavor = rpm.flavor || ''
+  const revision = rpm.revision
+
+  return [ version, flavor, revision ]
+}
+
+function getOCIVersionFlavorRevision(oci: ArtifactListItemReducedDTO): string[] {
+  const chunks = oci.name.split(':')[1].split('-')
+  const revision = `0.${oci.revision}`
+  const flavor = oci.flavor || ''
+  const version = oci.version || chunks.slice(0, chunks.indexOf(flavor || revision)).join('-')
+
+  return [ version, flavor, revision ]
+}
+
+
+function sort(versionA: string, flavorA: string, revisionA: string, versionB: string, flavorB: string, revisionB: string): number | undefined {
+  let diff: number | undefined = undefined
+
+  diff = compareVersions(versionA, versionB)
+
+  if (diff == 0 && revisionA && revisionB) {
+    diff = compareVersions(revisionA, revisionB)
+  }
+
+  if (diff == 0) {
+    if (flavorA === '' && flavorB !== '') {
+      diff = 1
+    } else if (flavorB === '' && flavorA !== '') {
+      diff = -1
+    } else {
+      diff = flavorA.localeCompare(flavorB)
+    }
+  }
+
+  return diff
+}
+
+export function compareVersions(a: string, b: string): number {
+  if (semver.valid(a) && semver.valid(b)) {
+    return semver.compare(a, b)
+  } else {
+    return rpmCompare(a, b)
+  }
+}
+
+function rpmCompare(a: string, b: string): number {
+  const coordsA = a.split('.')
+  const coordsB = b.split('.')
+
+  const diff = coordsA.reduce((res, current, i) => {
+    if (res === 0) {
+      if (i < coordsB.length) {
+        const aAsInt = parseInt(current)
+        const bAsInt = parseInt(coordsB[i])
+
+        if (!isNaN(aAsInt) && !isNaN(bAsInt)) {
+          return aAsInt - bAsInt
+        }
+        
+        return current.localeCompare(coordsB[i])
+      } else {
+        return 1
+      }
+    }
+
+    return res
+  }, 0)
+
+  if (diff == 0 && coordsA.length < coordsB.length) {
+    return  -1
+  }
+
+  return diff
+}
+
+
+
+================================================
+FILE: ui/src/components/Modal.tsx
+================================================
+import { Card, Modal as MuiModal, Typography } from '@mui/material'
+
+type ModalProps = { 
+  title: string, 
+  subtitle: string, 
+  children: React.ReactNode, 
+  open: boolean, 
+  onClose: () => any, 
+  onSubmit?: () => any 
+}
+
+export default function Modal(props: ModalProps) {
+  return <MuiModal
+    open={ props.open }
+    onClose={ props.onClose }
+    sx={ { '& .MuiBackdrop-root': { background: 'radial-gradient(ellipse, rgba(0,0,0,0.2) 25%, rgba(0,0,0,0) 75%)' } } }>
+    <Card
+      component='form'
+      sx={
+        {
+          position: 'absolute',
+          top: '50%',
+          left: '49%',
+          transform: 'translate(-50%, -50%)',
+          width: '80%',
+          maxHeight: '80%',
+          overflowY: 'auto',
+          p: 3,
+        }
+      }
+      onSubmit={ (e) => {
+        e.preventDefault()
+        if (props.onSubmit) props.onSubmit()
+      } }>
+      <Typography variant='h3' gutterBottom>{ props.title }</Typography>
+      <Typography variant='h5' sx={ { mb: 2 } }>{ props.subtitle }</Typography>
+      { props.children }
+    </Card>
+  </MuiModal>
+}
+
+
+================================================
+FILE: ui/src/components/GitBranch/GitBranch.tsx
+================================================
+import GitBranchSVG from './git-branch.svg?react'
+import { SvgIcon, SvgIconProps } from '@mui/material'
+
+export default function GitBranch(props: SvgIconProps) {
+  return <SvgIcon { ...props } component={ GitBranchSVG } inheritViewBox />
+}
+
+
+
+================================================
+FILE: ui/src/components/Helm/EditDialog.tsx
+================================================
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, IconButton, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import { ChangeEvent, useEffect, useRef, useState } from 'react'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { AddCircleOutline, ContentCopy, ExpandMore, RemoveCircleOutline } from '@mui/icons-material'
+import { parse } from 'yaml'
+import { editHelmChart, HelmListItem } from '../../clients/helm'
+import Modal from '../Modal'
+
+const ddClient = createDockerDesktopClient()
+
+export default function EditDialog({ workload, open, onSubmit = () => null, onClose = () => null }: 
+{ workload: HelmListItem, open: boolean, onSubmit?: (result: HelmListItem) => any, onError?: (e: any) => any, onClose?: () => any }) {
+  const [ values, setValues ] = useState<{ key: string, value: string }[]>([])
+  const [ currentValue, setCurrentValue ] = useState<{ key?: string, value?: string }>()
+  const [ error, setError ] = useState<string>()
+  const [ state, setState ] = useState<'ready' | 'updating' | 'error'>('ready')
+
+  const appName = workload.chart.split('-').slice(0, -1).join('-')
+
+  function upgrade() {
+    setState('updating')
+    editHelmChart(ddClient, workload, values)
+      .then(result => {
+        onSubmit(result)
+        setState('ready')
+      })
+      .catch(e => {
+        setState('error')
+        setError(e)
+      })
+  }
+
+  if (error) {
+    return (
+      <Modal
+        title='Error'
+        subtitle='There was an unexpected error updating the application'
+        open={ open }
+        onClose={ onClose }>
+        <Box sx={ { p: 2, background: 'rgba(125, 125, 125, 0.1)' } }>
+          { 
+            error.split('\n')
+              .filter(line => line)
+              .map((line, i) => <Typography key={ `error-line-${i}` } variant='code' component='p'>&gt; { line }</Typography>) 
+          }
+        </Box>
+        <Stack direction='row' justifyContent='space-between' sx={ { mt: 2 } }>
+          <Button 
+            color='inherit'
+            onClick={ () => setError(undefined) }
+            sx={ { mt: 1 } }>Go back</Button>
+          <Button 
+            color='error'
+            onClick={ () => {
+              setError(undefined)
+              close()
+            } }
+            sx={ { mt: 1 } }>Cancel update</Button>
+        </Stack>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal
+      title={ `Edit ${ workload.name }` }
+      subtitle='Set Helm Chart values manually or through a YAML file'
+      open={ open }
+      onClose={ onClose }
+      onSubmit={ upgrade }>
+      { 
+        values.map((v, i) => <Stack key={ `value-${i}` } direction='row' alignItems='center' spacing={ 2 } sx={ { mt: 2 } }>
+          <TextField 
+            onChange={ (e) => setValues(values.map((v, j) => i == j ? { key: e.target.value, value: v.value } : v)) }
+            value={ v.key }
+            size='small'
+            sx={ { flexGrow: 1 } } />
+          <TextField 
+            onChange={ (e) => setValues(values.map((v, j) => i == j ? { key: v.key, value: e.target.value } : v)) }
+            value={ v.value }
+            size='small'
+            sx={ { flexGrow: 1 } } />
+          <IconButton onClick={ () => setValues(values.filter((v, j) => j !== i)) }>
+            <RemoveCircleOutline />
+          </IconButton>
+        </Stack>) }
+      <Stack 
+        direction='row' 
+        alignItems='center' 
+        spacing={ 2 }
+        sx={ { my: 2 } }>
+        <TextField 
+          placeholder='Key'
+          value={ currentValue?.key || '' }
+          size='small'
+          onChange={ (e) => setCurrentValue({ ...currentValue, key: e.target.value }) }
+          sx={ { flexGrow: 1 } } />
+        <TextField 
+          placeholder='Value'
+          value={ currentValue?.value || '' }
+          size='small'
+          onChange={ (e) => setCurrentValue({ ...currentValue, value: e.target.value }) }
+          sx={ { flexGrow: 1 } } />
+        <IconButton onClick={ () => {
+          if (currentValue?.key && currentValue.value) setValues([ ...values, (currentValue as { key: string, value: string }) ]) 
+          setCurrentValue({})
+        } }>
+          <AddCircleOutline />
+        </IconButton>
+      </Stack>
+      <Stack direction='row' alignItems='center' flexWrap='wrap' rowGap={ 2 } sx={ { overflowX: 'hidden', pt: '1px' } }>
+        <FilePicker onSelect={ newValues => setValues([...values, ...newValues]) } />
+      </Stack>
+      <Accordion sx={ { mt: 2, boxShadow: 'none', '::before': { content: 'unset' } } }>
+        <AccordionSummary expandIcon={ <ExpandMore /> } sx={ { p: 0, m: 0 } }>
+          <Stack>
+            <Typography variant='h4'>Need help?</Typography>
+            <Typography variant='h5'>Run this command to get the chart's values</Typography>
+          </Stack>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack direction='row' alignItems='center' justifyContent='space-between' sx={ { background: 'rgba(0, 0, 0, 0.1)', p: 1 } }>
+            <Typography variant='code'>helm show values oci://dp.apps.rancher.io/charts/{ appName } --version { workload.version }</Typography>
+            <Tooltip title='Copy'>
+              <IconButton onClick={ () => navigator.clipboard.writeText(`helm show values oci://dp.apps.rancher.io/charts/${ appName } --version ${ workload.version }`) } size='small'>
+                <ContentCopy />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+      <Stack direction='row' justifyContent='space-between' sx={ { mt: 2 } }>
+        <Button 
+          color='inherit'
+          onClick={ onClose }
+          disabled={ state === 'updating' }>Cancel</Button>
+        {
+          state === 'updating' ? 
+            <Button 
+              type='submit'
+              variant='contained'
+              color='inherit'
+              disabled>Updating...</Button> : 
+            <Button 
+              type='submit'
+              variant='contained'
+              disabled={ values.length === 0 }>Update</Button>
+        }
+      </Stack>
+    </Modal>
+  )
+}
+
+function FilePicker({ onSelect = () => null }: { onSelect?: (values: { key: string, value: string }[]) => any }) {
+  const fileInputRef = useRef<any>(null)
+  const [ helperText, setHelperText ] = useState('No file selected')
+  const [ error, setError ] = useState<string>()
+
+  useEffect(() => {
+    if (fileInputRef.current && fileInputRef.current.value) {
+      const file = fileInputRef.current.value
+      setHelperText(file.replace('C:\\fakepath\\', ''))
+    }
+  }, [])
+
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files?.length > 0) {
+      const file = e.target.files[0]
+      setHelperText(file.name)
+
+      if (file.type === 'application/x-yaml' || file.type === 'text/yaml') {
+        const reader = new FileReader()
+  
+        reader.onload = function(event: ProgressEvent<FileReader>) {
+          if (event && event.target) {
+            const yaml = parse(event.target.result as string)
+            const flattened: { [key: string]: string } = flatten(yaml)
+            onSelect(Object.keys(flattened).map(k => { return { key: k, value: flattened[k] } }))
+            setError(undefined)
+          }
+        }
+
+        reader.onerror = function() {
+          setError('Invalid values file')
+        }
+      
+        reader.readAsText(file)
+      } else {
+        setError('Selected file is not a YAML')
+      }
+    }
+  }
+
+  function flatten(data: any) {
+    let result: any = {}
+
+    function recurse(cur: any, prop: any) {
+      if (Object(cur) !== cur) {
+        result[prop] = cur
+      } else if (Array.isArray(cur)) {
+
+        for(let i = 0, l = cur.length; i < l; i++) {
+          recurse(cur[i], prop + '[' + i + ']')
+          if (l == 0) result[prop] = []
+        }
+
+      } else {
+        let isEmpty = true
+
+        for (let p in cur) {
+          isEmpty = false
+          recurse(cur[p], prop ? prop+'.'+p : p)
+        }
+
+        if (isEmpty && prop) result[prop] = {}
+      }
+    }
+
+    recurse(data, '')
+
+    return result
+  }
+
+  return (
+    <Stack direction='row' alignItems='center' gap={ 2 }>
+      <input type='file' accept='application/x-yaml' name='values' ref={ fileInputRef } onChange={ onFileChange } hidden />
+      <Button variant='outlined' size='small' onClick={ () => fileInputRef && fileInputRef.current.click() } sx={ { minWidth: 'fit-content' } }>Upload values YAML</Button>
+      <Typography 
+        variant='body2' 
+        color={ error ? 'error' : 'text.primary' }
+        sx={ { 
+          whiteSpace: 'nowrap', 
+          textOverflow: 'ellipsis', 
+          overflow: 'hidden', 
+          width: { xs: '100%', md: '300px' } } 
+        }>
+        { error ? error : helperText }
+      </Typography>
+    </Stack>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/components/Helm/FilePicker.tsx
+================================================
+import { Stack, Button, Typography } from '@mui/material'
+import { useRef, useState, useEffect, ChangeEvent } from 'react'
+import { parse } from 'yaml'
+
+export default function FilePicker({ onSelect = () => null, }: 
+{ onSelect?: (values: { key: string, value: string }[]) => any }) {
+  const fileInputRef = useRef<any>(null)
+  const [ helperText, setHelperText ] = useState('No file selected')
+  const [ error, setError ] = useState<string>()
+
+  useEffect(() => {
+    if (fileInputRef.current && fileInputRef.current.value) {
+      const file = fileInputRef.current.value
+      setHelperText(file.replace('C:\\fakepath\\', ''))
+    }
+  }, [])
+
+  function onFileChange(e: ChangeEvent<HTMLInputElement>) {
+    if (e.target.files && e.target.files?.length > 0) {
+      const file = e.target.files[0]
+      setHelperText(file.name)
+
+      if (file.type === 'application/x-yaml' || file.type === 'text/yaml') {
+        const reader = new FileReader()
+  
+        reader.onload = function(event: ProgressEvent<FileReader>) {
+          if (event && event.target) {
+            const yaml = parse(event.target.result as string)
+            const flattened: { [key: string]: string } = flatten(yaml)
+            onSelect(Object.keys(flattened).map(k => { return { key: k, value: flattened[k] } }))
+            setError(undefined)
+          }
+        }
+
+        reader.onerror = function() {
+          setError('Invalid values file')
+        }
+      
+        reader.readAsText(file)
+      } else {
+        setError('Selected file is not a YAML')
+      }
+    }
+  }
+
+  function flatten(data: any) {
+    let result: any = {}
+
+    function recurse(cur: any, prop: any) {
+      if (Object(cur) !== cur) {
+        result[prop] = cur
+      } else if (Array.isArray(cur)) {
+
+        for(let i = 0, l = cur.length; i < l; i++) {
+          recurse(cur[i], prop + '[' + i + ']')
+          if (l == 0) result[prop] = []
+        }
+
+      } else {
+        let isEmpty = true
+
+        for (let p in cur) {
+          isEmpty = false
+          recurse(cur[p], prop ? prop+'.'+p : p)
+        }
+
+        if (isEmpty && prop) result[prop] = {}
+      }
+    }
+
+    recurse(data, '')
+
+    return result
+  }
+
+  return (
+    <Stack direction='row' alignItems='center' gap={ 2 }>
+      <input type='file' accept='application/x-yaml' name='values' ref={ fileInputRef } onChange={ onFileChange } hidden />
+      <Button variant='outlined' size='small' onClick={ () => fileInputRef && fileInputRef.current.click() } sx={ { minWidth: 'fit-content' } }>Upload values YAML</Button>
+      <Typography 
+        variant='body2' 
+        color={ error ? 'error' : 'text.primary' }
+        sx={ { 
+          whiteSpace: 'nowrap', 
+          textOverflow: 'ellipsis', 
+          overflow: 'hidden', 
+          width: { xs: '100%', md: '300px' } } 
+        }>
+        { error ? error : helperText }
+      </Typography>
+    </Stack>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/components/Helm/InstallDialog.tsx
+================================================
+import { Accordion, AccordionDetails, AccordionSummary, Alert, Button, IconButton, Skeleton, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import { useEffect, useState } from 'react'
+import { ArtifactDTO, ArtifactListItemReducedDTO } from '../../../autogenerated/client/backend'
+import { installHelmChart } from '../../clients/helm'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { AddCircleOutline, ContentCopy, ExpandMore, RemoveCircleOutline } from '@mui/icons-material'
+import Modal from '../Modal'
+import FilePicker from './FilePicker'
+import { Notification, useNotificationsCenterOpenDispatch, useNotificationsDispatch } from '../NotificationsCenter/NotificationsContext'
+import { v4 as uuid } from 'uuid'
+import { checkDocker } from '../../clients/docker'
+import { checkKubernetes } from '../../clients/kubectl'
+
+const ddClient = createDockerDesktopClient()
+
+export default function InstallDialog({ branch, artifact, version, open, onSubmit = () => null, onClose = () => null }: 
+{ branch: string, artifact: ArtifactListItemReducedDTO | ArtifactDTO, version: string, open: boolean, onSubmit?: () => any, onClose?: () => any }) {
+  const [ values, setValues ] = useState<{ key: string, value: string }[]>([])
+  const [ currentValue, setCurrentValue ] = useState<{ key?: string, value?: string }>()
+  const [ state, setState ] = useState<'loading' | 'ready' | 'installing' | 'error'>()
+  const [ error, setError ] = useState<string>()
+  
+  const notificationsDispatch = useNotificationsDispatch()
+  const notificationsCenterOpenDispatch = useNotificationsCenterOpenDispatch()
+
+  useEffect(() => {
+    if (open && values.length === 0) {
+      setState('loading')
+      ddClient.extension.vm?.service?.get(`/charts/${artifact.name.split(':')[0]}/${artifact.version}/local-values`)
+        .then((response: any) => {
+          const localValues: { key: string, value: string }[] = response.data ? response.data.values : response.values
+          if (localValues.length > 0) {
+            setValues(localValues)
+          } else {
+            setValues([ { key: 'global.imagePullSecrets[0].name', value: 'application-collection' } ])
+          }
+        })
+        .catch(err => {
+          console.error('Unexpected error fetching chart local deployment values', err)
+          setError('Unexpected error fetching chart local deployment values.')
+        })
+        .finally(() => setState('ready'))
+    }
+  }, [open, artifact])
+
+  function install() {
+    setState('installing')
+    const notification: Notification = {
+      id: uuid(),
+      title: 'Installing ' + artifact.name,
+      description: 'Installation ongoing in the background',
+      type: 'progress',
+      dismissed: false,
+      timestamp: new Date().getTime()
+    }
+
+    checkDocker(ddClient)
+      .then(() => checkKubernetes(ddClient)
+        .then(() => {
+          installHelmChart(ddClient, branch, artifact, version, values)
+            .then(result => notificationsDispatch({
+              type: 'update',
+              payload: {
+                ...notification,
+                title: 'Installed ' + artifact.name,
+                description: 'Successfully installed release ' + result.name,
+                type: 'success',
+                dismissed: false,
+                timestamp: new Date().getTime(),
+                actionText: 'View details',
+                href: `/workloads/${result.name}`
+              }
+            }))
+            .catch((error) => notificationsDispatch({
+              type: 'update',
+              payload: {
+                ...notification,
+                title: 'Error installing ' + artifact.name,
+                description: error,
+                type: 'error',
+                dismissed: false,
+                timestamp: new Date().getTime()
+              }
+            }))
+
+          notificationsDispatch({
+            type: 'add',
+            payload: notification
+          })
+          setState('ready')
+          onSubmit()
+          notificationsCenterOpenDispatch(true)
+        })
+        .catch(e => {
+          console.error('Error checking kubernetes existence', e)
+          setError('Error with kubernetes, make sure the cluster is up and reachable')
+          setState('error')
+        }))
+      .catch(e => {
+        console.error('Error checking docker engine is running', e)
+        setError('Error with docker engine, make sure it is running')
+        setState('error')
+      })
+  }
+
+  function LoadingForm() {
+    return (
+      <>
+        <Skeleton height='244px' variant='rectangular' sx={ { mt: 2 } } />
+        <Skeleton height='28px' width='300px' variant='rectangular' sx={ { mt: 2 } } />
+        <Skeleton height='68px' variant='rectangular'sx={ { mt: 2 } } />
+        <Stack direction='row' alignItems='space-between' sx={ { mt: 2 } }>
+          <Skeleton height='33px' width='78px' variant='rectangular' sx={ { mt: 1 } } />
+          <Skeleton height='33px' width='78px' variant='rectangular' sx={ { mt: 1 } } />
+        </Stack>
+      </>
+    )
+  }
+
+  if (state === 'loading') {
+    return (
+      <Modal
+        title='Configure installation'
+        subtitle='Set Helm Chart values manually or through a YAML file'
+        open={ open }
+        onClose={ onClose }>
+        <LoadingForm />
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal
+      title='Configure installation'
+      subtitle='Set Helm Chart values manually or through a YAML file'
+      open={ open }
+      onClose={ onClose }
+      onSubmit={ install }>
+      {
+        state === 'error' && 
+        <Alert severity='error' icon={ false } sx={ { mt: 2 } }>
+          <Typography>{ error }</Typography>
+        </Alert>
+      }
+      { 
+        values.map((v, i) => 
+          <Stack key={ `value-${i}` } direction='row' alignItems='center' spacing={ 2 } sx={ { mt: 2 } }>
+            <TextField 
+              onChange={ (e) => setValues(values.map((v, j) => i == j ? { key: e.target.value, value: v.value } : v)) }
+              value={ v.key }
+              size='small'
+              sx={ { flexGrow: 1 } } />
+            <TextField 
+              onChange={ (e) => setValues(values.map((v, j) => i == j ? { key: v.key, value: e.target.value } : v)) }
+              value={ v.value }
+              size='small'
+              sx={ { flexGrow: 1 } } />
+            <IconButton onClick={ () => setValues(values.filter((v, j) => j !== i)) }>
+              <RemoveCircleOutline />
+            </IconButton>
+          </Stack>) 
+      }
+      <Stack 
+        direction='row' 
+        alignItems='center' 
+        spacing={ 2 }
+        sx={ { my: 2 } }>
+        <TextField 
+          placeholder='Key'
+          value={ currentValue?.key || '' }
+          size='small'
+          onChange={ (e) => setCurrentValue({ ...currentValue, key: e.target.value }) }
+          sx={ { flexGrow: 1 } } />
+        <TextField 
+          placeholder='Value'
+          value={ currentValue?.value || '' }
+          size='small'
+          onChange={ (e) => setCurrentValue({ ...currentValue, value: e.target.value }) }
+          sx={ { flexGrow: 1 } } />
+        <IconButton onClick={ () => {
+          if (currentValue?.key && currentValue.value) setValues([ ...values, (currentValue as { key: string, value: string }) ]) 
+          setCurrentValue({})
+        } }>
+          <AddCircleOutline />
+        </IconButton>
+      </Stack>
+      <Stack direction='row' alignItems='center' flexWrap='wrap' rowGap={ 2 } sx={ { overflowX: 'hidden', pt: '1px' } }>
+        <FilePicker onSelect={ newValues => setValues([...values, ...newValues]) } />
+      </Stack>
+      <Accordion sx={ { mt: 2, boxShadow: 'none', '::before': { content: 'unset' } } }>
+        <AccordionSummary expandIcon={ <ExpandMore /> } sx={ { p: 0, m: 0 } }>
+          <Stack>
+            <Typography variant='h4'>Need help?</Typography>
+            <Typography variant='h5'>Run this command to get the chart's values</Typography>
+          </Stack>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack direction='row' alignItems='center' justifyContent='space-between' sx={ { background: 'rgba(0, 0, 0, 0.1)', p: 1 } }>
+            <Typography variant='code'>helm show values oci://dp.apps.rancher.io/charts/{ artifact.name.split(':')[0] } --version { artifact.version }</Typography>
+            <Tooltip title='Copy'>
+              <IconButton onClick={ () => navigator.clipboard.writeText(`helm show values oci://dp.apps.rancher.io/charts/${ artifact.name.split(':')[0] } --version ${ artifact.version }`) } size='small'>
+                <ContentCopy />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+      <Stack direction='row' justifyContent='space-between' sx={ { mt: 2 } }>
+        <Button 
+          color='inherit'
+          onClick={ onClose }
+          disabled={ state === 'installing' }>Cancel</Button>
+        {
+          state === 'installing' ?
+            <Button 
+              type='submit'
+              variant='contained'
+              color='inherit'
+              disabled>Installing...</Button>
+            :
+            <Button 
+              type='submit'
+              variant='contained'>Install</Button>
+        }
+      </Stack>
+    </Modal>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/components/Helm/UninstallDialog.tsx
+================================================
+import { Button, Stack, TextField } from '@mui/material'
+import { useState } from 'react'
+import { uninstallHelmChart } from '../../clients/helm'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { DeleteOutline } from '@mui/icons-material'
+import Modal from '../Modal'
+
+const ddClient = createDockerDesktopClient()
+
+export default function UninstallDialog({ name, namespace, open, onSubmit = () => null, onClose = () => null }: 
+{ name: string, namespace?: string, open: boolean, onSubmit?: () => any, onClose?: () => any }) {
+  const [ submitDisabled, setSubmitDisabled ] = useState<boolean>(true)
+  const [ error, setError ] = useState<string>()
+
+  function uninstall() {
+    uninstallHelmChart(ddClient, name, namespace)
+      .then(() => onSubmit())
+      .catch(e => setError(e))
+  }
+
+  return (
+    <Modal
+      title={ `Uninstall ${ name }?` }
+      subtitle='This action CANNOT be undone, the workload will be deleted permanently'
+      open={ open }
+      onClose={ onClose }
+      onSubmit={ uninstall }>
+      <TextField 
+        fullWidth 
+        size='small'
+        label={ `Type in '${ name }' to confirm` }
+        onChange={ (e) => setSubmitDisabled(e.target.value !== name) }
+        helperText={ error?.toString() }
+        error={ error !== undefined }
+        sx={ { mt: 1 } } />
+      <Stack direction='row' justifyContent='space-between' sx={ { mt: 2 } }>
+        <Button 
+          color='inherit'
+          onClick={ onClose }>Cancel</Button>
+        <Button 
+          type='submit'
+          color='error'
+          disabled={ submitDisabled } 
+          variant='outlined'
+          startIcon={ <DeleteOutline /> }>Uninstall</Button>
+      </Stack>
+    </Modal>
+  )
+}
+
+
+================================================
+FILE: ui/src/components/Helm/UpgradeDialog.tsx
+================================================
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, IconButton, Skeleton, Stack, TextField, Tooltip, Typography } from '@mui/material'
+import { useEffect, useState } from 'react'
+import { HelmListItem, upgradeHelmChart } from '../../clients/helm'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { AddCircleOutline, ContentCopy, ExpandMore, RemoveCircleOutline } from '@mui/icons-material'
+import { ArtifactListItemReducedDTO } from '../../../autogenerated/client/backend'
+import Modal from '../Modal'
+import FilePicker from './FilePicker'
+
+const ddClient = createDockerDesktopClient()
+
+export default function UpgradeDialog({ artifact, workload, open, onSubmit = () => null, onError = () => null, onClose = () => null }: 
+{ artifact: ArtifactListItemReducedDTO, workload: HelmListItem, open: boolean, onSubmit?: (result: HelmListItem) => any, onError?: (e: any) => any, onClose?: () => any }) {
+  const [ values, setValues ] = useState<{ key: string, value: string }[]>([])
+  const [ currentValue, setCurrentValue ] = useState<{ key?: string, value?: string }>()
+  const [ error, setError ] = useState<string>()
+  const [ state, setState ] = useState<'ready' | 'loading' | 'updating' | 'error'>()
+
+  useEffect(() => {
+    if (open && values.length === 0) {
+      setState('loading')
+      ddClient.extension.vm?.service?.get(`/charts/${artifact.name.split(':')[0]}/${artifact.version}/local-values`)
+        .then((response: any) => {
+          const localValues: { key: string, value: string }[] = response.data ? response.data.values : response.values
+          if (localValues.length > 0) {
+            setValues(localValues)
+          } else {
+            setValues([ { key: 'global.imagePullSecrets[0].name', value: 'application-collection' } ])
+          }
+        })
+        .catch(err => console.error('Unexpected error fetching chart local deployment values', err))
+        .finally(() => setState('ready'))
+    }
+  }, [open])
+
+  function upgrade() {
+    setState('updating')
+    upgradeHelmChart(ddClient, workload, values, artifact)
+      .then(result => {
+        onSubmit(result)
+        setState('ready')
+      })
+      .catch(e => {
+        setState('error')
+        onError(e)
+      })
+  }
+
+  if (error) {
+    return (
+      <Modal
+        title='Error'
+        subtitle='There was an unexpected error updating the application'
+        open={ open }
+        onClose={ onClose }>
+        <Box sx={ { p: 2, background: 'rgba(125, 125, 125, 0.1)' } }>
+          { 
+            error.split('\n')
+              .filter(line => line)
+              .map((line, i) => <Typography key={ `error-line-${i}` } variant='code' component='p'>&gt; { line }</Typography>) 
+          }
+        </Box>
+        <Stack direction='row' justifyContent='space-between' sx={ { mt: 2 } }>
+          <Button 
+            color='inherit'
+            onClick={ () => setError(undefined) }
+            sx={ { mt: 1 } }>Go back</Button>
+          <Button 
+            color='error'
+            onClick={ () => {
+              setError(undefined)
+              onClose()
+            } }
+            sx={ { mt: 1 } }>Cancel installation</Button>
+        </Stack>
+      </Modal>
+    )
+  }
+
+  if (state === 'loading') {
+    return (
+      <Modal
+        title={ `Update ${ workload.name } to ${ artifact.version }` }
+        subtitle='Set Helm Chart values manually or through a YAML file'
+        open={ open }
+        onClose={ onClose }>
+        <Skeleton height='244px' variant='rounded' sx={ { mt: 2 } } />
+        <Skeleton height='28px' width='300px' variant='rounded' sx={ { mt: 2 } } />
+        <Skeleton height='68px' variant='rounded' sx={ { mt: 2 } } />
+        <Stack direction='row' alignItems='space-between' sx={ { mt: 2 } }>
+          <Skeleton height='33px' width='78px' variant='rounded' sx={ { mt: 1 } } />
+          <Skeleton height='33px' width='78px' variant='rounded' sx={ { mt: 1 } } />
+        </Stack>
+      </Modal>
+    )
+  }
+
+  return (
+    <Modal
+      title={ `Update ${ workload.name } to ${ artifact.version }` }
+      subtitle='Set Helm Chart values manually or through a YAML file'
+      open={ open }
+      onClose={ onClose }
+      onSubmit={ upgrade }>
+      { 
+        values.map((v, i) => 
+          <Stack key={ `value-${i}` } direction='row' alignItems='center' spacing={ 2 } sx={ { mt: 2 } }>
+            <TextField 
+              onChange={ (e) => setValues(values.map((v, j) => i == j ? { key: e.target.value, value: v.value } : v)) }
+              value={ v.key }
+              size='small'
+              sx={ { flexGrow: 1 } } />
+            <TextField 
+              onChange={ (e) => setValues(values.map((v, j) => i == j ? { key: v.key, value: e.target.value } : v)) }
+              value={ v.value }
+              size='small'
+              sx={ { flexGrow: 1 } } />
+            <IconButton onClick={ () => setValues(values.filter((v, j) => j !== i)) }>
+              <RemoveCircleOutline />
+            </IconButton>
+          </Stack>) 
+      }
+      <Stack 
+        direction='row' 
+        alignItems='center' 
+        spacing={ 2 }
+        sx={ { my: 2 } }>
+        <TextField 
+          placeholder='Key'
+          value={ currentValue?.key || '' }
+          size='small'
+          onChange={ (e) => setCurrentValue({ ...currentValue, key: e.target.value }) }
+          sx={ { flexGrow: 1 } } />
+        <TextField 
+          placeholder='Value'
+          value={ currentValue?.value || '' }
+          size='small'
+          onChange={ (e) => setCurrentValue({ ...currentValue, value: e.target.value }) }
+          sx={ { flexGrow: 1 } } />
+        <IconButton onClick={ () => {
+          if (currentValue?.key && currentValue.value) setValues([ ...values, (currentValue as { key: string, value: string }) ]) 
+          setCurrentValue({})
+        } }>
+          <AddCircleOutline />
+        </IconButton>
+      </Stack>
+      <Stack direction='row' alignItems='center' flexWrap='wrap' rowGap={ 2 } sx={ { overflowX: 'hidden', pt: '1px' } }>
+        <FilePicker onSelect={ newValues => setValues([...values, ...newValues]) } />
+      </Stack>
+      <Accordion sx={ { mt: 2, boxShadow: 'none', '::before': { content: 'unset' } } }>
+        <AccordionSummary expandIcon={ <ExpandMore /> } sx={ { p: 0, m: 0 } }>
+          <Stack>
+            <Typography variant='h4'>Need help?</Typography>
+            <Typography variant='h5'>Run this command to get the chart's values</Typography>
+          </Stack>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Stack direction='row' alignItems='center' justifyContent='space-between' sx={ { background: 'rgba(0, 0, 0, 0.1)', p: 1 } }>
+            <Typography variant='code'>helm show values oci://dp.apps.rancher.io/charts/{ artifact.name.split(':')[0] } --version { artifact.version }</Typography>
+            <Tooltip title='Copy'>
+              <IconButton onClick={ () => navigator.clipboard.writeText(`helm show values oci://dp.apps.rancher.io/charts/${ artifact.name.split(':')[0] } --version ${ artifact.version }`) } size='small'>
+                <ContentCopy />
+              </IconButton>
+            </Tooltip>
+          </Stack>
+        </AccordionDetails>
+      </Accordion>
+      <Stack direction='row' justifyContent='space-between' sx={ { mt: 2 } }>
+        <Button 
+          color='inherit'
+          onClick={ onClose }
+          sx={ { mt: 1 } }
+          disabled={ state === 'updating' }>Cancel</Button>
+        {
+          state === 'updating' ? 
+            <Button 
+              type='submit'
+              variant='contained'
+              color='inherit'
+              disabled
+              sx={ { mt: 1 } }>Updating...</Button> : 
+            <Button 
+              type='submit'
+              variant='contained'
+              sx={ { mt: 1 } }>Update</Button>
+        }
+      </Stack>
+    </Modal>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/components/NotificationsCenter/index.tsx
+================================================
+import { useNotificationsContext, useNotificationsDispatch } from './NotificationsContext'
+import NotificationItem from './NotificationItem'
+import { Button, Drawer, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { useState } from 'react'
+import { useLocation } from 'react-router-dom'
+
+
+export default function NotificationsCenter({ id, open, onClose }: { id?: string, open: boolean, onClose: () => any }) {
+  const location = useLocation()
+
+  const notifications = useNotificationsContext()
+  const dispatch = useNotificationsDispatch()
+
+  const [ filter, setFilter ] = useState<'all' | 'unread'>('all')
+
+  function handleFilterToggle(newFilter: any) {
+    if (newFilter != null) {
+      setFilter(newFilter)
+    }
+  }
+
+  function markAllRead() {
+    notifications.filter(n => !n.dismissed)
+      .forEach(n => dispatch({ type: 'dismiss', payload: n }))
+  }
+
+  return (
+    <Drawer
+      id={ id }
+      anchor='right'
+      open={ open }
+      onClose={ onClose }
+      slotProps={ {
+        paper:{
+          sx: {
+            p: 1,
+            overflow: 'scroll'
+          }
+        }
+      } }>
+      <Stack
+        direction='row'
+        justifyContent='space-between'
+        alignItems='center'
+        spacing={ 2 }
+        sx={ { p: 2, pt: 1 } }>
+        <Typography 
+          variant='h4'>
+          Notifications
+        </Typography>
+        <ToggleButtonGroup
+          color='primary'
+          value={ filter }
+          exclusive
+          onChange={ (e, newFilter) => handleFilterToggle(newFilter) }
+          aria-label='Platform'
+          size='small'>
+          <ToggleButton value='all' sx={ { py: 0 } }>
+            All
+          </ToggleButton>
+          <ToggleButton value='unread' sx={ { py: 0 } }>
+            Unread
+          </ToggleButton>
+        </ToggleButtonGroup>
+        <Button 
+          size='small'
+          onClick={ () => markAllRead() }>Mark all as read</Button>
+      </Stack>
+      <Stack 
+        spacing={ 1 }>
+        {
+          notifications.length === 0 &&
+          <Typography color='text.secondary' sx={ { p: 2 } }>You don't have notifications yet.</Typography>
+        }
+        {
+          notifications
+            .filter(n => filter === 'unread' ? !n.dismissed : n )
+            .sort((a, b) => b.timestamp - a.timestamp)
+            .map((n, i) => <NotificationItem 
+              key={ `notification-${i}` }
+              location={ location?.pathname }
+              notification={ n }
+              onClose={ onClose } />
+            )
+        }
+      </Stack>
+    </Drawer>
+  )
+}
+
+
+================================================
+FILE: ui/src/components/NotificationsCenter/NotificationsContext.tsx
+================================================
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { createContext, Dispatch, useContext, useEffect, useReducer } from 'react'
+
+export type Notification = {
+  id: string,
+  title: string,
+  description: string,
+  type: 'info' | 'progress' | 'success' | 'warning' | 'error',
+  dismissed: boolean,
+  timestamp: number,
+  href?: string,
+  actionText?: string
+}
+
+export type NotificationAction = {
+  type: 'load' | 'add' | 'dismiss' | 'undismiss' | 'delete' | 'update', 
+  payload: Notification | Notification[],
+}
+
+function notificationsReducer(notifications: Notification[], action: NotificationAction): Notification[] {
+  const ddClient = createDockerDesktopClient()
+
+  switch (action.type) {
+    case 'load': 
+      if (!Array.isArray(action.payload)) return notifications
+
+      return action.payload as Notification[]
+    case 'add':
+      if (Array.isArray(action.payload) || 
+        notifications.find(n => n.id === (action.payload as Notification).id)) {
+        return notifications
+      }
+
+      ddClient.extension.vm?.service?.post('/notifications', action.payload)
+        .catch(error => console.error(error))
+
+      return [ ...notifications, action.payload as Notification ]
+    case 'dismiss':
+      if (Array.isArray(action.payload)) return notifications
+
+      ddClient.extension.vm?.service?.put(`/notifications/${action.payload.id}`, { ...action.payload, dismissed: true })
+        .catch(error => console.error(error))
+
+      return notifications
+        .map(n => { 
+          if (n.id === (action.payload as Notification).id) {
+            return { ...n, dismissed: true }
+          }
+          
+          return n
+        })
+    case 'undismiss':
+      if (Array.isArray(action.payload)) return notifications
+
+      ddClient.extension.vm?.service?.put(`/notifications/${action.payload.id}`, { ...action.payload, dismissed: false })
+        .catch(error => console.error(error))
+
+      return notifications
+        .map(n => { 
+          if (n.id === (action.payload as Notification).id) {
+            return { ...n, dismissed: false }
+          }
+          
+          return n
+        })
+    case 'update':
+      if (Array.isArray(action.payload)) return notifications
+
+      ddClient.extension.vm?.service?.put(`/notifications/${action.payload.id}`, action.payload)
+        .catch(error => console.error(error))
+
+      return notifications
+        .map(n => { 
+          if (n.id === (action.payload as Notification).id) {
+            return Object.assign(n, action.payload)
+          }
+          
+          return n
+        })
+    case 'delete':
+      if (Array.isArray(action.payload)) return notifications
+
+      ddClient.extension.vm?.service?.delete(`/notifications/${action.payload.id}`)
+        .catch(error => console.error(error))
+      return notifications.filter(n => n !== action.payload)
+    default:
+      return notifications
+  }
+}
+
+const NotificationsContext = createContext<Notification[]>([])
+const NotificationsDispatchContext = createContext<Dispatch<NotificationAction>>(() => [])
+
+const OpenContext = createContext<boolean>(false)
+const OpenDispatchContext = createContext<Dispatch<boolean>>(() => false)
+
+export default function NotificationsProvider({ children }: { children: React.ReactNode }) {
+  const ddClient = createDockerDesktopClient()
+  const [ notifications, dispatch ] = useReducer(notificationsReducer, [])
+  const [ open, dispatchOpen ] = useReducer((_: boolean, action: boolean) => action, false)
+
+  useEffect(() => {
+    ddClient.extension.vm?.service?.get('/notifications')
+      .then((response: any) => {
+        const backendNotifications = response.data ? response.data : response
+        
+        if (backendNotifications.length === 0) {
+          const welcomeNotification: Notification = {
+            id: '-1',
+            title: 'Welcome to Application Collection extension!',
+            description: 'Go to https://docs.apps.rancher.io/ to learn how to get started.',
+            type: 'info',
+            dismissed: false,
+            timestamp: new Date().getTime()
+          }
+          dispatch({ type: 'add', payload: welcomeNotification })
+        } else {
+          dispatch({ type: 'load', payload: backendNotifications })
+        }
+      })
+      .catch(err => console.error('Unexpected error fetching notifications from backend', err))
+  }, [])
+
+  return (
+    <NotificationsContext.Provider value={ notifications }>
+      <NotificationsDispatchContext.Provider value={ dispatch }>
+        <OpenContext.Provider value={ open }>
+          <OpenDispatchContext.Provider value={ dispatchOpen }>
+            { children }
+          </OpenDispatchContext.Provider>
+        </OpenContext.Provider>
+      </NotificationsDispatchContext.Provider>
+    </NotificationsContext.Provider>
+  )
+}
+
+export function useNotificationsContext() {
+  return useContext(NotificationsContext)
+}
+
+export function useNotificationsCenterOpenContext() {
+  return useContext(OpenContext)
+}
+
+export function useNotificationsDispatch() {
+  return useContext(NotificationsDispatchContext)
+}
+
+export function useNotificationsCenterOpenDispatch() {
+  return useContext(OpenDispatchContext)
+}
+
+
+
+================================================
+FILE: ui/src/components/NotificationsCenter/NotificationItem/index.tsx
+================================================
+import { Button, Card, CardActions, CardContent, Stack, Typography } from '@mui/material'
+import { Notification, useNotificationsDispatch } from '../NotificationsContext'
+import StatusIcon from './StatusIcon'
+import moment from 'moment'
+import { useNavigate } from 'react-router-dom'
+import { NotificationsOffOutlined, NotificationsOutlined } from '@mui/icons-material'
+
+export default function NotificationItem({ notification, onClose, location }: { notification: Notification, onClose: () => void, location?: string }) {
+  const navigate = useNavigate()
+  const dispatch = useNotificationsDispatch()
+
+  function toggleNotificationState() {
+    if (notification.dismissed) {
+      dispatch({ type: 'undismiss', payload: notification })
+    } else {
+      dispatch({ type: 'dismiss', payload: notification })
+    }
+  }
+
+  return (
+    <Card
+      variant='outlined' 
+      sx={ { 
+        maxWidth: '400px', 
+        '&:hover': { borderColor: 'primary.main', boxShadow: 2 } } 
+      }>
+      <CardContent 
+        sx={ { 
+          px: 2,
+          pb: notification.href ? 0 : 2,
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+        } }>
+        <StatusIcon status={ notification.type } />
+        <Stack
+          flexGrow={ 1 }
+          direction='column'
+          overflow='hidden' >
+          <Stack
+            direction='row'
+            alignItems='start'
+            justifyContent='space-between'
+            spacing={ 2 }>
+            <Stack>
+              <Typography 
+                variant='h5' 
+                color='text.primary'
+                sx={ { my: 0 } }>
+                { notification.title }
+              </Typography>
+              <Typography 
+                variant='caption' 
+                color='text.secondary'
+                gutterBottom>
+                { moment(notification.timestamp).calendar() }
+              </Typography>
+            </Stack>
+            <Button 
+              disableRipple
+              value='dismiss'
+              size='small'
+              color={ notification.dismissed ? 'inherit' : 'primary' }
+              onClick={ () => toggleNotificationState() }
+              sx={ { 
+                opacity: notification.dismissed ? 0.5 : 1, 
+                minWidth: 0,
+                '&:hover': { backgroundColor: 'initial' } } }>
+              { notification.dismissed ?
+                <NotificationsOffOutlined fontSize='small' /> :
+                <NotificationsOutlined fontSize='small' /> 
+              }
+            </Button>
+          </Stack>
+          {
+            notification.description.split('\n')
+              .filter(line => line)
+              .map((line, i) => <Typography
+                key={ `desc-line-${i}` }
+                variant='body2'>{ line }</Typography>)
+          }
+        </Stack>
+      </CardContent>
+      {
+        notification.href && 
+          <CardActions
+            sx={ {
+              flexDirection: 'row-reverse',
+              p: 2
+            } }>
+            <Button
+              onClick={ () => {
+                if (location === notification.href) {
+                  navigate(0)
+                } else {
+                  navigate(notification.href as string)
+                }
+                dispatch({ type: 'dismiss', payload: notification })
+                onClose()
+              } }
+              variant='contained'
+              size='small'>
+              { notification.actionText }
+            </Button>
+          </CardActions>
+      }
+    </Card>
+  )
+}
+
+
+================================================
+FILE: ui/src/components/NotificationsCenter/NotificationItem/StatusIcon.tsx
+================================================
+import { CancelOutlined, CheckCircleOutline, ErrorOutline, InfoOutlined } from '@mui/icons-material'
+import { Box, CircularProgress, SvgIconProps } from '@mui/material'
+
+export default function StatusIcon({ status }: { status: 'info' | 'progress' | 'success' | 'warning' | 'error' }) {
+  const props: SvgIconProps = { sx: { fontSize: '20px', mr: 2, mt: 0.3 } }
+
+  switch (status) {
+    case 'success':
+      return <CheckCircleOutline { ...props } color='secondary' />
+    case 'warning':
+      return <ErrorOutline { ...props } color='warning' />
+    case 'error':
+      return <CancelOutlined { ...props } color='error' />
+    case 'progress':
+      return <Box sx={ { mr: 2 } }><CircularProgress size={ 20 } color='primary' /></Box>
+    case 'info':
+    default:
+      return <InfoOutlined { ...props } color='primary' />
+  }
+}
+
+
+================================================
+FILE: ui/src/pages/ApplicationDetailsPage/index.tsx
+================================================
+import { Chip, Skeleton, Stack, Typography } from '@mui/material'
+import { useAuth } from '../../AuthContext'
+import { ApplicationDTO, ApplicationDTOPackagingFormatEnum, ComponentDTO } from '../../../autogenerated/client/backend'
+import { ReactElement, useEffect, useState } from 'react'
+import { applicationsClient, componentsClient } from '../../clients/backend'
+import { Link, useLoaderData } from 'react-router-dom'
+import { AxiosError } from 'axios'
+import BranchesList from './components/BranchesList'
+import { LoadingBranchCard } from './components/BranchesList/BranchCard'
+
+export async function loader({ params }: { params: any }): Promise<string> {
+  return params.slugName
+}
+
+export default function ApplicationDetailsPage() {
+  const [ application, setApplication ] = useState<ApplicationDTO>()
+  const [ component, setComponent ] = useState<ComponentDTO>()
+  const [ error, setError ] = useState<ReactElement>()
+
+  const auth = useAuth()
+  const slugName = useLoaderData()
+
+  useEffect(() => {
+    if (auth) {
+      applicationsClient(auth).getApplication(slugName as string)
+        .then(response => {
+          if (response.status == 200) {
+            setApplication(response.data)
+          }
+        }).catch(e => {
+          console.error(`Unexpected error fetching application [slugName=${slugName}]`, e)
+          let content: ReactElement
+          if (e instanceof AxiosError && e.status == 401) {
+            content = <>Authentication failed. Go to the <Link to='/settings'>Settings page</Link> to manage the access token.</>
+          } else {
+            content = <>There was an unexpected error loading the application. Try again in a couple of minutes.</>
+          }
+          setError(content)
+        })
+      componentsClient(auth).getComponent(slugName as string)
+        .then(response => {
+          if (response.status == 200) {
+            setComponent(response.data)
+          }
+        }).catch(e => {
+          console.error(`Unexpected error fetching component [slugName=${slugName}]`, e)
+          let content: ReactElement
+          if (e instanceof AxiosError && e.status == 401) {
+            content = <>Authentication failed. Go to the <Link to='/settings'>Settings page</Link> to manage the access token.</>
+          } else {
+            content = <>There was an unexpected error loading the application. Try again in a couple of minutes.</>
+          }
+          setError(content)
+        })
+    }
+  }, [])
+
+  if (error) {
+    return <Typography color='error' sx={ { mt: 2 } }>{ error }</Typography>
+  }
+
+  if (!application || !component) {
+    return (
+      <>
+        <Stack direction='row' spacing={ 2 } alignItems='center'>
+          <Skeleton variant='circular' height={ 60 } width={ 60 } />
+          <Stack direction='column' alignItems='start'>
+            <Skeleton variant='text' height={ 30 } width={ 150 } />
+            <Skeleton variant='rounded' height={ 24 } width={ 74 } />
+          </Stack>
+        </Stack>
+        <Skeleton variant='text' height={ 20 } width='100%' sx={ { mt: 2 } } />
+        <Skeleton variant='text' height={ 20 } width='100%' />
+        <Skeleton variant='text' height={ 20 } width='50%' sx={ { mb: 2 } } />
+        <Typography variant='h3'>Manage branches</Typography>
+        <Typography variant='h5' sx={ { mb: 3 } }>Run new workloads in your cluster</Typography>
+        <Stack spacing={ 2 }>
+          <LoadingBranchCard />
+          <LoadingBranchCard />
+        </Stack>
+      </>
+    )
+  }
+
+  function humanFriendlyPackagingFormat(packagingFormat?: ApplicationDTOPackagingFormatEnum) {
+    if (packagingFormat === ApplicationDTOPackagingFormatEnum.HelmChart) return 'Helm chart'
+    if (packagingFormat === ApplicationDTOPackagingFormatEnum.Container) return 'Single container'
+    return 'Coming soon'
+  }
+
+  return (
+    <>
+      <Stack direction='row' spacing={ 2 } alignItems='center'>
+        { application.logo_url && <img src={ `https://apps.rancher.io${application.logo_url}` } alt={ `${application.name} logo` } height={ 60 } width={ 60 } style={ { height: '100%' } } /> }
+        <Stack direction='column' alignItems='start'>
+          <Typography variant='h2'>{ application.name }</Typography>
+          <Chip label={ humanFriendlyPackagingFormat(application.packaging_format) } size='small' color='primary' />
+        </Stack>
+      </Stack>
+      <Typography sx={ { my: 2 } }>{ application.description }</Typography>
+      <Typography variant='h3'>Manage branches</Typography>
+      <Typography variant='h5' sx={ { mb: 3 } }>Run new workloads in your cluster</Typography>
+      <BranchesList branches={ component.branches.filter(b => !b.inactive_at || new Date(b.inactive_at) > new Date()) } packagingFormat={ application.packaging_format } />
+    </>
+  )
+}
+
+
+================================================
+FILE: ui/src/pages/ApplicationDetailsPage/components/BranchesList/BranchCard.tsx
+================================================
+import { Card, CardActionArea, CardContent, Skeleton, Stack, Typography } from '@mui/material'
+import { ArtifactListItemReducedDTO } from '../../../../../autogenerated/client/backend'
+import { useNavigate } from 'react-router-dom'
+import moment from 'moment'
+import { AdjustOutlined, LayersOutlined, SvgIconComponent, SyncOutlined } from '@mui/icons-material'
+import GitBranch from '../../../../components/GitBranch/GitBranch'
+import { useState } from 'react'
+import HintIcon, { LoadingHintIcon } from './HintIcon'
+import InstallDialog from '../../../../components/Helm/InstallDialog'
+
+export default function BranchCard({ branch, version, artifact }: 
+{ branch: { name: string, pattern: string }, version: string, artifact: ArtifactListItemReducedDTO }) {
+  const [ installDialogOpen, setInstallDialogOpen ] = useState<boolean>(false)
+
+  const navigate = useNavigate()
+
+  function onInstall() {
+    setInstallDialogOpen(false)
+    navigate('/workloads')
+  }
+
+  return (
+    <>
+      <Card 
+        variant='outlined' 
+        sx={ { 
+          maxWidth: 'lg', 
+          '&:hover': { borderColor: 'primary.main', boxShadow: 2 } 
+        } }>
+        <CardActionArea onClick={ () => setInstallDialogOpen(true) }>
+          <CardContent>
+            <Stack direction='row' justifyContent='space-between'>
+              <Stack direction='column' alignItems='start' spacing={ 1 }>
+                <Typography variant='h4'>Version { version }</Typography>
+                <Stack direction='row' justifyContent='start' alignItems='center' spacing={ 2 }>
+                  <HintIcon tooltip='Branch' icon={ GitBranch as SvgIconComponent } text={ branch.name } />
+                  <HintIcon tooltip='Chart version' icon={ LayersOutlined } text={ `${ artifact.version }-${ artifact.revision }` } />
+                  <HintIcon tooltip='Last updated' icon={ SyncOutlined } text={ moment(artifact.registered_at).fromNow() } />
+                  <HintIcon tooltip='Short digest' icon={ AdjustOutlined } text={ artifact?.digest.value.substring(0, 7) } />
+                </Stack>
+              </Stack>
+            </Stack>
+          </CardContent>
+        </CardActionArea>
+      </Card>
+      <InstallDialog 
+        branch={ branch.name } 
+        artifact={ artifact } 
+        version={ version } 
+        open={ installDialogOpen } 
+        onSubmit={ onInstall } 
+        onClose={ () => setInstallDialogOpen(false) }/>
+    </>
+  )
+}
+
+export function LoadingBranchCard() {
+  return (
+    <Card variant='outlined' sx={ { maxWidth: 'lg' } }>
+      <CardActionArea disabled>
+        <CardContent>
+          <Stack direction='row' justifyContent='space-between'>
+            <Stack direction='column' alignItems='start' spacing={ 1 }>
+              <Skeleton variant='text' height={ 24 } width={ 97 }/>
+              <Stack direction='row' justifyContent='start' alignItems='center' spacing={ 2 }>
+                <LoadingHintIcon width={ 39 }/>
+                <LoadingHintIcon width={ 73 }/>
+                <LoadingHintIcon width={ 107 }/>
+                <LoadingHintIcon width={ 74 }/>
+              </Stack>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  )
+}
+
+
+================================================
+FILE: ui/src/pages/ApplicationDetailsPage/components/BranchesList/HintIcon.tsx
+================================================
+import { SvgIconComponent } from '@mui/icons-material'
+import { PopperProps, Tooltip, Stack, SvgIcon, Typography, Skeleton } from '@mui/material'
+
+export default function HintIcon({ tooltip, icon, text }: { tooltip: string, icon: SvgIconComponent, text: string }) {
+  const popperProps: Partial<PopperProps> = {
+    modifiers: [
+      {
+        name: 'offset',
+        options: {
+          offset: [0, -4]
+        }
+      }
+    ]
+  }
+
+  return (
+    <Tooltip title={ tooltip } slotProps={ { popper: popperProps } }>
+      <Stack direction='row' justifyContent='start' alignItems='center' spacing={ 0.5 }>
+        <SvgIcon component={ icon } fontSize='small' sx={ { color: 'text.secondary' } } />
+        <Typography color='text.secondary'>{ text }</Typography>
+      </Stack>
+    </Tooltip>
+  )
+}
+
+export function LoadingHintIcon({ width = 70 }: { width?: number }) {
+  return <Skeleton variant='text' height={ 20 } width={ width }/>
+}
+
+
+
+================================================
+FILE: ui/src/pages/ApplicationDetailsPage/components/BranchesList/index.tsx
+================================================
+import { Stack, Typography } from '@mui/material'
+import { ApplicationDTOPackagingFormatEnum, BranchDTO } from '../../../../../autogenerated/client/backend'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { sortArtifacts } from '../../../../clients/util'
+import BranchCard from './BranchCard'
+
+const ddClient = createDockerDesktopClient()
+
+export default function BranchesList({ branches, packagingFormat }: { branches: BranchDTO[], packagingFormat?: ApplicationDTOPackagingFormatEnum }) {
+  if (!packagingFormat) {
+    return <Typography>This application cannot be deployed yet</Typography>
+  }
+  
+  return (
+    <Stack spacing={ 2 }>
+      {
+        branches
+          .filter(branch => branch.versions?.find(v => v.artifacts.find(a => a.packaging_format === packagingFormat)))
+          .flatMap(branch => {
+            const version = branch.versions?.find(v => v.artifacts.sort(sortArtifacts).find(a => a.packaging_format === packagingFormat))
+            return {
+              branch: { name: branch.branch_name, pattern: branch.branch_pattern },
+              version: version?.version_number,
+              artifact: version?.artifacts.reverse().find(a => a.packaging_format === packagingFormat)
+            }
+          })
+          .filter(({ artifact }) => artifact !== undefined)
+          .map(({ branch, version, artifact }) => artifact && 
+            <BranchCard 
+              key={ artifact?.name } 
+              branch={ branch } 
+              version={ version as string } 
+              artifact={ artifact } />
+          )
+      }
+    </Stack>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/pages/ApplicationsPage/index.tsx
+================================================
+import { Stack, Typography } from '@mui/material'
+import { ReactElement, useEffect, useState } from 'react'
+import { ApplicationDTOPackagingFormatEnum, ApplicationReducedViewDTO } from '../../../autogenerated/client/backend'
+import { applicationsClient } from '../../clients/backend'
+import ApplicationCard, { ApplicationCardSkeleton } from './components/ApplicationCard'
+import { useAuth } from '../../AuthContext'
+import { InfiniteScroll } from './components/InfiniteScroll'
+import { AxiosError } from 'axios'
+import { Link } from 'react-router-dom'
+
+export default function ApplicationsPage() {
+  const [ applications, setApplications ] = useState<ApplicationReducedViewDTO[]>([])
+  const [ nextPage, setNextPage ] = useState(1)
+  const [ totalSize, setTotalSize ] = useState(0)
+  const [ error, setError ] = useState<ReactElement>()
+
+  const auth = useAuth()
+
+  useEffect(() => {
+    if (auth) {
+      applicationsClient(auth).getApplications(undefined, undefined, ApplicationDTOPackagingFormatEnum.HelmChart)
+        .then(response => {
+          if (response.status == 200) {
+            setApplications(response.data.items)
+            setNextPage(response.data.page === response.data.total_pages ? response.data.page || 0 : nextPage + 1)
+            setTotalSize(response.data.total_size || 0)
+          }
+        })
+        .catch(e => {
+          console.error('Unexpected error fetching applications', e)
+          let content
+          if (e instanceof AxiosError && e.status == 401) {
+            content = <>Authentication failed. Go to the <Link to='/settings'>Settings page</Link> to manage the access token.</>
+          } else {
+            content = 'There was an unexpected error loading the collection. Try again in a couple of minutes.'
+          }
+          setError(<Typography color='error' sx={ { mt: 2 } }>{ content }</Typography>)
+        })
+    }
+  }, [auth])
+
+  function loadAppsPage() {
+    if (auth) {
+      applicationsClient(auth).getApplications(undefined, undefined, ApplicationDTOPackagingFormatEnum.HelmChart, undefined, nextPage)
+        .then((response) => {
+          setApplications([...applications, ...response.data.items])
+          setNextPage(response.data.page === response.data.total_pages ? response.data.page || 0 : nextPage + 1)
+        })
+        .catch(e => {
+          console.error('Unexpected error fetching applications', e)
+          let content
+          if (e instanceof AxiosError && e.status == 401) {
+            content = <>Authentication failed. Go to the <Link to='/settings'>Settings page</Link> to manage the access token.</>
+          } else {
+            content = 'There was an unexpected error loading the collection. Try again in a couple of minutes.'
+          }
+          setError(<Typography color='error' sx={ { mt: 2 } }>{ content }</Typography>)
+        })
+    }
+  }
+
+  return (
+    <>
+      <Typography variant='h2'>Applications</Typography>
+      <Typography variant='h5'>Select an application to install</Typography>
+      {  
+        applications.length > 0 ? 
+          <InfiniteScroll
+            load={ loadAppsPage } 
+            hasMore={ applications.length < totalSize  } 
+            loader={ <ApplicationCardSkeleton /> } 
+            style={ { width: '100%' } }>
+            <Stack rowGap={ 3 } flexGrow={ 1 } sx={ { mt: 2, mb: 3 } }>
+              { applications.map(a => <ApplicationCard app={ a } key={ a.slug_name } />) }
+            </Stack>
+          </InfiniteScroll> :
+          <Stack rowGap={ 3 } flexGrow={ 1 } sx={ { mt: 2 } }>
+            { Array.apply(null, Array(20)).map((v, i) => <ApplicationCardSkeleton key={ `placeholder-app-${i}` } />) }
+          </Stack>
+      }
+      {
+        error
+      }
+    </>
+  )
+}
+
+
+================================================
+FILE: ui/src/pages/ApplicationsPage/components/ApplicationCard.tsx
+================================================
+import { Card, CardActionArea, CardContent, Chip, Skeleton, Stack, Typography } from '@mui/material'
+import { ApplicationDTOPackagingFormatEnum, ApplicationReducedViewDTO } from '../../../../autogenerated/client/backend'
+import moment from 'moment'
+import { Link, useLocation } from 'react-router-dom'
+
+export default function ApplicationCard({ app }: { app: ApplicationReducedViewDTO }) {
+  const { search } = useLocation()
+
+  const maxDescriptionLength = 220
+  const href = `/applications/${app.slug_name}`
+  const comingSoon = app.packaging_format === ApplicationDTOPackagingFormatEnum.Rpm || !app.packaging_format 
+
+  function humanFriendlyPackagingFormat() {
+    if (app.packaging_format === ApplicationDTOPackagingFormatEnum.HelmChart) return 'Helm chart'
+    if (app.packaging_format === ApplicationDTOPackagingFormatEnum.Container) return 'Single container'
+    return 'Coming soon'
+  }
+
+  return (
+    <Card 
+      variant='outlined' 
+      sx={ { 
+        maxWidth: 'lg', 
+        '&:hover': comingSoon ? {} : { borderColor: 'primary.main', boxShadow: 2 } } }>
+      <CardActionArea 
+        component={ Link }
+        to={ comingSoon ? '#' : `${href}${search}` } 
+        disabled={ comingSoon }>
+        <CardContent sx={ { p: 3 } }>
+          <Stack direction={ { xs: 'column', sm: 'row' } } alignItems={ { xs: 'start', sm: 'center' } } flexWrap='wrap' rowGap={ 2 } >
+            <Stack direction='row' spacing={ 2 } flexGrow='1' alignItems='center' sx={ { mr: 2 } }>
+              { app.logo_url && <img src={ `https://apps.rancher.io${app.logo_url}` } alt={ `${app.name} logo` } height={ 46 } width={ 46 } style={ { height: '100%' } } /> }
+              <Stack direction='column'>
+                <Typography variant='h3'>{ app.name }</Typography>
+                <Typography variant='caption'>Last updated { moment(app.last_updated_at).fromNow() }</Typography>
+              </Stack>
+            </Stack>
+            <Chip label={ humanFriendlyPackagingFormat() } size='small' color={ comingSoon ? 'default' : 'primary' } />
+          </Stack>
+          <Typography 
+            variant='body2' 
+            sx={ { mt: 2 } }>
+            { app.description.length > maxDescriptionLength ? `${app.description.slice(0, app.description.slice(0, maxDescriptionLength).lastIndexOf(' '))}...` : app.description }
+          </Typography>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  )
+}
+
+export function ApplicationCardSkeleton() {
+  return (
+    <Card 
+      variant='outlined' 
+      sx={ { maxWidth: 'lg' } }>
+      <CardActionArea href='#' disabled>
+        <CardContent sx={ { p: 3 } }>
+          <Stack direction={ { xs: 'column', sm: 'row' } } alignItems={ { xs: 'start', sm: 'center' } } flexWrap='wrap' rowGap={ 2 } >
+            <Stack direction='row' spacing={ 2 } flexGrow='1' alignItems='center' sx={ { mr: 2 } }>
+              <Skeleton variant='circular' height={ 46 } width={ 46 } /> 
+              <Stack direction='column'>
+                <Skeleton variant='text' width={ 130 } height={ 26 } />
+                <Skeleton variant='text' width={ 130 } height={ 18 } />
+              </Stack>
+            </Stack>
+            <Skeleton variant='rounded' height={ 24 } width={ 73 } /> 
+          </Stack>
+          <Skeleton height={ 20 } width='100%' sx={ { mt: 2 } } />
+          <Skeleton height={ 20 } width='75%' />
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/pages/ApplicationsPage/components/InfiniteScroll.tsx
+================================================
+import { CSSProperties, useCallback, useEffect, useRef } from 'react'
+
+interface InfiniteScrollProps {
+  load: () => void;
+  hasMore: boolean;
+  loader: React.ReactNode;
+  children?: React.ReactNode;
+  endMessage?: React.ReactNode;
+  style?: CSSProperties
+}
+  
+export const InfiniteScroll: React.FC<InfiniteScrollProps> = ({
+  load,
+  hasMore,
+  loader,
+  children,
+  endMessage,
+  style
+}) => {
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  
+  const handleIntersect = useCallback(
+    (
+      entries: IntersectionObserverEntry[],
+      observer: IntersectionObserver
+    ) => {
+      // Check if the sentinel element is intersecting, and if so, call the load function
+      if (entries[0].isIntersecting && hasMore) {
+        load()
+      }
+    },
+    [load, hasMore]
+  )
+  
+  useEffect(() => {
+    // Create a new IntersectionObserver when the component mounts
+    observerRef.current = new IntersectionObserver(handleIntersect, {
+      root: null,
+      rootMargin: '150px',
+      threshold: 1,
+    })
+  
+    // Attach the observer to the sentinel element
+    if (sentinelRef.current) {
+      observerRef.current.observe(sentinelRef.current)
+    }
+  
+    // Clean up the observer when the component unmounts
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+      }
+    }
+  }, [load, handleIntersect])
+  
+  useEffect(() => {
+    // When the hasMore prop changes, disconnect the previous observer and reattach it to the new sentinel element
+    if (observerRef.current && sentinelRef.current) {
+      observerRef.current.disconnect()
+      observerRef.current.observe(sentinelRef.current)
+    }
+  }, [hasMore])
+  
+  return (
+    <div style={ style }>
+      { children }
+      <div ref={ sentinelRef }>{ hasMore && loader }</div>
+      { !hasMore && endMessage }
+    </div>
+  )
+}
+
+
+================================================
+FILE: ui/src/pages/SettingsPage/index.tsx
+================================================
+import { Alert, CircularProgress, FormControl, InputLabel, MenuItem, Select, Stack, Typography } from '@mui/material'
+import AuthenticationForm from './components/AuthenticationForm'
+import { useEffect, useState } from 'react'
+import { getContexts, useContext } from '../../clients/kubectl'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+
+const ddClient = createDockerDesktopClient()
+
+export default function SettingsPage() {
+  return (
+    <>
+      <Typography variant='h3'>Authentication</Typography>
+      <Typography variant='h5' sx={ { mb: 3 } }>Used to navigate and install the collection</Typography>
+      <AuthenticationForm />
+      <Typography variant='h3' sx={ { mt: 3 } }>Kubernetes</Typography>
+      <Typography variant='h5' sx={ { mb: 3 } }>Configure the cluster where workloads will be installed</Typography>
+      <K8sContextForm />
+    </>
+  )
+}
+
+function K8sContextForm() {
+  const [ state, setState ] = useState<'loading' | 'ready' | 'error'>()
+  const [ contexts, setContexts ] = useState<{ name: string, selected?: boolean }[]>([])
+  const [ error, setError ] = useState<string>()
+
+  useEffect(() => {
+    setState('loading')
+    getContexts(ddClient)
+      .then(newContexts => setContexts(newContexts))
+      .catch(error => setError(error))
+      .finally(() => setState('ready'))
+  }, [])
+
+  function switchContext(newContext: string) {
+    setState('loading')
+    useContext(ddClient, newContext)
+      .then(() => setContexts(contexts.map(ctx => { return { name: ctx.name, selected: ctx.name === newContext } })))
+      .catch(error => setError(error))
+      .finally(() => setState('ready'))
+  }
+
+  return (
+    <Stack direction='row' alignItems='center' spacing={ 3 }>
+      <FormControl 
+        fullWidth 
+        disabled={ state === 'loading' }
+        size='small'
+        sx={ { maxWidth: '50%' } } >
+        <InputLabel id='k8s-context-label'>Context</InputLabel>
+        <Select
+          labelId='k8s-context-label'
+          id='k8s-context'
+          value={ contexts.find(ctx => ctx.selected)?.name || '' }
+          label='Context'
+          onChange={ e => switchContext(e.target.value) }>
+          { contexts.map((ctx, i) => 
+            <MenuItem 
+              key={ `k8s-context-${i}` } 
+              value={ ctx.name }>
+              { ctx.name }
+            </MenuItem>) }
+        </Select>
+      </FormControl>
+      { 
+        state === 'loading' && 
+        <CircularProgress size={ 21 } /> 
+      }
+      { 
+        state === 'error' &&
+        <Alert severity='error' icon={ false }>
+          <Typography>{ error }</Typography>
+        </Alert>
+      }
+    </Stack>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/pages/SettingsPage/components/AuthenticationForm.tsx
+================================================
+import { useState } from 'react'
+import { useAuth, useAuthDispatch } from '../../../AuthContext'
+import { dockerLogin, dockerLogout } from '../../../clients/docker'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { kubernetesLogin, kubernetesLogout } from '../../../clients/kubectl'
+import { helmLogin, helmLogout } from '../../../clients/helm'
+import { Alert, Box, Button, Card, CardContent, CircularProgress, FormControl, IconButton, InputAdornment, InputLabel, List, ListItem, ListItemText, OutlinedInput, Stack, TextField, Typography } from '@mui/material'
+import { Check, Visibility, VisibilityOff } from '@mui/icons-material'
+
+const ddClient = createDockerDesktopClient()
+
+export default function AuthenticationForm() {
+  const auth = useAuth()
+  const dispatch = useAuthDispatch()
+  const [ username, setUsername ] = useState<string | undefined>(auth?.split(':')[0])
+  const [ token, setToken ] = useState<string | undefined>(auth?.split(':')[1])
+  const [ state, setState ] = useState<'loading' | 'saved' | 'error'>()
+  const [ error, setError ] = useState<string>()
+  const [ showPassword, setShowPassword ] = useState<boolean>(false)
+
+  async function saveAuth() {
+    if (username && token) {
+      const newAuth = `${username}:${token}`
+      setState('loading')
+
+      dockerLogout(ddClient)
+        .catch(e => console.error('Unexpected error running docker logout', e))
+        .finally(() => 
+          dockerLogin(ddClient, username, token)
+            .then(() => {
+              kubernetesLogout(ddClient)
+                .catch(e => console.error('Unexpected error deleting kubernetes secret', e))
+                .finally(() => {
+                  kubernetesLogin(ddClient, username, token)
+                    .then(() => {
+                      helmLogout(ddClient)
+                        .catch(e => console.error('Unexpected error running helm logout', e))
+                        .finally(() => {
+                          helmLogin(ddClient, username, token)
+                            .then(() => {
+                              new Promise<void>((resolve, reject) => {
+                                const timeout = setTimeout(() => reject(), 10000)
+                                ddClient.extension.vm?.service?.post('/user/logout', {})
+                                  .catch(() => console.error('Unexpected error commanding helm logout in backend'))
+                                  .finally(() => {
+                                    ddClient.extension.vm?.service?.post('/user/login', { username, password: token })
+                                      .then(() => {
+                                        dispatch({ 
+                                          type: 'set', 
+                                          payload: newAuth 
+                                        })
+                                        setState('saved')
+                                        setError(undefined)
+                                        clearTimeout(timeout)
+                                        resolve()
+                                      })
+                                      .catch((e) => {
+                                        console.error('Unexpected error persisting authentication in extension backend', e)
+                                        setState('error')
+                                        setError('Cannot persist the authentication in the extension backend. Make sure it is up and running')
+                                      })
+                                  })
+                              }).catch(() => {
+                                setError('Timeout connecting to extension backend. Make sure it is up and running.')
+                                setState('error')
+                              })
+                            })
+                            .catch(e => {
+                              console.error('Unexpected error running helm registry login', e)
+                              setState('error')
+                              setError('Error running helm registry login, make sure you can reach dp.apps.rancher.io')
+                            })
+                        })
+                    })
+                    .catch(e => {
+                      console.error('Unexpected error creating kubernetes secret', e)
+                      setState('error')
+                      setError('Error creating kubernetes secret, make sure the cluster is up and reachable')
+                    })
+                })
+            })
+            .catch(e => {
+              console.error('Unexpected error running docker login', e)
+              if (e.stderr.includes('401 Unauthorized')) {
+                setError('Invalid authentication pair')
+              } else {
+                setError('Error running docker login, make sure the daemon is started')
+              }
+              setState('error')
+            })
+        )
+        
+    }
+  }
+
+  return (
+    <>
+      <Stack direction='row' alignItems='top'>
+        <TextField 
+          label='Username'
+          helperText='Example: foo@bar.com'
+          value={ username?.toString() || '' }
+          variant='outlined'
+          size='small'
+          error={ state === 'error' }
+          onChange={ evt => setUsername(evt.target.value as string) }
+          sx={ { mr: 2 } } />
+        <FormControl 
+          variant='outlined' 
+          size='small'
+          sx={ { mr: 2 } } >
+          <InputLabel htmlFor='access-token'>Access Token</InputLabel>
+          <OutlinedInput
+            id='access-token'
+            type={ showPassword ? 'text' : 'password' }
+            label='Access Token'
+            value={ token?.toString() || '' }
+            error={ state === 'error' }
+            onChange={ evt => setToken(evt.target.value as string) }
+            endAdornment={
+              <InputAdornment position='end'>
+                <IconButton
+                  aria-label='toggle password visibility'
+                  onClick={ () => setShowPassword((show) => !show) }
+                  onMouseDown={ e => e.preventDefault() }
+                  edge='end'>
+                  { showPassword ? <VisibilityOff /> : <Visibility /> }
+                </IconButton>
+              </InputAdornment>
+            }
+          />
+        </FormControl>
+        <Button 
+          startIcon={ state === 'loading' && <CircularProgress size={ 16 } color='inherit' /> }
+          disabled={ state === 'loading' }
+          variant='contained'
+          onClick={ saveAuth }
+          sx={ { mr: 2, height: 'fit-content' } }>
+          { state === 'loading' ? 'Saving' : 'Save credentials' }
+        </Button>
+        {
+          state === 'saved' && 
+          <Box display='flex' alignItems='start' sx={ { pt: 0.6 } }>
+            <Check color='success' /> 
+          </Box> 
+        }
+      </Stack>
+      {
+        state === 'error' &&
+        <Alert severity='error' icon={ false } sx={ { mt: 3 } }>
+          <Typography>{ error }</Typography>
+        </Alert>
+      }
+      <Card sx={ { mt: 3 } } variant='outlined'>
+        <CardContent>
+          <Typography>The following will be configured automatically:</Typography>
+          <List sx={ { width: '100%' } }>
+            <ListItem sx={ { alignItems: 'end' } }>
+              <ListItemText 
+                primary='Docker'
+                secondary='For pulling and installing container images' />
+              <Typography variant='code' color='text.secondary' sx={ { mb: 0.75 } }>docker login</Typography>
+            </ListItem>
+            <ListItem sx={ { alignItems: 'end' } }>
+              <ListItemText
+                primary='Helm'
+                secondary='For pulling and installing Helm Charts' />
+              <Typography variant='code' color='text.secondary' sx={ { mb: 0.75 } }>helm registry login</Typography>
+            </ListItem>
+            <ListItem sx={ { alignItems: 'end' } }>
+              <ListItemText
+                primary='kubectl'
+                secondary='For running kubernetes workloads' />
+              <Typography variant='code' color='text.secondary' sx={ { mb: 0.75 } }>kubectl create secret</Typography>
+            </ListItem>
+          </List>
+        </CardContent>
+      </Card>
+    </>
+  )
+}
+
+
+================================================
+FILE: ui/src/pages/WorkloadDetailsPage/index.tsx
+================================================
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import { Alert, Box, Button, Card, Grid, Skeleton, Stack, Tooltip, Typography } from '@mui/material'
+import { Link, useLoaderData, useNavigate } from 'react-router-dom'
+import { findRelease, HelmListItem, HelmReleaseDetails } from '../../clients/helm'
+import { ChangeCircleOutlined, Delete, EditOutlined, HomeOutlined, LanOutlined, SyncOutlined, Upgrade } from '@mui/icons-material'
+import moment from 'moment'
+import StatusIcon from '../WorkloadsPage/components/StatusIcon'
+import { useEffect, useState } from 'react'
+import { ArtifactListItemReducedDTO, ArtifactListItemReducedDTOPackagingFormatEnum, BranchDTO } from '../../../autogenerated/client/backend'
+import { useAuth } from '../../AuthContext'
+import { componentsClient } from '../../clients/backend'
+import { compareVersions } from '../../clients/util'
+import HistoryTimeLine from './components/HistoryTimeLine'
+import { getServices } from '../../clients/kubectl'
+import { V1ServicePort, V1ServiceSpec } from '@kubernetes/client-node'
+import UpgradeDialog from '../../components/Helm/UpgradeDialog'
+import UninstallDialog from '../../components/Helm/UninstallDialog'
+import EditDialog from '../../components/Helm/EditDialog'
+
+type PortMapping = {
+  targetPort: number;
+  nodePort: number;
+  protocol: string;
+}
+
+const ddClient = createDockerDesktopClient()
+
+export async function loader({ params }: { params: any }): Promise<HelmReleaseDetails | null> {
+  try {
+    return await findRelease(ddClient, params.name)
+  } catch (e) {
+    return null
+  }
+}
+
+export default function WorkloadDetailsPage() {
+  const [ release, setRelease ] = useState<HelmReleaseDetails | null>(useLoaderData() as any)
+  const [ portMappings, setPortMappings ] = useState<PortMapping[]>([])
+  const [ update, setUpdate ] = useState<ArtifactListItemReducedDTO | null>()
+  const [ editDialogOpen, setEditDialogOpen ] = useState<boolean>(false)
+  const [ updateDialogOpen, setUpdateDialogOpen ] = useState<boolean>(false)
+  const [ deleteDialogOpen, setDeleteDialogOpen ] = useState<boolean>(false)
+
+  const navigate = useNavigate()
+  const auth = useAuth()
+
+  useEffect(() => {
+    function appSlugName(name: string): string {
+      const chunks = name.split('-')
+      return chunks.filter((chunk, i) => i < chunks.length - 1).join('-')
+    }
+
+    if (release) {
+      getServices(ddClient, [{ key: 'app.kubernetes.io/instance', value: release.name }], release.namespace)
+        .then(chartServices => {
+          const mappings: PortMapping[] = chartServices
+            .filter(s => s.spec && s.spec.type === 'NodePort' && s.spec.ports)
+            .flatMap(nodePort => ((nodePort.spec as V1ServiceSpec).ports as V1ServicePort[])
+              .flatMap(port => {
+                return {
+                  targetPort: port.targetPort as number,
+                  nodePort: port.nodePort as number,
+                  protocol: port.protocol as string
+                }
+              })
+            )
+        
+          setPortMappings(mappings)
+        })
+    
+      componentsClient(auth || null).getComponent(appSlugName(release.name))
+        .then(response => {
+          const component = response.data
+
+          const currentBranch = component.branches.find(branch => release.app_version.match(new RegExp(branch.branch_pattern))) as BranchDTO
+          const newVersion = currentBranch.versions?.find(version => compareVersions(version.version_number, release.app_version) > 0 &&
+          version.artifacts.find(artifact => artifact.packaging_format === ArtifactListItemReducedDTOPackagingFormatEnum.HelmChart))
+            ?.artifacts.find(artifact => artifact.packaging_format === ArtifactListItemReducedDTOPackagingFormatEnum.HelmChart)
+        
+          if (newVersion) {
+            setUpdate(newVersion)
+          } else {
+            const newBranch = component.branches.find(branch => branch !== currentBranch && 
+          branch.versions && 
+          branch.versions.length > 0 && 
+          branch.versions.find(version => compareVersions(version.version_number, release.app_version) > 0))
+            const newBranchVersion = newBranch?.versions?.flatMap(version => version.artifacts)
+              .find(artifact => artifact.packaging_format === ArtifactListItemReducedDTOPackagingFormatEnum.HelmChart)
+        
+            if (newBranchVersion) {
+              setUpdate(newBranchVersion)
+            } else {
+              setUpdate(null)
+            }
+          }
+        })
+        .catch((e) => console.error('Unexpected error fetching component data', e))
+    }
+  }, [release])
+  
+  function onUpdate(newRelease: HelmListItem) {
+    setUpdate(undefined)
+    if (release) {
+      findRelease(ddClient, release.name)
+        .then(details => setRelease(details))
+    }
+  }
+
+  function onDelete() {
+    navigate(-1)
+  }
+
+  if (!release) {
+    return <>
+      <Typography variant='h2' gutterBottom>Workload not found!</Typography>
+      <Typography gutterBottom>This release does no longer exist. Maybe it lives in a different kubernetes context or you deleted it at some point.</Typography>
+      <Typography>Click <Link to='/workloads'>here</Link> to go back.</Typography>
+    </>
+  }
+
+
+  return <>
+    <Stack direction='row' alignItems='start' justifyContent='space-between'>
+      <Stack>
+        <Stack direction='row' alignItems='center' spacing={ 2 }>
+          <Typography variant='h2'>{ release.name }</Typography>
+          <StatusIcon status={ release.status } />
+          { update && <Tooltip title='Update available'><ChangeCircleOutlined color='primary' /></Tooltip> }
+        </Stack>
+        <Stack direction='row' spacing={ 2 } sx={ { mt: 1 } }>
+          <Tooltip title='Namespace'>
+            <Stack direction='row' alignItems='center' spacing={ 0.75 }>
+              <HomeOutlined fontSize='small' />
+              <Typography color='text.secondary'>{ release.namespace }</Typography>
+            </Stack>
+          </Tooltip>
+          <Tooltip
+            title='Last updated'
+            slotProps={ { 
+              popper:{
+                modifiers: [
+                  {
+                    name: 'offset',
+                    options: { offset: [0, -4] }
+                  }
+                ]
+              }
+            } }>
+            <Stack direction='row' alignItems='center' justifyContent='start' spacing={ 0.5 }>
+              <SyncOutlined fontSize='small' sx={ { color: 'text.secondary' } } />
+              <Typography color='text.secondary'>{ moment(release.history[release.history.length-1].updated).fromNow() }</Typography>
+            </Stack>
+          </Tooltip>
+        </Stack>
+      </Stack>
+      <Button variant='outlined' startIcon={ <EditOutlined /> } onClick={ () => setEditDialogOpen(true) }>Edit</Button>
+    </Stack>
+    {
+      release.history[release.history.length - 1].status === 'failed' && 
+      <Alert severity='error' sx={ { mt: 3 } } icon={ false }>
+        <Typography>{ release.history[release.history.length - 1].description }</Typography>
+      </Alert>
+    }
+    <Grid container rowSpacing={ 3 } columnSpacing={ 2 } sx={ { mt: 2 } }>
+      <Grid size={ { xs: 6 } }>
+        <Stack direction='row' spacing={ 1 }>
+          <Typography color='text.secondary'>Chart name: </Typography>
+          <Typography>{ release.chart }</Typography>
+        </Stack>
+        <Stack direction='row' spacing={ 1 }>
+          <Typography color='text.secondary'>Chart version: </Typography>
+          <Typography>{ release.version }</Typography>
+        </Stack>
+        <Stack direction='row' spacing={ 1 }>
+          <Typography color='text.secondary'>App version: </Typography>
+          <Typography>{ release.app_version }</Typography>
+        </Stack>
+      </Grid>
+      <Grid size={ { xs: 6 } }>
+        <Stack direction='row' spacing={ 1 }>
+          <Typography color='text.secondary'>Last updated: </Typography>
+          <Typography>{ moment(release.history[release.history.length - 1].updated).calendar() }</Typography>
+        </Stack>
+        <Stack direction='row' spacing={ 1 }>
+          <Typography color='text.secondary'>Namespace: </Typography>
+          <Typography>{ release.namespace }</Typography>
+        </Stack>
+        <Stack direction='row' spacing={ 1 }>
+          <Typography color='text.secondary'>Status: </Typography>
+          <Typography>{ release.status }</Typography>
+        </Stack>
+      </Grid>
+      <Grid size={ { xs: 6 } }>
+        <Card variant='outlined' sx={ { p: 2 } }>
+          <Typography variant='body1' fontWeight='500' sx={ { mb: 1 } }>Port mappings</Typography>
+          { 
+            portMappings.map((portMapping, i) => 
+              <Stack 
+                key={ `portMapping-${i}` }
+                direction='row'
+                spacing={ 0.75 }
+                alignItems='center'>
+                <LanOutlined fontSize='small' />
+                <Typography 
+                  color='text.secondary'>
+                  { portMapping.nodePort } : { portMapping.targetPort.toString().toUpperCase() } ({ portMapping.protocol })
+                </Typography>
+              </Stack>
+            ) 
+          }
+        </Card>
+      </Grid>
+    </Grid>
+    <HistoryTimeLine history={ release.history } />
+    <Box
+      sx={ {
+        mt: 2,
+        p: 2, 
+        background: 'rgba(125, 125, 125, 0.1)',
+        overflow: 'auto'
+      } }>
+      {
+        release.notes ? 
+          release.notes.split('\n')
+            .filter(line => line)
+            .map((line, i) => 
+              <Typography key={ `notes-line-${i}` } variant='code' component='p' whiteSpace='nowrap'>{ line }</Typography>) :
+          <Typography variant='code' component='p' whiteSpace='nowrap'>This workload does not have a NOTES.txt</Typography>
+      }
+    </Box>
+    <Stack direction='row' justifyContent='space-between' spacing={ 2 } sx={ { mt: 3 } }>
+      <Button color='error' variant='text' startIcon={ <Delete /> } onClick={ () => setDeleteDialogOpen(true) }>Delete</Button>
+      { update === undefined ?
+        <Skeleton variant='rounded' width={ 102 }  height={ 32 } /> : 
+        update && <Button color='primary' variant='contained' startIcon={ <Upgrade /> } onClick={ () => setUpdateDialogOpen(true) }>Update</Button> }
+    </Stack>
+    { update && <UpgradeDialog 
+      artifact={ update }
+      workload={ release }
+      open={ updateDialogOpen }
+      onSubmit={ (result) => {
+        onUpdate(result) 
+        setUpdateDialogOpen(false)
+      } }
+      onClose={ () => setUpdateDialogOpen(false) } /> }
+    <EditDialog 
+      workload={ release }
+      open={ editDialogOpen }
+      onSubmit={ (result) => {
+        onUpdate(result)
+        setEditDialogOpen(false)
+      } }
+      onClose={ () => setEditDialogOpen(false) } />
+    <UninstallDialog 
+      name={ release.name }
+      namespace={ release.namespace }
+      open={ deleteDialogOpen }
+      onSubmit={ () => {
+        onDelete()
+        setDeleteDialogOpen(false)
+      } }
+      onClose={ () => setDeleteDialogOpen(false) } />
+  </>
+}
+
+
+
+================================================
+FILE: ui/src/pages/WorkloadDetailsPage/components/HistoryTimeLine.tsx
+================================================
+import { ExpandMore } from '@mui/icons-material'
+import { TimelineItem, TimelineOppositeContent, TimelineSeparator, TimelineConnector, TimelineContent, Timeline } from '@mui/lab'
+import { Accordion, AccordionSummary, Stack, Typography, AccordionDetails } from '@mui/material'
+import moment from 'moment'
+import { HelmHistoryItem, mapStatus } from '../../../clients/helm'
+import StatusIcon from '../../WorkloadsPage/components/StatusIcon'
+
+export default function HistoryTimeLine({ history }: { history: HelmHistoryItem[] }) {
+  function parseDescription(description: string): string {
+    try {
+      const json = JSON.parse(description)
+      if (json.message) return json.message
+    } catch (e) {
+      // no-op
+    }
+
+    return description
+  }
+
+  return (
+    <Accordion disableGutters elevation={ 0 } sx={ { mt: 2, '&::before': { display: 'none' } } }>
+      <AccordionSummary expandIcon={ <ExpandMore /> }>
+        <Stack>
+          <Typography variant='h4'>History</Typography>
+          { 
+            history.find(h => h.status === 'failed') ? 
+              <Typography color='error'>{ `${history.filter(h => h.status === 'failed').length} error${history.filter(h => h.status === 'failed').length > 1 ? 's' : ''}` }</Typography> :
+              <Typography color='text.secondary'>{ history.length } revisions</Typography>
+          }
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails sx={ { borderTop: '1px solid lightgray', p: 0 , pt: 2 } }>
+        <Timeline sx={ { p: 0, m: 0, mb: 1 } }>
+          {
+            history.map((entry, i) => <TimelineItem key={ `history-${i}` } sx={ { minHeight: i < history.length - 1 ? '40px' : 'auto' } }>
+              <TimelineOppositeContent sx={ { width: '125px', maxWidth: '125px', p: 0, pr: 2 } }>{ moment(entry.updated).format('DD/MM/YY HH:mm:ss') }</TimelineOppositeContent>
+              <TimelineSeparator>
+                <StatusIcon status={ mapStatus(entry.status) } />
+                { i < history.length - 1 && <TimelineConnector sx={ { my: 0.5 } } /> }
+              </TimelineSeparator>
+              <TimelineContent  sx={ { p: 0, pl: 2 } }>{ parseDescription(entry.description) }</TimelineContent>
+            </TimelineItem>)
+          }
+        </Timeline>
+      </AccordionDetails>
+    </Accordion>
+  )
+}
+
+
+================================================
+FILE: ui/src/pages/WorkloadsPage/index.tsx
+================================================
+import { Button, CircularProgress, Stack, Typography } from '@mui/material'
+import { findAllHelmCharts } from '../../clients/helm'
+import { ReactElement, useEffect, useState } from 'react'
+import { createDockerDesktopClient } from '@docker/extension-api-client'
+import WorkloadCard, { LoadingWorkloadCard, Workload } from './components/WorkloadCard'
+import { checkKubernetes, getServices } from '../../clients/kubectl'
+import { V1ServicePort, V1ServiceSpec } from '@kubernetes/client-node'
+import { useAuth } from '../../AuthContext'
+import { componentsClient } from '../../clients/backend'
+import { ArtifactListItemReducedDTO, ArtifactListItemReducedDTOPackagingFormatEnum, BranchDTO, ComponentDTO } from '../../../autogenerated/client/backend'
+import { compareVersions } from '../../clients/util'
+import { checkDocker } from '../../clients/docker'
+import { Link } from 'react-router-dom'
+
+const ddClient = createDockerDesktopClient()
+
+export default function WorkloadsPage() {
+  const [ state, setState ] = useState<'loading' | 'ready' | 'error' | 'updating'>('loading')
+  const [ workloads, setWorkloads ] = useState<Workload[]>([])
+  const [ updates, setUpdates ] = useState<{ workload: string, updateVersion?: ArtifactListItemReducedDTO, updateBranchVersion?: ArtifactListItemReducedDTO }[]>()
+  const [ error, setError ] = useState<string>()
+
+  const auth = useAuth()
+
+  function fetchData() {
+    checkDocker(ddClient)
+      .then(() => checkKubernetes(ddClient)
+        .then(async () => {
+          try {
+            const charts = await findAllHelmCharts(ddClient)
+            const workloads = await Promise.all<Promise<Workload>[]>(charts.map(async (chart) => {
+
+              const chartPortMappings: {
+                targetPort: number,
+                nodePort: number,
+                protocol: string
+              }[] = []
+
+              try {
+                const chartServices = await getServices(ddClient, [{ key: 'app.kubernetes.io/instance', value: chart.name }], chart.namespace)
+
+                chartServices
+                  .filter(s => s.spec && s.spec.type === 'NodePort' && s.spec.ports)
+                  .forEach(nodePort => ((nodePort.spec as V1ServiceSpec).ports as V1ServicePort[])
+                    .forEach(port => {
+                      chartPortMappings.push({
+                        targetPort: port.targetPort as number,
+                        nodePort: port.nodePort as number,
+                        protocol: port.protocol as string
+                      })
+                    })
+                  )
+              } catch (e) {
+                console.error(`Unexpected error getting helm chart services [name=${chart.name}]`, e)
+              }
+              return { 
+                ...chart, 
+                portMappings: chartPortMappings
+              }
+            }))
+
+            setWorkloads(workloads)
+            setState('ready')
+          } catch (e) {
+            setError(`There was an unexpected error listing the helm releases: ${ e }`)
+            setState('error')
+          }
+        })
+        .catch(e => {
+          console.error('Error checking kubernetes existence', e)
+          setError('Error with kubernetes, make sure the cluster is up and reachable')
+          setState('error')
+        }))
+      .catch(e => {
+        console.error('Error checking docker engine is running', e)
+        setError('Error with docker engine, make sure it is running')
+        setState('error')
+      })
+  }
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  useEffect(() => {
+    function appSlugName(name: string): string {
+      const chunks = name.split('-')
+      return chunks.filter((chunk, i) => i < chunks.length - 1).join('-')
+    }
+
+    async function checkForUpdates() {
+      const components = await Promise.all(workloads
+        .map(workload => appSlugName(workload.name))
+        .reduce((acc, curr) => acc.includes(curr) ? acc : [...acc, curr], new Array<string>())
+        .flatMap(async (appName) => {
+          const response = await componentsClient(auth || null).getComponent(appName)
+          return response.data
+        }))
+
+      const workloadsWithUpdates = workloads.map(workload => {
+        const component = components.find(component => component.slug_name === appSlugName(workload.name)) as ComponentDTO
+
+        const currentBranch = component.branches.find(branch => workload.app_version.match(new RegExp(branch.branch_pattern))) as BranchDTO
+        const updateVersion = currentBranch.versions?.find(version => compareVersions(version.version_number, workload.app_version) > 0 &&
+          version.artifacts.find(artifact => artifact.packaging_format === ArtifactListItemReducedDTOPackagingFormatEnum.HelmChart))
+          ?.artifacts.find(artifact => artifact.packaging_format === ArtifactListItemReducedDTOPackagingFormatEnum.HelmChart)
+        
+        const higherBranch = component.branches.find(branch => branch !== currentBranch && 
+          branch.versions && 
+          branch.versions.length > 0 && 
+          branch.versions.find(version => compareVersions(version.version_number, workload.app_version) > 0))
+        const updateBranchVersion = higherBranch?.versions?.flatMap(version => version.artifacts)
+          .find(artifact => artifact.packaging_format === ArtifactListItemReducedDTOPackagingFormatEnum.HelmChart)
+        
+        return {
+          workload: workload.name,
+          updateBranchVersion: updateBranchVersion,
+          updateVersion: updateVersion
+        }
+      })
+
+      setUpdates(workloadsWithUpdates)
+    }
+
+    if (workloads.length > 0) checkForUpdates()
+  }, [workloads])
+
+  return (
+    <>
+      <Typography variant='h2'>Workloads</Typography>
+      <Typography variant='h5'>Manage the applications installed through the extension</Typography>
+      <Stack direction='column' spacing={ 2 } sx={ { mt: 2 } }>
+        { 
+          state === 'loading' && 
+          <>
+            <LoadingWorkloadCard />
+            <LoadingWorkloadCard />
+            <LoadingWorkloadCard />
+          </>
+        }
+        { 
+          (state === 'ready' || state === 'updating') && workloads.length > 0 && 
+          workloads.map(workload => <WorkloadCard 
+            key={ workload.name } 
+            workload={ workload } 
+            updateVersion={ updates ? updates.find(u => u.workload === workload.name)?.updateVersion || null : undefined }
+            updateBranchVersion={ updates ? updates.find(u => u.workload === workload.name)?.updateBranchVersion || null : undefined } />) 
+        }
+        {
+          state === 'ready' && workloads.length === 0 &&
+          <Typography variant='body2'>There is no nothing running yet. Select an application from the <Link to='/'>collection</Link>, and click on the run button to install it.</Typography>
+        }
+        { 
+          state === 'error' && 
+          <Typography variant='body2'>{ error }</Typography>
+        }
+        <Button 
+          sx={ { alignSelf: 'center', width: 'fit-content' } } 
+          startIcon={ state === 'updating' && <CircularProgress size={ 16 } color='inherit' /> }
+          disabled={ state === 'updating' || state === 'loading' }
+          onClick={ () => {
+            setState('updating')
+            fetchData()
+          } }>
+          Click to reload
+        </Button>
+      </Stack>
+    </>
+  )
+}
+
+
+
+================================================
+FILE: ui/src/pages/WorkloadsPage/components/StatusIcon.tsx
+================================================
+import { CheckCircleOutline, HighlightOffOutlined, DownloadingOutlined } from '@mui/icons-material'
+import { Tooltip } from '@mui/material'
+import { WorkloadStatus } from '../../../clients/helm'
+
+export default function StatusIcon({ status }: { status: WorkloadStatus }) {
+  switch (status) {
+    case WorkloadStatus.Running:
+      return <Tooltip title='Running'>
+        <CheckCircleOutline color='secondary' />
+      </Tooltip>
+    case WorkloadStatus.Error:
+      return <Tooltip title='Error'>
+        <HighlightOffOutlined color='error' />
+      </Tooltip>
+    case WorkloadStatus.Loading:
+      return <Tooltip title='Installing'>
+        <DownloadingOutlined />
+      </Tooltip>
+    default:
+      return <></>
+  }
+}
+
+
+================================================
+FILE: ui/src/pages/WorkloadsPage/components/WorkloadCard.tsx
+================================================
+import { Card, CardContent, Stack, Skeleton, Typography, Tooltip, CardActionArea } from '@mui/material'
+import { HelmListItem } from '../../../clients/helm'
+import { ArtifactListItemReducedDTO } from '../../../../autogenerated/client/backend'
+import { Link } from 'react-router-dom'
+import StatusIcon from './StatusIcon'
+import { ChangeCircleOutlined, HomeOutlined, LanOutlined } from '@mui/icons-material'
+
+export type Workload = HelmListItem & {
+  portMappings: {
+    targetPort: number,
+    nodePort: number,
+    protocol: string
+  }[],
+}
+
+export default function WorkloadCard({ workload, updateVersion, updateBranchVersion }: 
+{ workload: Workload, updateVersion?: ArtifactListItemReducedDTO | null, updateBranchVersion?: ArtifactListItemReducedDTO | null }) {
+  
+  return (
+    <Card
+      variant='outlined'
+      sx={ { 
+        maxWidth: 'lg', 
+        '&:hover': { borderColor: 'primary.main', boxShadow: 2 } } }>
+      <CardActionArea 
+        component={ Link }
+        to={ `/workloads/${workload.name}` }>
+        <CardContent sx={ { p: 3 } }>
+          <Stack direction='row' justifyContent='space-between' alignItems='start'>
+            <Stack direction='row' alignItems='center'>
+              <Typography variant='h4'>{ workload.name }</Typography>
+            </Stack>
+            <Stack direction='row' spacing={ 1 }>
+              { (updateVersion || updateBranchVersion) && 
+                <Tooltip title='Update available'>
+                  <ChangeCircleOutlined color='primary' />
+                </Tooltip>
+              }
+              <StatusIcon status={ workload.status } />
+            </Stack>
+          </Stack>
+          <Stack
+            direction='row'
+            spacing={ 2 }
+            sx={ { mt: 1 } }>
+            <Tooltip title='Namespace'>
+              <Stack 
+                direction='row'
+                spacing={ 0.75 }
+                alignItems='center'>
+                <HomeOutlined 
+                  fontSize='small' />
+                <Typography 
+                  color='text.secondary'>
+                  { workload.namespace }
+                </Typography>
+              </Stack>
+            </Tooltip>
+            { 
+              workload.portMappings.map((portMapping, i) => 
+                <Tooltip 
+                  key={ `${workload.name}-portMapping-${i}` }
+                  title='Port mapping'>
+                  <Stack 
+                    direction='row'
+                    spacing={ 0.75 }
+                    alignItems='center'>
+                    <LanOutlined fontSize='small' />
+                    <Typography 
+                      color='text.secondary'>
+                      { portMapping.nodePort } : { portMapping.targetPort.toString().toUpperCase() } ({ portMapping.protocol })
+                    </Typography>
+                  </Stack>
+                </Tooltip>
+              ) 
+            }
+          </Stack>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  )
+}
+
+export function LoadingWorkloadCard({}) {
+  return (
+    <Card
+      variant='outlined'
+      sx={ { 
+        maxWidth: 'lg', 
+      } }>
+      <CardActionArea 
+        disabled>
+        <CardContent sx={ { p: 3 } }>
+          <Stack direction='row' justifyContent='space-between' alignItems='start'>
+            <Stack direction='row' alignItems='center'>
+              <Skeleton width={ 210 } height={ 24 }  />
+            </Stack>
+            <Stack direction='row' spacing={ 1 }>
+              <Skeleton variant='circular' width={ 21 } height={ 21 } />
+            </Stack>
+          </Stack>
+          <Stack
+            direction='row'
+            spacing={ 2 }
+            sx={ { mt: 1 } }>
+            <Tooltip title='Namespace'>
+              <Stack 
+                direction='row'
+                spacing={ 0.75 }
+                alignItems='center'>
+                <Skeleton width={ 18 } height={ 18 } />
+                <Skeleton width={ 44 } height={ 20 } />
+              </Stack>
+            </Tooltip>
+          </Stack>
+        </CardContent>
+      </CardActionArea>
+    </Card>
+  )
+}
+
+
