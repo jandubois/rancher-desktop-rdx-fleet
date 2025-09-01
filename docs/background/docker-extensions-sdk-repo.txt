@@ -1,0 +1,2292 @@
+Directory structure:
+└── docker-extensions-sdk/
+    ├── README.md
+    └── samples/
+        ├── kubernetes-sample-extension/
+        │   ├── README.md
+        │   ├── Dockerfile
+        │   ├── Makefile
+        │   ├── metadata.json
+        │   └── ui/
+        │       ├── package.json
+        │       ├── tsconfig.json
+        │       ├── public/
+        │       │   └── index.html
+        │       └── src/
+        │           ├── App.tsx
+        │           ├── index.tsx
+        │           ├── react-app-env.d.ts
+        │           └── helper/
+        │               └── kubernetes.ts
+        ├── minimal-backend/
+        │   ├── Dockerfile
+        │   ├── hello.sh
+        │   ├── Makefile
+        │   ├── metadata.json
+        │   └── client/
+        │       ├── package.json
+        │       ├── tsconfig.json
+        │       ├── public/
+        │       │   └── index.html
+        │       └── src/
+        │           ├── App.tsx
+        │           ├── index.tsx
+        │           └── react-app-env.d.ts
+        ├── minimal-docker-cli/
+        │   ├── Dockerfile
+        │   ├── Makefile
+        │   ├── metadata.json
+        │   └── client/
+        │       ├── package.json
+        │       ├── tsconfig.json
+        │       ├── public/
+        │       │   └── index.html
+        │       └── src/
+        │           ├── App.tsx
+        │           ├── index.tsx
+        │           └── react-app-env.d.ts
+        ├── minimal-frontend/
+        │   ├── Dockerfile
+        │   ├── Makefile
+        │   ├── metadata.json
+        │   └── ui/
+        │       └── index.html
+        ├── oauth-sample/
+        │   ├── README.md
+        │   ├── Dockerfile
+        │   ├── Makefile
+        │   ├── metadata.json
+        │   └── ui/
+        │       ├── index.html
+        │       ├── package.json
+        │       ├── tsconfig.json
+        │       ├── tsconfig.node.json
+        │       ├── vite.config.ts
+        │       └── src/
+        │           ├── App.tsx
+        │           ├── main.tsx
+        │           └── vite-env.d.ts
+        ├── react/
+        │   ├── Dockerfile
+        │   ├── Makefile
+        │   ├── metadata.json
+        │   └── client/
+        │       ├── package.json
+        │       ├── tsconfig.json
+        │       ├── public/
+        │       │   └── index.html
+        │       └── src/
+        │           ├── App.tsx
+        │           ├── index.tsx
+        │           └── react-app-env.d.ts
+        └── vm-service/
+            ├── docker-compose.yaml
+            ├── Dockerfile
+            ├── Makefile
+            ├── metadata.json
+            ├── ui/
+            │   └── src/
+            │       ├── index.html
+            │       └── script.js
+            └── vm/
+                ├── main.go
+                └── internal/
+                    ├── socket/
+                    │   ├── socket.go
+                    │   ├── socket_darwin.go
+                    │   ├── socket_linux.go
+                    │   ├── socket_unix.go
+                    │   ├── socket_unix_test.go
+                    │   └── socket_windows.go
+                    └── version/
+                        └── version.go
+
+================================================
+FILE: README.md
+================================================
+# Docker Extensions
+
+This repository includes the Extensions CLI and samples to create Docker Extensions.
+
+## Prerequisites
+
+To get started with Docker Extensions you will need the [latest version of Docker Desktop](https://docs.docker.com/desktop/release-notes/). The Docker extension CLI is bundled by default with Docker Desktop version 4.10.0 and higher.
+
+## Tutorials
+
+- [Create a minimal frontend extension](https://docs.docker.com/desktop/extensions-sdk/build/set-up/minimal-frontend-extension/) - a minimal Desktop Extension containing only a UI part based on HTML.
+- [Create a minimal backend extension](https://docs.docker.com/desktop/extensions-sdk/build/set-up/minimal-backend-extension/) - a Desktop Extension containing a UI part connecting to a minimal backend.
+- [Create a minimal Docker CLI extension](https://docs.docker.com/desktop/extensions-sdk/build/set-up/minimal-frontend-using-docker-cli/) - a minimal Desktop Extension containing only a UI part that invokes Docker CLI commands.
+- [Create a ReactJS-based extension](https://docs.docker.com/desktop/extensions-sdk/build/set-up/react-extension/) - a minimal Desktop Extension containing only a UI part based on ReactJS.
+
+## Extensions SDK documentation
+
+Documentation about the Extensions SDK and creating your own extensions can be found [here](https://docs.docker.com/desktop/extensions-sdk/).
+
+[Contributions](https://github.com/docker/docker.github.io/blob/master/CONTRIBUTING.md) are welcome to update/improve documentation content (see extensions SDK under [desktop/extensions-sdk folder](https://github.com/docker/docker.github.io/tree/master/desktop/extensions-sdk))
+
+## Docker Extension Model
+
+Desktop Extensions are packaged and distributed as Docker images.
+Development of extensions can be done locally without the need to push the extension to Docker Hub.
+This is described in [Extension Distribution](https://docs.docker.com/desktop/extensions-sdk/extensions/DISTRIBUTION/).
+
+The extension image must have some specific content as described in [Extension Metadata](https://docs.docker.com/desktop/extensions-sdk/extensions/METADATA/).
+
+## Developing Docker Extensions
+
+The [Extensions CLI](https://docs.docker.com/desktop/extensions-sdk/dev/usage/) is an extension development tool that can be used to manage Docker extensions.
+
+This repository contains multiple extensions, each one is defined in an individual directories at the root of the repository.
+These are Docker developed samples that are not meant to be final products.
+
+To try one of them, navigate to the directory of the extension then [use the CLI to build and install the extension](https://docs.docker.com/desktop/extensions-sdk/build/build-install/) on Docker Desktop.
+
+The [Quickstart guide](https://docs.docker.com/desktop/extensions-sdk/quickstart/) describes how to get started developing your custom Docker Extension. It also covers how to open the Chrome Dev Tools and show the extension containers.
+
+The extension UI has access to an extension API to invoke backend operations from the UI, e.g. listing running containers, images, etc.
+Furthermore, you can communicate with your extension backend service or invoke a binary on the host or in the VM.
+
+### UI Guidelines
+
+We are currently in the process of developing our design system but in the meantime, here are some [UI guidelines](https://www.figma.com/file/U7pLWfEf6IQKUHLhdateBI/Docker-Design-Guidelines?node-id=1%3A28771). Docker Desktop's UI is written in React and [Material UI](https://mui.com/), and we strongly recommend adopting this combination in your extensions as well. This brings the benefit of using our [Material UI Theme](https://www.npmjs.com/package/@docker/docker-mui-theme) to easily replicate Docker Desktop's look & feel, and we'll continue to release libraries and utilities targeting this combination.
+
+You can read more about our design guidelines [here](https://docs.docker.com/desktop/extensions-sdk/design/design-guidelines/).
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/README.md
+================================================
+# Kubernetes Sample Extension
+
+This is a sample Docker Extension that shows how to interact with a Kubernetes cluster by shipping the `kubectl` command line too to read the `kubeconfig` file from your host filesystem.
+
+![kubernetes-sample-extension](./docs/images/kubernetes-sample-extension.png)
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/Dockerfile
+================================================
+FROM --platform=$BUILDPLATFORM node:18.3.0-alpine3.16 AS client-builder
+
+WORKDIR /ui
+
+# cache packages in layer
+COPY ui/package.json /ui/package.json
+COPY ui/package-lock.json /ui/package-lock.json
+
+RUN --mount=type=cache,target=/usr/src/app/.npm \
+    npm set cache /usr/src/app/.npm && \
+    npm ci
+
+# install
+COPY ui /ui
+RUN npm run build
+
+FROM alpine
+LABEL org.opencontainers.image.title="Kubernetes Sample" \
+    org.opencontainers.image.description="This is a sample Docker Extension that shows how to interact with a Kubernetes cluster by shipping the kubectl command line too to read the kubeconfig file from your host filesystem." \
+    org.opencontainers.image.vendor="Docker" \
+    org.opencontainers.image.licenses="Apache-2.0" \
+    com.docker.desktop.extension.icon="" \
+    com.docker.desktop.extension.api.version=">= 0.2.3" \
+    com.docker.extension.screenshots="" \
+    com.docker.extension.detailed-description="" \
+    com.docker.extension.publisher-url="" \
+    com.docker.extension.additional-urls="" \
+    com.docker.extension.changelog=""
+
+RUN apk add curl
+RUN curl -LO https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
+    && chmod +x ./kubectl && mv ./kubectl /usr/local/bin/kubectl \
+    && mkdir /linux \
+    && cp /usr/local/bin/kubectl /linux/
+
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/darwin/amd64/kubectl" \
+    && mkdir /darwin \
+    && chmod +x ./kubectl && mv ./kubectl /darwin/
+
+RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/windows/amd64/kubectl.exe" \
+    && mkdir /windows \
+    && chmod +x ./kubectl.exe && mv ./kubectl.exe /windows/
+
+COPY metadata.json .
+COPY docker.svg .
+COPY --from=client-builder /ui/build ui
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/Makefile
+================================================
+IMAGE?=felipecruz/kubernetes-sample-extension
+TAG?=latest
+
+BUILDER=buildx-multi-arch
+
+INFO_COLOR = \033[0;36m
+NO_COLOR   = \033[m
+
+build-extension: ## Build service image to be deployed as a desktop extension
+	docker buildx build --tag=$(IMAGE):$(TAG) . --load
+
+install-extension: build-extension ## Install the extension
+	docker extension install $(IMAGE):$(TAG)
+
+update-extension: build-extension ## Update the extension
+	docker extension update $(IMAGE):$(TAG)
+
+prepare-buildx: ## Create buildx builder for multi-arch build, if not exists
+	docker buildx inspect $(BUILDER) || docker buildx create --name=$(BUILDER) --driver=docker-container --driver-opt=network=host
+
+push-extension: prepare-buildx ## Build & Upload extension image to hub. Do not push if tag already exists: make push-extension tag=0.1
+	docker pull $(IMAGE):$(TAG) && echo "Failure: Tag already exists" || docker buildx build --push --builder=$(BUILDER) --platform=linux/amd64,linux/arm64 --build-arg TAG=$(TAG) --tag=$(IMAGE):$(TAG) .
+
+help: ## Show this help
+	@echo Please specify a build target. The choices are:
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(INFO_COLOR)%-30s$(NO_COLOR) %s\n", $$1, $$2}'
+
+.PHONY: bin extension push-extension help
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/metadata.json
+================================================
+{
+  "icon": "docker.svg",
+  "ui": {
+    "dashboard-tab": {
+      "title": "Kubernetes Sample",
+      "src": "index.html",
+      "root": "ui"
+    }
+  },
+  "host": {
+    "binaries": [
+      {
+        "darwin": [
+          {
+            "path": "/darwin/kubectl"
+          }
+        ],
+        "windows": [
+          {
+            "path": "/windows/kubectl.exe"
+          }
+        ],
+        "linux": [
+          {
+            "path": "/linux/kubectl"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/ui/package.json
+================================================
+{
+  "name": "ui",
+  "version": "0.1.0",
+  "private": true,
+  "homepage": ".",
+  "dependencies": {
+    "@docker/docker-mui-theme": "<0.1.0",
+    "@docker/extension-api-client": "0.3.0",
+    "@emotion/react": "^11.9.0",
+    "@emotion/styled": "^11.8.1",
+    "@mui/icons-material": "^5.10.9",
+    "@mui/lab": "^5.0.0-alpha.103",
+    "@mui/material": "^5.6.1",
+    "@mui/x-data-grid": "^5.17.7",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "5.0.1"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "devDependencies": {
+    "@docker/extension-api-client-types": "0.3.0",
+    "@types/jest": "^29.0.3",
+    "@types/node": "^18.7.18",
+    "@types/react-dom": "^17.0.2",
+    "typescript": "^4.8.3"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/ui/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "es6",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src"
+  ]
+}
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/ui/public/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title></title>
+    <meta charset="utf-8"/>
+    <meta name="color-scheme" content="light dark"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+</head>
+<body class="dockerDesktopTheme">
+<div id="root"></div>
+</body>
+</html>
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/ui/src/App.tsx
+================================================
+import React from "react";
+import Button from "@mui/material/Button";
+import { createDockerDesktopClient } from "@docker/extension-api-client";
+import { Grid, Stack, TextField, Typography } from "@mui/material";
+import {
+  checkK8sConnection,
+  getCurrentHostContext,
+  listHostContexts,
+  listNamespaces,
+  setDockerDesktopContext,
+} from "./helper/kubernetes";
+
+// Note: This line relies on Docker Desktop's presence as a host application.
+// If you're running this React app in a browser, it won't work properly.
+const client = createDockerDesktopClient();
+
+function useDockerDesktopClient() {
+  return client;
+}
+
+export function App() {
+  const [response, setResponse] = React.useState<string | undefined>();
+  const ddClient = useDockerDesktopClient();
+
+  return (
+    <>
+      <Typography variant="h3">Kubernetes Sample extension</Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+        This is a sample Docker Extension that shows how to interact with a
+        Kubernetes cluster by shipping the kubectl command line too to read the
+        kubeconfig file from your host filesystem.
+      </Typography>
+      <Grid container spacing={2}>
+        <Grid item>
+          <Stack direction="row" alignItems="start" spacing={2} sx={{ mt: 4 }}>
+            <Button
+              variant="contained"
+              onClick={async () => {
+                const result = await checkK8sConnection(ddClient);
+                setResponse(result);
+              }}
+            >
+              Check Kubernetes connection
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={async () => {
+                const result = await setDockerDesktopContext(ddClient);
+                setResponse(result);
+              }}
+            >
+              Use "docker-desktop" context
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={async () => {
+                const result = await getCurrentHostContext(ddClient);
+                setResponse(result);
+              }}
+            >
+              Get current host context
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={async () => {
+                const result = await listHostContexts(ddClient);
+                setResponse(result);
+              }}
+            >
+              List contexts
+            </Button>
+
+            <Button
+              variant="contained"
+              onClick={async () => {
+                const result = await listNamespaces(ddClient);
+                setResponse(result as string);
+              }}
+            >
+              List namespaces
+            </Button>
+          </Stack>
+        </Grid>
+        <Grid item>
+          <TextField
+            label="Output"
+            sx={{ width: 480 }}
+            disabled
+            multiline
+            variant="outlined"
+            minRows={5}
+            value={response ?? ""}
+          />
+        </Grid>
+      </Grid>
+    </>
+  );
+}
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/ui/src/index.tsx
+================================================
+import React from "react";
+import ReactDOM from "react-dom";
+import CssBaseline from "@mui/material/CssBaseline";
+import { DockerMuiThemeProvider } from "@docker/docker-mui-theme";
+
+import { App } from "./App";
+
+ReactDOM.render(
+  <React.StrictMode>
+    {/*
+      If you eject from MUI (which we don't recommend!), you should add
+      the `dockerDesktopTheme` class to your root <html> element to get
+      some minimal Docker theming.
+    */}
+    <DockerMuiThemeProvider>
+      <CssBaseline />
+      <App />
+    </DockerMuiThemeProvider>
+  </React.StrictMode>,
+  document.getElementById("root")
+);
+
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/ui/src/react-app-env.d.ts
+================================================
+/// <reference types="react-scripts" />
+
+
+================================================
+FILE: samples/kubernetes-sample-extension/ui/src/helper/kubernetes.ts
+================================================
+import { v1 } from "@docker/extension-api-client-types";
+
+export const DockerDesktop = "docker-desktop";
+export const CurrentExtensionContext = "currentExtensionContext";
+export const IsK8sEnabled = "isK8sEnabled";
+
+export const listHostContexts = async (ddClient: v1.DockerDesktopClient) => {
+  const output = await ddClient.extension.host?.cli.exec("kubectl", [
+    "config",
+    "view",
+    "-o",
+    "jsonpath='{.contexts}'",
+  ]);
+  console.log(output);
+  if (output?.stderr) {
+    console.log(output.stderr);
+    return output.stderr;
+  }
+
+  return output?.stdout;
+};
+
+export const setDockerDesktopContext = async (
+  ddClient: v1.DockerDesktopClient
+) => {
+  const output = await ddClient.extension.host?.cli.exec("kubectl", [
+    "config",
+    "use-context",
+    "docker-desktop",
+  ]);
+  console.log(output);
+  if (output?.stderr) {
+    return output.stderr;
+  }
+  return output?.stdout;
+};
+
+export const getCurrentHostContext = async (
+  ddClient: v1.DockerDesktopClient
+) => {
+  const output = await ddClient.extension.host?.cli.exec("kubectl", [
+    "config",
+    "view",
+    "-o",
+    "jsonpath='{.current-context}'",
+  ]);
+  console.log(output);
+  if (output?.stderr) {
+    return output.stderr;
+  }
+  return output?.stdout;
+};
+
+export const checkK8sConnection = async (ddClient: v1.DockerDesktopClient) => {
+  try {
+    let output = await ddClient.extension.host?.cli.exec("kubectl", [
+      "cluster-info",
+      "--request-timeout",
+      "2s",
+    ]);
+    console.log(output);
+    if (output?.stderr) {
+      console.log(output.stderr);
+      return "false";
+    }
+    return "true";
+  } catch (e: any) {
+    console.log("[checkK8sConnection] error : ", e);
+    return "false";
+  }
+};
+
+export const listNamespaces = async (ddClient: v1.DockerDesktopClient) => {
+  const output = await ddClient.extension.host?.cli.exec("kubectl", [
+    "get",
+    "namespaces",
+    "--no-headers",
+    "-o",
+    'custom-columns=":metadata.name"',
+    "--context",
+    "docker-desktop",
+  ]);
+  console.log(output);
+  if (output?.stderr) {
+    return output.stderr;
+  }
+  return output?.stdout;
+};
+
+
+
+================================================
+FILE: samples/minimal-backend/Dockerfile
+================================================
+FROM --platform=$BUILDPLATFORM node:18.9-alpine3.15 AS client-builder
+WORKDIR /app/client
+# cache packages in layer
+COPY client/package.json /app/client/package.json
+COPY client/yarn.lock /app/client/yarn.lock
+ARG TARGETARCH
+RUN yarn config set cache-folder /usr/local/share/.cache/yarn-${TARGETARCH}
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn-${TARGETARCH} yarn
+# install
+COPY client /app/client
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn-${TARGETARCH} yarn build
+
+FROM alpine:3.15
+
+LABEL org.opencontainers.image.title="HelloBackend" \
+    org.opencontainers.image.description="A sample extension that runs a shell script inside a container's Desktop VM." \
+    org.opencontainers.image.vendor="Docker Inc." \
+    com.docker.desktop.extension.api.version=">= 0.3.0" \
+    com.docker.desktop.extension.icon="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" \
+    com.docker.extension.screenshots='[{"alt":"Hello, Moby", "url":"https://docker-extension-screenshots.s3.amazonaws.com/minimal-backend/1-hello-moby.png"}]' \
+    com.docker.extension.detailed-description="<h1>Description</h1><p>This is a sample extension that displays the text introduced in a textbox.</p>" \
+    com.docker.extension.publisher-url="https://www.docker.com" \
+    com.docker.extension.additional-urls='[{"title":"SDK Documentation","url":"https://docs.docker.com/desktop/extensions-sdk"}]' \
+    com.docker.extension.changelog="<ul><li>Added metadata to provide more information about the extension.</li></ul>"
+
+COPY hello.sh .
+COPY metadata.json .
+COPY --from=client-builder /app/client/dist ui
+
+CMD [ "sleep", "infinity" ]
+
+
+
+================================================
+FILE: samples/minimal-backend/hello.sh
+================================================
+#!/bin/sh
+echo "Hello, $1!"
+
+
+
+================================================
+FILE: samples/minimal-backend/Makefile
+================================================
+IMAGE?=docker/minimal-backend-extension
+TAG?=latest
+
+BUILDER=buildx-multi-arch
+
+INFO_COLOR = \033[0;36m
+NO_COLOR   = \033[m
+
+build-extension: ## Build service image to be deployed as a desktop extension
+	docker build --tag=$(IMAGE):$(TAG) .
+
+install-extension: build-extension ## Install the extension
+	docker extension install $(IMAGE):$(TAG)
+
+update-extension: build-extension ## Update the extension
+	docker extension update $(IMAGE):$(TAG)
+
+prepare-buildx: ## Create buildx builder for multi-arch build, if not exists
+	docker buildx inspect $(BUILDER) || docker buildx create --name=$(BUILDER) --driver=docker-container --driver-opt=network=host
+
+push-extension: prepare-buildx ## Build & Upload extension image to hub. Do not push if tag already exists: make push-extension tag=0.1
+	docker pull $(IMAGE):$(TAG) && echo "Failure: Tag already exists" || docker buildx build --push --builder=$(BUILDER) --platform=linux/amd64,linux/arm64 --build-arg TAG=$(TAG) --tag=$(IMAGE):$(TAG) .
+
+help: ## Show this help
+	@echo Please specify a build target. The choices are:
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(INFO_COLOR)%-30s$(NO_COLOR) %s\n", $$1, $$2}'
+
+.PHONY: build-extension push-extension help
+
+
+
+================================================
+FILE: samples/minimal-backend/metadata.json
+================================================
+{
+  "vm": {
+    "image": "${DESKTOP_PLUGIN_IMAGE}"
+  },
+  "ui": {
+    "dashboard-tab": {
+      "title": "Hello Backend Extension",
+      "root": "/ui",
+      "src": "index.html"
+    }
+  }
+}
+
+
+
+================================================
+FILE: samples/minimal-backend/client/package.json
+================================================
+{
+  "name": "@docker/react-extension",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build"
+  },
+  "dependencies": {
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
+    "@docker/docker-mui-theme": "<0.1.0",
+    "@docker/extension-api-client": "^0.3.0",
+    "@emotion/react": "^11.7.1",
+    "@emotion/styled": "^11.6.0",
+    "@mui/icons-material": "^5.4.1",
+    "@mui/material": "^5.4.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "5.0.0",
+    "typescript": "^4.1.2"
+  },
+  "devDependencies": {
+    "@docker/extension-api-client-types": "^0.3.0"
+  }
+}
+
+
+
+================================================
+FILE: samples/minimal-backend/client/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src"
+  ]
+}
+
+
+
+================================================
+FILE: samples/minimal-backend/client/public/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+
+
+================================================
+FILE: samples/minimal-backend/client/src/App.tsx
+================================================
+import { Button, Stack, TextField, Typography } from '@mui/material';
+import { createDockerDesktopClient } from '@docker/extension-api-client';
+import { useState } from 'react';
+
+export function App() {
+  const ddClient = createDockerDesktopClient();
+  const [backendInfo, setBackendInfo] = useState<string | undefined>();
+
+  async function runExtensionBackend(inputText: string) {
+    const result = await ddClient.extension.vm?.cli.exec('./hello.sh', [
+      inputText,
+    ]);
+    setBackendInfo(result?.stdout);
+  }
+
+  return (
+    <Stack
+      display="flex"
+      flexGrow={1}
+      justifyContent="center"
+      alignItems="center"
+      height="100vh"
+    >
+      <TextField
+        placeholder="Enter your name"
+        onChange={(event) => runExtensionBackend(event.target.value)}
+      ></TextField>
+
+      {backendInfo ? <Typography>{backendInfo}</Typography> : ''}
+    </Stack>
+  );
+}
+
+
+
+================================================
+FILE: samples/minimal-backend/client/src/index.tsx
+================================================
+import React from 'react';
+import ReactDOM from 'react-dom';
+import CssBaseline from '@mui/material/CssBaseline';
+import { DockerMuiThemeProvider } from '@docker/docker-mui-theme';
+import { App } from './App';
+
+ReactDOM.render(
+  <React.StrictMode>
+    <DockerMuiThemeProvider>
+      <CssBaseline />
+      <App />
+    </DockerMuiThemeProvider>
+  </React.StrictMode>,
+  document.getElementById('root'),
+);
+
+
+
+================================================
+FILE: samples/minimal-backend/client/src/react-app-env.d.ts
+================================================
+/// <reference types="react-scripts" />
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/Dockerfile
+================================================
+FROM --platform=$BUILDPLATFORM node:18.9-alpine3.15 AS client-builder
+WORKDIR /app/client
+# cache packages in layer
+COPY client/package.json /app/client/package.json
+COPY client/yarn.lock /app/client/yarn.lock
+ARG TARGETARCH
+RUN yarn config set cache-folder /usr/local/share/.cache/yarn-${TARGETARCH}
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn-${TARGETARCH} yarn
+# install
+COPY client /app/client
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn-${TARGETARCH} yarn build
+
+FROM scratch
+
+LABEL org.opencontainers.image.title="Minimal Docker CLI" \
+    org.opencontainers.image.description="A sample extension to show how to run docker commands from an extension." \
+    org.opencontainers.image.vendor="Docker Inc." \
+    com.docker.desktop.extension.api.version=">= 0.3.0" \
+    com.docker.desktop.extension.icon="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" \
+    com.docker.extension.screenshots='[{"alt":"docker info", "url":"https://docker-extension-screenshots.s3.amazonaws.com/minimal-docker-cli/1-get-docker-info.png"}]' \
+    com.docker.extension.detailed-description="<h1>Description</h1><p>This is a sample extension that uses the <code>docker info</code> command to display the number of allocated CPUs and allocated memory by the Docker Desktop VM.</p>" \
+    com.docker.extension.publisher-url="https://www.docker.com" \
+    com.docker.extension.additional-urls='[{"title":"SDK Documentation","url":"https://docs.docker.com/desktop/extensions-sdk"}]' \
+    com.docker.extension.changelog="<ul><li>Added metadata to provide more information about the extension.</li></ul>"
+
+COPY --from=client-builder /app/client/dist ui
+COPY metadata.json .
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/Makefile
+================================================
+IMAGE?=docker/minimal-docker-cli-extension
+TAG?=latest
+
+BUILDER=buildx-multi-arch
+
+INFO_COLOR = \033[0;36m
+NO_COLOR   = \033[m
+
+build-extension: ## Build service image to be deployed as a desktop extension
+	docker build --tag=$(IMAGE):$(TAG) .
+
+install-extension: build-extension ## Install the extension
+	docker extension install $(IMAGE):$(TAG)
+
+update-extension: build-extension ## Update the extension
+	docker extension update $(IMAGE):$(TAG)
+
+prepare-buildx: ## Create buildx builder for multi-arch build, if not exists
+	docker buildx inspect $(BUILDER) || docker buildx create --name=$(BUILDER) --driver=docker-container --driver-opt=network=host
+
+push-extension: prepare-buildx ## Build & Upload extension image to hub. Do not push if tag already exists: make push-extension tag=0.1
+	docker pull $(IMAGE):$(TAG) && echo "Failure: Tag already exists" || docker buildx build --push --builder=$(BUILDER) --platform=linux/amd64,linux/arm64 --build-arg TAG=$(TAG) --tag=$(IMAGE):$(TAG) .
+
+help: ## Show this help
+	@echo Please specify a build target. The choices are:
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(INFO_COLOR)%-30s$(NO_COLOR) %s\n", $$1, $$2}'
+
+.PHONY: build-extension push-extension help
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/metadata.json
+================================================
+{
+  "ui": {
+    "dashboard-tab": {
+      "title": "Minimal Docker CLI",
+      "root": "/ui",
+      "src": "index.html"
+    }
+  }
+}
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/client/package.json
+================================================
+{
+  "name": "@docker/react-extension",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build"
+  },
+  "dependencies": {
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
+    "@docker/docker-mui-theme": "<0.1.0",
+    "@docker/extension-api-client": "^0.3.0",
+    "@emotion/react": "^11.7.1",
+    "@emotion/styled": "^11.6.0",
+    "@mui/icons-material": "^5.4.1",
+    "@mui/material": "^5.4.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "5.0.0",
+    "typescript": "^4.1.2"
+  },
+  "devDependencies": {
+    "@docker/extension-api-client-types": "^0.3.0"
+  }
+}
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/client/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src"
+  ]
+}
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/client/public/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/client/src/App.tsx
+================================================
+import { Button, Stack, Typography } from '@mui/material';
+import { createDockerDesktopClient } from '@docker/extension-api-client';
+import { useState } from 'react';
+
+export function App() {
+  const ddClient = createDockerDesktopClient();
+  const [dockerInfo, setDockerInfo] = useState<any>(null);
+
+  async function runDockerInfo() {
+    const result = await ddClient.docker.cli.exec('info', [
+      '--format',
+      '"{{json .}}"',
+    ]);
+    setDockerInfo(result.parseJsonObject());
+  }
+
+  return (
+    <Stack
+      display="flex"
+      flexGrow={1}
+      justifyContent="center"
+      alignItems="center"
+      height="100vh"
+    >
+      <Button variant="contained" onClick={runDockerInfo}>
+        Get Docker Info
+      </Button>
+
+      {dockerInfo ? (
+        <div>
+          <Typography>Allocated CPUs: {dockerInfo?.NCPU}</Typography>
+          <Typography>Allocated Memory: {dockerInfo?.MemTotal}</Typography>
+        </div>
+      ) : (
+        ''
+      )}
+    </Stack>
+  );
+}
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/client/src/index.tsx
+================================================
+import React from 'react';
+import ReactDOM from 'react-dom';
+import CssBaseline from '@mui/material/CssBaseline';
+import { DockerMuiThemeProvider } from '@docker/docker-mui-theme';
+import { App } from './App';
+
+ReactDOM.render(
+  <React.StrictMode>
+    <DockerMuiThemeProvider>
+      <CssBaseline />
+      <App />
+    </DockerMuiThemeProvider>
+  </React.StrictMode>,
+  document.getElementById('root'),
+);
+
+
+
+================================================
+FILE: samples/minimal-docker-cli/client/src/react-app-env.d.ts
+================================================
+/// <reference types="react-scripts" />
+
+
+
+================================================
+FILE: samples/minimal-frontend/Dockerfile
+================================================
+FROM scratch
+
+LABEL org.opencontainers.image.title="Minimal FrontEnd" \
+    org.opencontainers.image.description="A sample extension that displays a Hello World message from an HTML page." \
+    org.opencontainers.image.vendor="Docker Inc." \
+    com.docker.desktop.extension.api.version=">= 0.3.0" \
+    com.docker.desktop.extension.icon="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" \
+    com.docker.extension.screenshots='[{"alt":"hello world light mode", "url":"https://docker-extension-screenshots.s3.amazonaws.com/minimal-frontend/hello-world-light.png"}, {"alt":"hello world dark mode", "url":"https://docker-extension-screenshots.s3.amazonaws.com/minimal-frontend/hello-world-dark.png"}]' \
+    com.docker.extension.detailed-description="<h1>Description</h1><p>This is a sample extension that displays the content of an <code>index.html</code> page inside Docker Desktop.</p>" \
+    com.docker.extension.publisher-url="https://www.docker.com" \
+    com.docker.extension.additional-urls='[{"title":"SDK Documentation","url":"https://docs.docker.com/desktop/extensions-sdk"}]' \
+    com.docker.extension.changelog="<ul><li>Added metadata to provide more information about the extension.</li></ul>"
+
+COPY ui ./ui
+COPY metadata.json .
+
+
+
+================================================
+FILE: samples/minimal-frontend/Makefile
+================================================
+IMAGE?=docker/minimal-frontend-extension
+TAG?=latest
+
+BUILDER=buildx-multi-arch
+
+INFO_COLOR = \033[0;36m
+NO_COLOR   = \033[m
+
+build-extension: ## Build service image to be deployed as a desktop extension
+	docker build --tag=$(IMAGE):$(TAG) .
+
+install-extension: build-extension ## Install the extension
+	docker extension install $(IMAGE):$(TAG)
+
+update-extension: build-extension ## Update the extension
+	docker extension update $(IMAGE):$(TAG)
+
+prepare-buildx: ## Create buildx builder for multi-arch build, if not exists
+	docker buildx inspect $(BUILDER) || docker buildx create --name=$(BUILDER) --driver=docker-container --driver-opt=network=host
+
+push-extension: prepare-buildx ## Build & Upload extension image to hub. Do not push if tag already exists: make push-extension tag=0.1
+	docker pull $(IMAGE):$(TAG) && echo "Failure: Tag already exists" || docker buildx build --push --builder=$(BUILDER) --platform=linux/amd64,linux/arm64 --build-arg TAG=$(TAG) --tag=$(IMAGE):$(TAG) .
+
+help: ## Show this help
+	@echo Please specify a build target. The choices are:
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(INFO_COLOR)%-30s$(NO_COLOR) %s\n", $$1, $$2}'
+
+.PHONY: build-extension push-extension help
+
+
+
+================================================
+FILE: samples/minimal-frontend/metadata.json
+================================================
+{
+  "ui": {
+    "dashboard-tab": {
+      "title": "Min FrontEnd Extension",
+      "root": "/ui",
+      "src": "index.html"
+    }
+  }
+}
+
+
+
+================================================
+FILE: samples/minimal-frontend/ui/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style>
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #333;
+        }
+
+        h1 {
+          color: white;
+        }
+      }
+    </style>
+    <meta charset="utf-8" />
+    <title>Docker Extension</title>
+  </head>
+  <body>
+    <h1>Hello, World!</h1>
+  </body>
+</html>
+
+
+
+================================================
+FILE: samples/oauth-sample/README.md
+================================================
+# My extension
+
+This sample shows how to implement oauth login with extensions.
+
+This extension is composed of a [frontend](./ui) app in React that shows a login button. When clicked, it will open the browsser to perform a github login, and obtain a oauth token (that will be displayed for the sake of this example).
+
+</details>
+
+## Prepare oauth configuration
+
+In order to run this example, you needed to create a GitHub OAuth app. See details at https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app
+
+You can then get a client ID and client secret from the OAuth app, and set the values in /ui/src/App.tsx
+
+In the OAuth app, you can also set the Authorization callback URL to `docker-desktop://dashboard/extension-tab?extensionId=samples/oauth-extension`. This tells GitHub to redirect to the extension in Docker Desktop at the end of the login process. (Note: this can be configured in code as well, options are dependent on the OAuth provider)
+
+See details about the overall OAuth flow in the [Extension OAuth documentation](https://docs.docker.com/desktop/extensions-sdk/guides/oauth2-flow/)
+
+## Local development
+
+You can use `docker` to build, install and push your extension. Also, we provide an opinionated [Makefile](Makefile) that could be convenient for you. There isn't a strong preference of using one over the other, so just use the one you're most comfortable with.
+
+To build the extension, use `make build-extension` **or**:
+
+```shell
+  docker buildx build -t my/awesome-extension:latest . --load
+```
+
+To install the extension, use `make install-extension` **or**:
+
+```shell
+  docker extension install my/awesome-extension:latest
+```
+
+> If you want to automate this command, use the `-f` or `--force` flag to accept the warning message.
+
+To preview the extension in Docker Desktop, open Docker Dashboard once the installation is complete. The left-hand menu displays a new tab with the name of your extension. You can also use `docker extension ls` to see that the extension has been installed successfully.
+
+### Frontend development
+
+During the development of the frontend part, it's helpful to use hot reloading to test your changes without rebuilding your entire extension. To do this, you can configure Docker Desktop to load your UI from a development server.
+Assuming your app runs on the default port, start your UI app and then run:
+
+```shell
+  cd ui
+  npm install
+  npm run dev
+```
+
+This starts a development server that listens on port `3000`.
+
+You can now tell Docker Desktop to use this as the frontend source. In another terminal run:
+
+```shell
+  docker extension dev ui-source my/awesome-extension:latest http://localhost:3000
+```
+
+In order to open the Chrome Dev Tools for your extension when you click on the extension tab, run:
+
+```shell
+  docker extension dev debug my/awesome-extension:latest
+```
+
+Each subsequent click on the extension tab will also open Chrome Dev Tools. To stop this behaviour, run:
+
+```shell
+  docker extension dev reset my/awesome-extension:latest
+```
+
+### Clean up
+
+To remove the extension:
+
+```shell
+docker extension rm my/awesome-extension:latest
+```
+
+## What's next?
+
+- To learn more about how to build your extension refer to the Extension SDK docs at https://docs.docker.com/desktop/extensions-sdk/.
+- To publish your extension in the Marketplace visit https://www.docker.com/products/extensions/submissions/.
+- To report issues and feedback visit https://github.com/docker/extensions-sdk/issues.
+- To look for other ideas of new extensions, or propose new ideas of extensions you would like to see, visit https://github.com/docker/extension-ideas/discussions.
+
+
+
+================================================
+FILE: samples/oauth-sample/Dockerfile
+================================================
+FROM --platform=$BUILDPLATFORM node:18.12-alpine3.16 AS client-builder
+WORKDIR /ui
+# cache packages in layer
+COPY ui/package.json /ui/package.json
+COPY ui/package-lock.json /ui/package-lock.json
+RUN --mount=type=cache,target=/usr/src/app/.npm \
+    npm set cache /usr/src/app/.npm && \
+    npm ci
+# install
+COPY ui /ui
+RUN npm run build
+
+FROM alpine
+LABEL org.opencontainers.image.title="Oauth sample" \
+    org.opencontainers.image.description="Sample extension logging in with github OAuth service" \
+    org.opencontainers.image.vendor="Awesome Inc." \
+    com.docker.desktop.extension.api.version="0.3.3" \
+    com.docker.extension.screenshots="" \
+    com.docker.extension.detailed-description="" \
+    com.docker.extension.publisher-url="" \
+    com.docker.extension.additional-urls="" \
+    com.docker.extension.changelog=""
+
+COPY metadata.json .
+COPY docker.svg .
+COPY --from=client-builder /ui/build ui
+
+
+
+================================================
+FILE: samples/oauth-sample/Makefile
+================================================
+IMAGE?=samples/oauth-extension
+TAG?=latest
+
+BUILDER=buildx-multi-arch
+
+INFO_COLOR = \033[0;36m
+NO_COLOR   = \033[m
+
+build-extension: ## Build service image to be deployed as a desktop extension
+	docker build --tag=$(IMAGE):$(TAG) .
+
+install-extension: build-extension ## Install the extension
+	docker extension install $(IMAGE):$(TAG)
+
+update-extension: build-extension ## Update the extension
+	docker extension update $(IMAGE):$(TAG)
+
+prepare-buildx: ## Create buildx builder for multi-arch build, if not exists
+	docker buildx inspect $(BUILDER) || docker buildx create --name=$(BUILDER) --driver=docker-container --driver-opt=network=host
+
+push-extension: prepare-buildx ## Build & Upload extension image to hub. Do not push if tag already exists: make push-extension tag=0.1
+	docker pull $(IMAGE):$(TAG) && echo "Failure: Tag already exists" || docker buildx build --push --builder=$(BUILDER) --platform=linux/amd64,linux/arm64 --build-arg TAG=$(TAG) --tag=$(IMAGE):$(TAG) .
+
+help: ## Show this help
+	@echo Please specify a build target. The choices are:
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(INFO_COLOR)%-30s$(NO_COLOR) %s\n", $$1, $$2}'
+
+.PHONY: help
+
+
+
+================================================
+FILE: samples/oauth-sample/metadata.json
+================================================
+{
+  "icon": "docker.svg",
+  "ui": {
+    "dashboard-tab": {
+      "title": "Oauth sample",
+      "src": "index.html",
+      "root": "ui",
+      "backend": {
+        "socket": "backend.sock"
+      }
+    }
+  }
+}
+
+
+================================================
+FILE: samples/oauth-sample/ui/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+
+================================================
+FILE: samples/oauth-sample/ui/package.json
+================================================
+{
+  "name": "ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@docker/docker-mui-theme": "<0.1.0",
+    "@docker/extension-api-client": "0.3.2",
+    "@emotion/react": "11.10.4",
+    "@emotion/styled": "11.10.4",
+    "@mui/material": "5.10.8",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "jest src"
+  },
+  "devDependencies": {
+    "@docker/extension-api-client-types": "0.3.2",
+    "@types/jest": "^29.1.2",
+    "@types/node": "^18.7.18",
+    "@types/react": "^18.0.17",
+    "@types/react-dom": "^18.0.6",
+    "@vitejs/plugin-react": "^2.1.0",
+    "jest": "^29.1.2",
+    "typescript": "^4.8.3",
+    "vite": "^3.2.10"
+  }
+}
+
+
+
+================================================
+FILE: samples/oauth-sample/ui/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "allowJs": false,
+    "skipLibCheck": true,
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
+
+
+
+================================================
+FILE: samples/oauth-sample/ui/tsconfig.node.json
+================================================
+{
+  "compilerOptions": {
+    "composite": true,
+    "module": "ESNext",
+    "moduleResolution": "Node",
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+
+
+
+================================================
+FILE: samples/oauth-sample/ui/vite.config.ts
+================================================
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+
+// https://vitejs.dev/config/
+export default defineConfig({
+  plugins: [react()],
+  base: "./",
+  build: {
+    outDir: "build",
+  },
+  server: {
+    port: 3000,
+    strictPort: true,
+  }
+});
+
+
+
+================================================
+FILE: samples/oauth-sample/ui/src/App.tsx
+================================================
+import React from "react";
+import Button from "@mui/material/Button";
+import { createDockerDesktopClient } from "@docker/extension-api-client";
+import { Stack, TextField, Typography } from "@mui/material";
+
+const client = createDockerDesktopClient();
+
+const client_id = "xxxx";
+const client_secret = "xxxx";
+
+function useDockerDesktopClient() {
+  return client;
+}
+
+export function App() {
+  const [response, setResponse] = React.useState<string>();
+  const [loggedIn, setLoggedIn] = React.useState(false);
+  const ddClient = useDockerDesktopClient();
+
+  const queryParams = new URLSearchParams(window.location.search);
+  console.log("query: " + queryParams.toString());
+
+  if (!loggedIn && queryParams.get("code")) {
+    console.log("processing POST with code " + queryParams.get("code"));
+    const requestOptions = {
+      method: "POST",
+    };
+    fetch(
+      `https://github.com/login/oauth/access_token?client_id=${client_id}&client_secret=${client_secret}&code=${queryParams.get(
+        "code"
+      )}`,
+      requestOptions
+    )
+      .then((response) => response.text())
+      .then((data) => {
+        setLoggedIn(true);
+        setResponse(data);
+      });
+  }
+
+  const login = async () => {
+    ddClient.host.openExternal(
+      `https://github.com/login/oauth/authorize?client_id=${client_id}`
+    );
+  };
+
+  return (
+    <>
+      <Typography variant="h3">Docker extension Oauth demo</Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+        This is a basic page using OAuth to login in using GitHub OAuth as an
+        example.
+      </Typography>
+      <Typography variant="body1" color="text.secondary" sx={{ mt: 2 }}>
+        Pressing the below button will trigger a login flow and retrieve a
+        GitHub authentication token once the user is authenticated.
+      </Typography>
+      <Stack direction="row" alignItems="start" spacing={2} sx={{ mt: 4 }}>
+        <Button variant="contained" onClick={login} disabled={loggedIn}>
+          {loggedIn ? "You're looged in" : "Login"}
+        </Button>
+        <TextField
+          label="Oauth response"
+          sx={{ width: 480 }}
+          disabled
+          multiline
+          variant="outlined"
+          minRows={5}
+          value={response ?? ""}
+        />
+      </Stack>
+    </>
+  );
+}
+
+
+
+================================================
+FILE: samples/oauth-sample/ui/src/main.tsx
+================================================
+import React from "react";
+import ReactDOM from "react-dom/client";
+import CssBaseline from "@mui/material/CssBaseline";
+import { DockerMuiThemeProvider } from "@docker/docker-mui-theme";
+
+import { App } from './App';
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    {/*
+      If you eject from MUI (which we don't recommend!), you should add
+      the `dockerDesktopTheme` class to your root <html> element to get
+      some minimal Docker theming.
+    */}
+    <DockerMuiThemeProvider>
+      <CssBaseline />
+      <App />
+    </DockerMuiThemeProvider>
+  </React.StrictMode>
+);
+
+
+
+================================================
+FILE: samples/oauth-sample/ui/src/vite-env.d.ts
+================================================
+/// <reference types="vite/client" />
+
+
+
+================================================
+FILE: samples/react/Dockerfile
+================================================
+FROM --platform=$BUILDPLATFORM node:18.9-alpine3.15 AS client-builder
+WORKDIR /app/client
+# cache packages in layer
+COPY client/package.json /app/client/package.json
+COPY client/yarn.lock /app/client/yarn.lock
+ARG TARGETARCH
+RUN yarn config set cache-folder /usr/local/share/.cache/yarn-${TARGETARCH}
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn-${TARGETARCH} yarn
+# install
+COPY client /app/client
+RUN --mount=type=cache,target=/usr/local/share/.cache/yarn-${TARGETARCH} yarn build
+
+FROM debian:bullseye-slim
+LABEL org.opencontainers.image.title="React Docker Extension" \
+    org.opencontainers.image.description="A sample extension that contains a ReactJS application." \
+    org.opencontainers.image.vendor="Docker Inc." \
+    com.docker.desktop.extension.api.version=">= 0.3.0" \
+    com.docker.desktop.extension.icon="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" \
+    com.docker.extension.screenshots='[{"alt":"hello world light mode", "url":"https://docker-extension-screenshots.s3.amazonaws.com/react/hello-world-light.png"}, {"alt":"hello world dark mode", "url":"https://docker-extension-screenshots.s3.amazonaws.com/react/hello-world-dark.png"}]' \
+    com.docker.extension.detailed-description="<h1>Description</h1><p>This is a sample extension that contains a ReactJS application.</p>" \
+    com.docker.extension.publisher-url="https://www.docker.com" \
+    com.docker.extension.additional-urls='[{"title":"SDK Documentation","url":"https://docs.docker.com/desktop/extensions-sdk"}]' \
+    com.docker.extension.changelog="<ul><li>Added metadata to provide more information about the extension.</li></ul>"
+
+COPY --from=client-builder /app/client/dist ui
+COPY docker.svg .
+COPY metadata.json .
+
+
+
+================================================
+FILE: samples/react/Makefile
+================================================
+IMAGE?=docker/react-extension
+TAG?=latest
+
+BUILDER=buildx-multi-arch
+
+INFO_COLOR = \033[0;36m
+NO_COLOR   = \033[m
+
+build-extension: ## Build service image to be deployed as a desktop extension
+	docker build --tag=$(IMAGE):$(TAG) .
+
+install-extension: build-extension ## Install the extension
+	docker extension install $(IMAGE):$(TAG)
+
+update-extension: build-extension ## Update the extension
+	docker extension update $(IMAGE):$(TAG)
+
+prepare-buildx: ## Create buildx builder for multi-arch build, if not exists
+	docker buildx inspect $(BUILDER) || docker buildx create --name=$(BUILDER) --driver=docker-container --driver-opt=network=host
+
+push-extension: prepare-buildx ## Build & Upload extension image to hub. Do not push if tag already exists: make push-extension tag=0.1
+	docker pull $(IMAGE):$(TAG) && echo "Failure: Tag already exists" || docker buildx build --push --builder=$(BUILDER) --platform=linux/amd64,linux/arm64 --build-arg TAG=$(TAG) --tag=$(IMAGE):$(TAG) .
+
+help: ## Show this help
+	@echo Please specify a build target. The choices are:
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(INFO_COLOR)%-30s$(NO_COLOR) %s\n", $$1, $$2}'
+
+.PHONY: build-extension push-extension help
+
+
+
+================================================
+FILE: samples/react/metadata.json
+================================================
+{
+  "icon": "docker.svg",
+  "ui": {
+    "dashboard-tab": {
+      "title": "UI Extension",
+      "root": "/ui",
+      "src": "index.html"
+    }
+  }
+}
+
+
+
+================================================
+FILE: samples/react/client/package.json
+================================================
+{
+  "name": "@docker/react-extension",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build"
+  },
+  "dependencies": {
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
+    "@docker/docker-mui-theme": "<0.1.0",
+    "@docker/extension-api-client": "^0.3.0",
+    "@emotion/react": "^11.7.1",
+    "@emotion/styled": "^11.6.0",
+    "@mui/icons-material": "^5.4.1",
+    "@mui/material": "^5.4.1",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-scripts": "5.0.0",
+    "typescript": "^4.1.2"
+  },
+  "devDependencies": {
+    "@docker/extension-api-client-types": "^0.3.0"
+  }
+}
+
+
+
+================================================
+FILE: samples/react/client/tsconfig.json
+================================================
+{
+  "compilerOptions": {
+    "target": "es5",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src"
+  ]
+}
+
+
+
+================================================
+FILE: samples/react/client/public/index.html
+================================================
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+
+
+
+================================================
+FILE: samples/react/client/src/App.tsx
+================================================
+import { Box, Button } from '@mui/material';
+import { createDockerDesktopClient } from '@docker/extension-api-client';
+
+export function App() {
+  const ddClient = createDockerDesktopClient();
+
+  function sayHello() {
+    ddClient.desktopUI.toast.success('Hello, World!');
+  }
+
+  return (
+    <Box
+      display="flex"
+      flexGrow={1}
+      justifyContent="center"
+      alignItems="center"
+      height="100vh"
+    >
+      <Button variant="contained" onClick={sayHello}>
+        Click me!
+      </Button>
+    </Box>
+  );
+}
+
+
+
+================================================
+FILE: samples/react/client/src/index.tsx
+================================================
+import React from 'react';
+import ReactDOM from 'react-dom';
+import CssBaseline from '@mui/material/CssBaseline';
+import { DockerMuiThemeProvider } from '@docker/docker-mui-theme';
+import { App } from './App';
+
+ReactDOM.render(
+  <React.StrictMode>
+    <DockerMuiThemeProvider>
+      <CssBaseline />
+      <App />
+    </DockerMuiThemeProvider>
+  </React.StrictMode>,
+  document.getElementById('root'),
+);
+
+
+
+================================================
+FILE: samples/react/client/src/react-app-env.d.ts
+================================================
+/// <reference types="react-scripts" />
+
+
+
+================================================
+FILE: samples/vm-service/docker-compose.yaml
+================================================
+services:
+  devenv-volumes:
+    image: ${DESKTOP_PLUGIN_IMAGE}
+    cap_add:
+      - DAC_OVERRIDE
+      - FOWNER
+    volumes:
+      - /var/lib/docker:/var/lib/docker
+
+
+
+================================================
+FILE: samples/vm-service/Dockerfile
+================================================
+FROM golang:1.17-alpine AS builder
+ENV CGO_ENABLED=0
+WORKDIR /backend
+COPY vm/go.* .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
+COPY vm/. .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -trimpath -ldflags="-s -w" -o bin/service
+
+FROM alpine
+
+LABEL org.opencontainers.image.title="VM service" \
+    org.opencontainers.image.description="A sample extension that uses a VM service to list all the Docker volumes." \
+    org.opencontainers.image.vendor="Docker Inc." \
+    com.docker.desktop.extension.api.version=">= 0.2.0" \
+    com.docker.desktop.extension.icon="https://www.docker.com/wp-content/uploads/2022/03/Moby-logo.png" \
+    com.docker.extension.screenshots='[{"alt":"volumes list light mode", "url":"https://docker-extension-screenshots.s3.amazonaws.com/vm-service/vm-service-light.png"}, {"alt":"volumes list dark mode", "url":"https://docker-extension-screenshots.s3.amazonaws.com/vm-service/vm-service-dark.png"}]' \
+    com.docker.extension.detailed-description="<h1>Description</h1><p>This is a sample extension that uses a VM service to list all the Docker volumes.</p>" \
+    com.docker.extension.publisher-url="https://www.docker.com" \
+    com.docker.extension.additional-urls='[{"title":"SDK Documentation","url":"https://docs.docker.com/desktop/extensions-sdk"}]' \
+    com.docker.extension.changelog="<ul><li>Added metadata to provide more information about the extension.</li></ul>"
+
+COPY --from=builder /backend/bin/service /
+COPY docker-compose.yaml .
+COPY metadata.json .
+COPY docker.svg .
+COPY ui/src ./ui
+CMD /service -socket /run/guest-services/extension-volumes.sock
+
+
+
+================================================
+FILE: samples/vm-service/Makefile
+================================================
+EXTENSION:=
+ifeq ($(OS),Windows_NT)
+  EXTENSION:=.exe
+endif
+
+IMAGE?=docker/vm-service-extension
+TAG?=latest
+BUILDER=buildx-multi-arch
+
+INFO_COLOR = \033[0;36m
+NO_COLOR   = \033[m
+
+build-extension: ## Build service image to be deployed as a desktop extension
+	docker build --tag=$(IMAGE):$(TAG) .
+
+install-extension: build-extension ## Install the extension
+	docker extension install $(IMAGE):$(TAG)
+
+update-extension: build-extension ## Update the extension
+	docker extension update $(IMAGE):$(TAG)
+
+prepare-buildx: ## Create buildx builder for multi-arch build, if not exists
+	docker buildx inspect $(BUILDER) || docker buildx create --name=$(BUILDER) --driver=docker-container --driver-opt=network=host
+
+push-extension: prepare-buildx ## Build & Upload extension image to hub. Do not push if tag already exists: make push-extension tag=0.1
+	docker pull $(IMAGE):$(TAG) && echo "Failure: Tag already exists" || docker buildx build --push --builder=$(BUILDER) --platform=linux/amd64,linux/arm64 --build-arg TAG=$(TAG) --tag=$(IMAGE):$(TAG) .
+
+help: ## Show this help
+	@echo Please specify a build target. The choices are:
+	@grep -E '^[0-9a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "$(INFO_COLOR)%-30s$(NO_COLOR) %s\n", $$1, $$2}'
+
+.PHONY: build-extension push-extension help
+
+
+
+================================================
+FILE: samples/vm-service/metadata.json
+================================================
+{
+  "icon": "docker.svg",
+  "vm": {
+    "composefile": "docker-compose.yaml",
+    "exposes": { "socket": "extension-volumes.sock" }
+  },
+  "ui": {
+    "dashboard-tab": {
+      "title": "Volumes",
+      "root": "/ui",
+      "src": "index.html",
+      "backend": { "socket": "extension-volumes.sock" }
+    }
+  }
+}
+
+
+
+================================================
+FILE: samples/vm-service/ui/src/index.html
+================================================
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+
+  <body>
+    <h1>Volumes extension sample</h1>
+
+    <p onclick="window.ddClient.desktopUI.toast.error('custom error');">
+      click to fake an error
+    </p>
+
+    <p>Here are your volumes!</p>
+
+    <script type="application/javascript" src="./script.js"></script>
+  </body>
+</html>
+
+
+
+================================================
+FILE: samples/vm-service/ui/src/script.js
+================================================
+window.ddClient.extension.vm.service.get("/ls").then((volumes) => {
+  document.body.innerHTML += `
+    <ul>
+      ${volumes.map((v) => `<li>${v}</li>`).join("")}
+    </ul>
+  `;
+});
+
+
+
+================================================
+FILE: samples/vm-service/vm/main.go
+================================================
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+
+	"github.com/labstack/echo"
+	"github.com/sirupsen/logrus"
+
+	"github.com/docker/vm-service-extension/internal/socket"
+)
+
+var volumesRoot = flag.String("volumesRoot", "/var/lib/docker/volumes", "Root folder for volumes")
+
+func main() {
+	var socketPath = flag.String("socket", "/run/guest/volumes-service.sock", "Unix domain socket to listen on")
+	var testPort = flag.Int("testPort", 0, "Test port to expose instead of socket")
+	flag.Parse()
+	unixSocket := "unix:" + *socketPath
+	logrus.New().Infof("Starting listening on %s\n", unixSocket)
+	router := echo.New()
+	router.HideBanner = true
+
+	startURL := ""
+
+	if *testPort != 0 {
+		startURL = fmt.Sprintf(":%d", *testPort)
+	} else {
+		ln, err := socket.ListenOn(unixSocket)
+		if err != nil {
+			log.Fatal(err)
+		}
+		router.Listener = ln
+	}
+
+	router.GET("/ls", listVolumes)
+	router.GET("/version", getVersion)
+
+	log.Fatal(router.Start(startURL))
+}
+
+func getVersion(ctx echo.Context) error {
+	return ctx.JSON(http.StatusOK, "1.0")
+}
+
+func listVolumes(ctx echo.Context) error {
+	files, err := ioutil.ReadDir(*volumesRoot)
+	if err != nil {
+		return internalError(ctx, err)
+	}
+	res := []string{}
+	for _, file := range files {
+		res = append(res, file.Name())
+	}
+	return ctx.JSON(http.StatusOK, res)
+}
+
+func internalError(ctx echo.Context, err error) error {
+	logrus.Error(err)
+	return ctx.JSON(http.StatusInternalServerError, HTTPMessageBody{Message: err.Error()})
+}
+
+type HTTPMessageBody struct {
+	Message string
+}
+
+
+
+================================================
+FILE: samples/vm-service/vm/internal/socket/socket.go
+================================================
+package socket
+
+import (
+	"context"
+	"fmt"
+	"net"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+
+	"github.com/pkg/errors"
+)
+
+// ListenFD listens to a file descriptor.
+func ListenFD(filedes string) (net.Listener, error) {
+	fd, err := strconv.Atoi(filedes)
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot parse file descriptor: %s", filedes)
+	}
+	file := os.NewFile(uintptr(fd), fmt.Sprintf("fd:%v", filedes))
+	res, err := net.FileListener(file)
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot convert fd %v to net.Listener", fd)
+	}
+	return res, nil
+}
+
+// Listen wraps net.Listen, preferring ListenUnix when applicable, and
+// offers support for the "fd" network type, in which case address is
+// a file descriptor.
+func Listen(network, address string) (net.Listener, error) {
+	switch network {
+	case "fd":
+		return ListenFD(address)
+	case "unix":
+		return ListenUnix(address)
+	default:
+		return net.Listen(network, address)
+	}
+}
+
+// ListenOn splits a "network:address" string to invoke Listen.
+func ListenOn(addr string) (net.Listener, error) {
+	ss := strings.SplitN(addr, ":", 2)
+	if len(ss) < 2 {
+		return nil, errors.Errorf("invalid listener address: %v", addr)
+	}
+	return Listen(ss[0], ss[1])
+}
+
+// Client Creates a client connected to the specified socket
+func Client(addr string) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return DialSocket(addr)
+			},
+		},
+	}
+}
+
+
+
+================================================
+FILE: samples/vm-service/vm/internal/socket/socket_darwin.go
+================================================
+package socket
+
+const maxUnixSocketPathLen = 104 - 1 // NULL
+
+
+
+================================================
+FILE: samples/vm-service/vm/internal/socket/socket_linux.go
+================================================
+package socket
+
+const maxUnixSocketPathLen = 108 - 1 // NULL
+
+
+
+================================================
+FILE: samples/vm-service/vm/internal/socket/socket_unix.go
+================================================
+// +build !windows
+
+package socket
+
+import (
+	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+)
+
+// ListenUnix wraps `net.ListenUnix`.
+func ListenUnix(path string) (*net.UnixListener, error) {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+	// Make sure the parent directory exists.
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, err
+	}
+	short, err := shortenUnixSocketPath(path)
+	if err != nil {
+		return nil, err
+	}
+	return net.ListenUnix("unix", &net.UnixAddr{Name: short, Net: "unix"})
+}
+
+func DialSocket(socket string) (net.Conn, error) {
+	return net.Dial("unix", socket)
+}
+
+func shortenUnixSocketPath(path string) (string, error) {
+	if len(path) <= maxUnixSocketPathLen {
+		return path, nil
+	}
+	// absolute path is too long, attempt to use a relative path
+	p, err := relative(path)
+	if err != nil {
+		return "", err
+	}
+
+	if len(p) > maxUnixSocketPathLen {
+		return "", fmt.Errorf("absolute and relative socket path %s longer than %d characters", p, maxUnixSocketPathLen)
+	}
+	return p, nil
+}
+
+func relative(p string) (string, error) {
+	// Assume the parent directory exists already but the child (the socket)
+	// hasn't been created.
+	path2, err := filepath.EvalSymlinks(filepath.Dir(p))
+	if err != nil {
+		return "", err
+	}
+	dir, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	dir2, err := filepath.EvalSymlinks(dir)
+	if err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(dir2, path2)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(rel, filepath.Base(p)), nil
+}
+
+
+
+================================================
+FILE: samples/vm-service/vm/internal/socket/socket_unix_test.go
+================================================
+// +build !windows
+
+package socket
+
+import (
+	"fmt"
+	"io/ioutil"
+	"net"
+	"os"
+	"path"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestMaxPathLength(t *testing.T) {
+	dir, err := ioutil.TempDir("", "test-max-path-length")
+	require.Nil(t, err)
+	defer func() {
+		assert.Nil(t, os.RemoveAll(dir))
+	}()
+	path := path.Join(dir, "socket")
+	for {
+		l, err := net.Listen("unix", path)
+		if err != nil {
+			if len(path) > maxUnixSocketPathLen {
+				return
+			}
+			fmt.Printf("path length %d is <= maximum %d\n", len(path), maxUnixSocketPathLen)
+			t.Fail()
+			return
+		}
+		if len(path) > maxUnixSocketPathLen {
+			fmt.Printf("path length %d is > maximum %d\n", len(path), maxUnixSocketPathLen)
+			t.Fail()
+		}
+		require.Nil(t, l.Close())
+		path = path + "1"
+	}
+}
+
+
+
+================================================
+FILE: samples/vm-service/vm/internal/socket/socket_windows.go
+================================================
+package socket
+
+import (
+	"net"
+	"time"
+
+	"github.com/Microsoft/go-winio"
+)
+
+// ListenUnix wraps `winio.ListenUnix`.
+// It provides API compatibility for named pipes with the Unix domain socket API.
+func ListenUnix(path string) (net.Listener, error) {
+	return winio.ListenPipe(path, &winio.PipeConfig{
+		MessageMode:      true,  // Use message mode so that CloseWrite() is supported
+		InputBufferSize:  65536, // Use 64KB buffers to improve performance
+		OutputBufferSize: 65536,
+	})
+}
+
+func DialSocket(socket string) (net.Conn, error) {
+	timeout := 1 * time.Second
+	return winio.DialPipe(socket, &timeout)
+}
+
+
+
+================================================
+FILE: samples/vm-service/vm/internal/version/version.go
+================================================
+package version
+
+// Version is the version tag, set at build time
+var Version = "dev"
+
+
