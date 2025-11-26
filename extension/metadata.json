@@ -12,15 +12,18 @@
       {
         "darwin": [
           { "path": "/host/darwin/kubectl" },
-          { "path": "/host/darwin/helm" }
+          { "path": "/host/darwin/helm" },
+          { "path": "/host/darwin/kubectl-apply-json" }
         ],
         "linux": [
           { "path": "/host/linux/kubectl" },
-          { "path": "/host/linux/helm" }
+          { "path": "/host/linux/helm" },
+          { "path": "/host/linux/kubectl-apply-json" }
         ],
         "windows": [
           { "path": "/host/windows/kubectl.cmd" },
-          { "path": "/host/windows/helm.cmd" }
+          { "path": "/host/windows/helm.cmd" },
+          { "path": "/host/windows/kubectl-apply-json.cmd" }
         ]
       }
     ]
