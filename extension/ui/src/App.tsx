@@ -19,6 +19,9 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Collapse from '@mui/material/Collapse';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import Checkbox from '@mui/material/Checkbox';
+import FormGroup from '@mui/material/FormGroup';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -98,6 +101,12 @@ function App() {
   const [addingRepo, setAddingRepo] = useState(false);
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
   const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
+
+  // Path discovery state
+  const [discoveredPaths, setDiscoveredPaths] = useState<string[]>([]);
+  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
+  const [discoveringPaths, setDiscoveringPaths] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
 
   const fetchGitRepos = useCallback(async () => {
     setLoadingRepos(true);
@@ -277,11 +286,16 @@ function App() {
     setAddingRepo(true);
     setAddRepoError(null);
     try {
-      // Build the GitRepo YAML
-      const paths = newRepoPaths
-        .split(',')
-        .map((p) => p.trim())
-        .filter((p) => p.length > 0);
+      // Build paths from selected checkboxes or manual input
+      let paths: string[] = [];
+      if (selectedPaths.size > 0) {
+        paths = Array.from(selectedPaths);
+      } else if (newRepoPaths) {
+        paths = newRepoPaths
+          .split(',')
+          .map((p) => p.trim())
+          .filter((p) => p.length > 0);
+      }
 
       const gitRepoYaml = {
         apiVersion: 'fleet.cattle.io/v1alpha1',
@@ -310,6 +324,9 @@ function App() {
       setNewRepoUrl('');
       setNewRepoBranch('');
       setNewRepoPaths('');
+      setDiscoveredPaths([]);
+      setSelectedPaths(new Set());
+      setDiscoveryError(null);
       await fetchGitRepos();
     } catch (err) {
       console.error('Failed to add GitRepo:', err);
@@ -317,6 +334,87 @@ function App() {
     } finally {
       setAddingRepo(false);
     }
+  };
+
+  // Discover paths containing fleet.yaml in a GitHub repo
+  const discoverPaths = async () => {
+    if (!newRepoUrl) return;
+
+    setDiscoveringPaths(true);
+    setDiscoveryError(null);
+    setDiscoveredPaths([]);
+    setSelectedPaths(new Set());
+
+    try {
+      // Parse GitHub URL to get owner/repo
+      const match = newRepoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+      if (!match) {
+        throw new Error('Only GitHub repositories are supported for path discovery');
+      }
+
+      const [, owner, repoName] = match;
+      const cleanRepo = repoName.replace(/\.git$/, '');
+      const branch = newRepoBranch || 'master';
+
+      // Fetch repo tree from GitHub API
+      const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/${branch}?recursive=1`;
+      const response = await fetch(apiUrl);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          // Try 'main' branch if 'master' failed
+          const mainResponse = await fetch(
+            `https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/main?recursive=1`
+          );
+          if (!mainResponse.ok) {
+            throw new Error(`Repository not found or not accessible`);
+          }
+          const mainData = await mainResponse.json();
+          processTreeData(mainData);
+          return;
+        }
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      processTreeData(data);
+    } catch (err) {
+      console.error('Path discovery error:', err);
+      setDiscoveryError(getErrorMessage(err));
+    } finally {
+      setDiscoveringPaths(false);
+    }
+  };
+
+  const processTreeData = (data: { tree: Array<{ path: string; type: string }> }) => {
+    // Find all fleet.yaml files and extract their parent directories
+    const fleetYamlPaths = data.tree
+      .filter((item) => item.type === 'blob' && item.path.endsWith('fleet.yaml'))
+      .map((item) => {
+        const parts = item.path.split('/');
+        parts.pop(); // Remove 'fleet.yaml'
+        return parts.join('/') || '.';
+      })
+      .filter((path) => path !== '.') // Exclude root
+      .sort();
+
+    if (fleetYamlPaths.length === 0) {
+      setDiscoveryError('No fleet.yaml files found in this repository');
+    } else {
+      setDiscoveredPaths(fleetYamlPaths);
+    }
+  };
+
+  const togglePathSelection = (path: string) => {
+    setSelectedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
   };
 
   const deleteGitRepo = async (name: string) => {
@@ -532,6 +630,7 @@ function App() {
                     <TableCell>Name</TableCell>
                     <TableCell>Repository</TableCell>
                     <TableCell>Branch</TableCell>
+                    <TableCell>Paths</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
@@ -558,6 +657,9 @@ function App() {
                             {repo.repo}
                           </TableCell>
                           <TableCell>{repo.branch || 'default'}</TableCell>
+                          <TableCell sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }} title={repo.paths?.join(', ')}>
+                            {repo.paths?.join(', ') || '/'}
+                          </TableCell>
                           <TableCell>{getRepoStatusChip(repo)}</TableCell>
                           <TableCell align="right">
                             <IconButton
@@ -571,7 +673,7 @@ function App() {
                         </TableRow>
                         {hasResources && (
                           <TableRow>
-                            <TableCell colSpan={6} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
+                            <TableCell colSpan={7} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
                               <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                                 <Box sx={{ py: 2, pl: 6 }}>
                                   <Typography variant="subtitle2" gutterBottom>
@@ -652,18 +754,59 @@ function App() {
               helperText="Branch to track (leave empty for default)"
               fullWidth
             />
-            <TextField
-              label="Paths"
-              value={newRepoPaths}
-              onChange={(e) => setNewRepoPaths(e.target.value)}
-              placeholder="simple, helm/nginx"
-              helperText="Comma-separated paths within the repo to deploy"
-              fullWidth
-            />
+            {/* Path Discovery Section */}
+            <Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Typography variant="subtitle2">Paths</Typography>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  onClick={discoverPaths}
+                  disabled={!newRepoUrl || discoveringPaths}
+                >
+                  {discoveringPaths ? 'Discovering...' : 'Discover Paths'}
+                </Button>
+              </Box>
+
+              {discoveryError && (
+                <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setDiscoveryError(null)}>
+                  {discoveryError}
+                </Alert>
+              )}
+
+              {discoveredPaths.length > 0 ? (
+                <Paper variant="outlined" sx={{ p: 1, maxHeight: 200, overflow: 'auto' }}>
+                  <FormGroup>
+                    {discoveredPaths.map((path) => (
+                      <FormControlLabel
+                        key={path}
+                        control={
+                          <Checkbox
+                            checked={selectedPaths.has(path)}
+                            onChange={() => togglePathSelection(path)}
+                            size="small"
+                          />
+                        }
+                        label={<Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{path}</Typography>}
+                      />
+                    ))}
+                  </FormGroup>
+                </Paper>
+              ) : (
+                <TextField
+                  value={newRepoPaths}
+                  onChange={(e) => setNewRepoPaths(e.target.value)}
+                  placeholder="simple, helm/nginx"
+                  helperText="Comma-separated paths, or click 'Discover Paths' to find fleet.yaml locations"
+                  fullWidth
+                  size="small"
+                />
+              )}
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setAddDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => { setAddDialogOpen(false); setDiscoveredPaths([]); setSelectedPaths(new Set()); setDiscoveryError(null); }}>Cancel</Button>
           <Button
             onClick={addGitRepo}
             variant="contained"
