@@ -399,12 +399,44 @@ The following questions have been resolved:
 | **Multi-cluster** | Focus on local cluster only - not needed initially |
 | **AppCo Dependency** | Standalone - integrate AppCo directly without requiring AppCo extension |
 | **Helm Values UI** | Keep simple initially (text-based YAML), expand sophistication later |
+| **Fleet Version** | Use latest Fleet version at build time; Fleet updates only occur via extension updates |
+| **Error Recovery** | Simple error display with retry button; no complex recovery flows for MVP |
 
 ## Open Questions
 
-1. **Credential Management**: How should we handle credentials for AppCo, GitHub, and internal Git repos in a unified way?
-2. **Fleet Version**: Which Fleet version should we target, and how do we handle upgrades?
-3. **Error Recovery**: What's the UX for common failure scenarios (network issues, invalid manifests)?
+1. **Credential Management**: How should we handle credentials for AppCo, GitHub, and internal Git repos in a unified way? (To be addressed in Phase 2)
+
+---
+
+## Testing Configuration
+
+For development and testing, use the official Fleet examples repository:
+
+```yaml
+apiVersion: fleet.cattle.io/v1alpha1
+kind: GitRepo
+metadata:
+  name: sample
+  namespace: fleet-local
+spec:
+  repo: "https://github.com/rancher/fleet-examples"
+  paths:
+  - simple
+```
+
+This repository contains various example configurations:
+- `simple/` - Basic deployment manifests
+- `helm/` - Helm chart examples
+- `kustomize/` - Kustomize configurations
+- `multi-cluster/` - Multi-cluster examples (not needed for MVP)
+
+### Test Scenarios
+
+1. **Fleet Installation**: Verify one-click Fleet installation works
+2. **Public Repo**: Add the fleet-examples repo and verify sync
+3. **Bundle Status**: Confirm bundles show as ready after sync
+4. **Resource Display**: Verify deployed resources are shown correctly
+5. **Error Handling**: Test with invalid repo URL to verify error display and retry
 
 ---
 
