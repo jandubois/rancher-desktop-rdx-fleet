@@ -1,16 +1,16 @@
 # Development
 
-[Get free private DeepWikis in Devin](/private-repo)
-
-[DeepWiki](https://deepwiki.com)
+[Index your code with Devin](/private-repo)
 
 [DeepWiki](/)
 
-[rancher/fleet](https://github.com/rancher/fleet)
+[DeepWiki](/)
 
-[Get free private DeepWikis with
+[rancher/fleet](https://github.com/rancher/fleet "Open repository")
 
-Devin](/private-repo)Share
+[Index your code with
+
+Devin](/private-repo)Edit WikiShare
 
 Last indexed: 3 June 2025 ([01abaa](https://github.com/rancher/fleet/commits/01abaa07))
 
@@ -191,4 +191,4 @@ Enter email to refresh
 
 Ask Devin about rancher/fleet
 
-Deep Research
+Fast
