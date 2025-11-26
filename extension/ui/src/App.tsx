@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -18,11 +18,15 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import Collapse from '@mui/material/Collapse';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import SyncIcon from '@mui/icons-material/Sync';
 import { ddClient } from './lib/ddClient';
 
 type FleetStatus = 'checking' | 'not-installed' | 'running' | 'error';
@@ -40,8 +44,18 @@ interface GitRepo {
   paths?: string[];
   status?: {
     ready: boolean;
+    display?: {
+      state?: string;
+      message?: string;
+      error?: boolean;
+    };
     desiredReadyClusters: number;
     readyClusters: number;
+    resources?: Array<{
+      kind: string;
+      name: string;
+      state: string;
+    }>;
     conditions?: Array<{
       type: string;
       status: string;
@@ -83,6 +97,7 @@ function App() {
   const [newRepoPaths, setNewRepoPaths] = useState('simple');
   const [addingRepo, setAddingRepo] = useState(false);
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
+  const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
 
   const fetchGitRepos = useCallback(async () => {
     setLoadingRepos(true);
@@ -104,6 +119,8 @@ function App() {
         const status = item.status as Record<string, unknown> || {};
         const metadata = item.metadata as Record<string, unknown> || {};
         const conditions = (status.conditions as Array<Record<string, unknown>>) || [];
+        const display = status.display as Record<string, unknown> | undefined;
+        const resources = (status.resources as Array<Record<string, unknown>>) || [];
 
         return {
           name: metadata.name as string,
@@ -112,8 +129,18 @@ function App() {
           paths: spec.paths as string[] | undefined,
           status: {
             ready: conditions.some((c) => c.type === 'Ready' && c.status === 'True'),
+            display: display ? {
+              state: display.state as string | undefined,
+              message: display.message as string | undefined,
+              error: display.error as boolean | undefined,
+            } : undefined,
             desiredReadyClusters: (status.desiredReadyClusters as number) || 0,
             readyClusters: (status.readyClusters as number) || 0,
+            resources: resources.map((r) => ({
+              kind: r.kind as string,
+              name: r.name as string,
+              state: r.state as string,
+            })),
             conditions: conditions.map((c) => ({
               type: c.type as string,
               status: c.status as string,
@@ -311,6 +338,28 @@ function App() {
     checkFleetStatus();
   }, [checkFleetStatus]);
 
+  // Auto-refresh when there are repos that aren't ready yet
+  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    const hasUnreadyRepos = gitRepos.some((repo) => !repo.status?.ready);
+
+    if (hasUnreadyRepos && fleetState.status === 'running') {
+      // Poll every 3 seconds while syncing
+      refreshIntervalRef.current = setInterval(() => {
+        fetchGitRepos();
+      }, 3000);
+    } else if (refreshIntervalRef.current) {
+      clearInterval(refreshIntervalRef.current);
+      refreshIntervalRef.current = null;
+    }
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, [gitRepos, fleetState.status, fetchGitRepos]);
+
   const renderStatusIcon = () => {
     switch (fleetState.status) {
       case 'checking':
@@ -324,22 +373,63 @@ function App() {
     }
   };
 
+  const toggleRepoExpanded = (name: string) => {
+    setExpandedRepos((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
+
   const getRepoStatusChip = (repo: GitRepo) => {
     if (!repo.status) {
       return <Chip label="Unknown" size="small" />;
     }
     if (repo.status.ready) {
-      return <Chip label="Ready" color="success" size="small" />;
+      const resourceCount = repo.status.resources?.length || 0;
+      return (
+        <Chip
+          label={`Ready${resourceCount > 0 ? ` (${resourceCount} resources)` : ''}`}
+          color="success"
+          size="small"
+          icon={<CheckCircleIcon />}
+        />
+      );
     }
-    const errorCondition = repo.status.conditions?.find(
-      (c) => c.type === 'Ready' && c.status !== 'True'
-    );
+
+    // Check for error state
+    if (repo.status.display?.error) {
+      return (
+        <Chip
+          label={repo.status.display.message?.substring(0, 30) || 'Error'}
+          color="error"
+          size="small"
+          icon={<ErrorIcon />}
+          title={repo.status.display.message}
+        />
+      );
+    }
+
+    // Show syncing state with spinner
+    const state = repo.status.display?.state || 'Syncing';
+    const stateLabels: Record<string, string> = {
+      'GitUpdating': 'Cloning repo...',
+      'WaitApplied': 'Applying resources...',
+      'Active': 'Deploying...',
+      'Modified': 'Updating...',
+    };
+
     return (
       <Chip
-        label={errorCondition?.message?.substring(0, 30) || 'Not Ready'}
-        color="warning"
+        label={stateLabels[state] || state}
+        color="info"
         size="small"
-        title={errorCondition?.message}
+        icon={<SyncIcon sx={{ animation: 'spin 2s linear infinite', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } } }} />}
+        title={repo.status.display?.message}
       />
     );
   };
@@ -438,35 +528,87 @@ function App() {
               <Table size="small">
                 <TableHead>
                   <TableRow>
+                    <TableCell width={40} />
                     <TableCell>Name</TableCell>
                     <TableCell>Repository</TableCell>
                     <TableCell>Branch</TableCell>
-                    <TableCell>Paths</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {gitRepos.map((repo) => (
-                    <TableRow key={repo.name}>
-                      <TableCell>{repo.name}</TableCell>
-                      <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {repo.repo}
-                      </TableCell>
-                      <TableCell>{repo.branch || 'default'}</TableCell>
-                      <TableCell>{repo.paths?.join(', ') || '/'}</TableCell>
-                      <TableCell>{getRepoStatusChip(repo)}</TableCell>
-                      <TableCell align="right">
-                        <IconButton
-                          size="small"
-                          onClick={() => deleteGitRepo(repo.name)}
-                          title="Delete"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {gitRepos.map((repo) => {
+                    const isExpanded = expandedRepos.has(repo.name);
+                    const hasResources = (repo.status?.resources?.length || 0) > 0;
+                    return (
+                      <React.Fragment key={repo.name}>
+                        <TableRow>
+                          <TableCell>
+                            {hasResources && (
+                              <IconButton
+                                size="small"
+                                onClick={() => toggleRepoExpanded(repo.name)}
+                              >
+                                {isExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                              </IconButton>
+                            )}
+                          </TableCell>
+                          <TableCell>{repo.name}</TableCell>
+                          <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {repo.repo}
+                          </TableCell>
+                          <TableCell>{repo.branch || 'default'}</TableCell>
+                          <TableCell>{getRepoStatusChip(repo)}</TableCell>
+                          <TableCell align="right">
+                            <IconButton
+                              size="small"
+                              onClick={() => deleteGitRepo(repo.name)}
+                              title="Delete"
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </TableCell>
+                        </TableRow>
+                        {hasResources && (
+                          <TableRow>
+                            <TableCell colSpan={6} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
+                              <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                                <Box sx={{ py: 2, pl: 6 }}>
+                                  <Typography variant="subtitle2" gutterBottom>
+                                    Deployed Resources
+                                  </Typography>
+                                  <Table size="small">
+                                    <TableHead>
+                                      <TableRow>
+                                        <TableCell>Kind</TableCell>
+                                        <TableCell>Name</TableCell>
+                                        <TableCell>State</TableCell>
+                                      </TableRow>
+                                    </TableHead>
+                                    <TableBody>
+                                      {repo.status?.resources?.map((resource, idx) => (
+                                        <TableRow key={idx}>
+                                          <TableCell>{resource.kind}</TableCell>
+                                          <TableCell>{resource.name}</TableCell>
+                                          <TableCell>
+                                            <Chip
+                                              label={resource.state}
+                                              size="small"
+                                              color={resource.state === 'Ready' ? 'success' : resource.state === 'WaitApplied' ? 'info' : 'default'}
+                                            />
+                                          </TableCell>
+                                        </TableRow>
+                                      ))}
+                                    </TableBody>
+                                  </Table>
+                                </Box>
+                              </Collapse>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </TableContainer>
