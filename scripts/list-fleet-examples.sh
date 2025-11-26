@@ -3,26 +3,34 @@
 # These can be used as paths when adding GitRepos
 
 cat << 'EOF'
-=== Available fleet-examples paths ===
+=== Available paths in rancher/fleet-examples ===
 
-Basic Examples (recommended for testing):
-  simple              - Single ConfigMap deployment
-  multi-cluster/helm  - Helm chart example
+Simple (best for testing):
+  simple                        - Single ConfigMap
 
-Helm Examples:
-  helm/kustomize      - Helm with Kustomize overlays
-  helm/local-chart    - Local Helm chart
-  helm/default-values - Helm chart with values
+Single-Cluster Examples:
+  single-cluster/manifests      - Raw YAML manifests
+  single-cluster/helm           - Helm chart
+  single-cluster/helm-multi-chart - Multiple Helm charts
+  single-cluster/kustomize      - Kustomize
+  single-cluster/helm-kustomize - Helm + Kustomize
 
-Advanced:
-  bundle-diffs        - Bundle customization
-  single-cluster      - Single cluster targeting
+Multi-Cluster Examples:
+  multi-cluster/manifests       - Raw YAML manifests
+  multi-cluster/helm            - Helm chart
+  multi-cluster/helm-external   - External Helm repo
+  multi-cluster/kustomize       - Kustomize
+  multi-cluster/helm-kustomize  - Helm + Kustomize
+
+Other:
+  appco                         - App co-deployment
+  hardened                      - Hardened example
 
 Usage in the extension:
   Repository URL: https://github.com/rancher/fleet-examples
-  Paths: simple (or any path above, comma-separated for multiple)
+  Paths: simple (or comma-separated for multiple)
 
-To add via kubectl directly:
+Quick add via script:
   ./scripts/add-test-repo.sh simple
-  ./scripts/add-test-repo.sh helm/local-chart
+  ./scripts/add-test-repo.sh single-cluster/helm
 EOF
