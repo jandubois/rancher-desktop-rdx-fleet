@@ -49,8 +49,8 @@ Our container is based on the [Microsoft builds of Go](https://github.com/micros
 
 The container image is provided in the following flavors:
 
-- Default flavor: This flavor of the container image is based on BCI Micro FIPS and includes only the essential system packages to run Go FIPS and built applications. Therefore, it lacks the package manager and various popular build tools such as `curl`, `find` or `grep`. It is ideal if you are looking for a minimal image to build your Go application.
-- Development flavor `dev`: This flavor is based on BCI Base FIPS and includes the `zypper` package manager, the `rpm` packaging tool, and various different build tools such as `curl`, `find`, `grep`. Therefore, it is ideal for build pipelines that need extra programs to build your application.
+- Default flavor: This flavor of the container image is based on SUSE Linux BCI Micro FIPS base image and includes only the essential system packages **to run Go FIPS and build applications**. Therefore, it lacks the package manager and various popular build tools such as `curl`, `find` or `grep`. It is ideal if you are looking for a minimal image to build your Go application.
+- Development flavor `dev`: This flavor is based on SUSE Linux BCI Base FIPS and includes the `zypper` package manager, the `rpm` packaging tool, and various different build tools such as `curl`, `find`, `grep`. Therefore, it is ideal for build pipelines that need extra programs **to build your application**.
 
 ## Container configuration
 
@@ -288,6 +288,6 @@ Finally, you can proceed to distribute the container image to your desired conta
 - Quoting from [golang-fips/openssl](https://github.com/golang-fips/openssl?tab=readme-ov-file#disclaimer), which this project is based on: A program directly or indirectly using this package in FIPS mode can claim it is using a FIPS-certified cryptographic module (OpenSSL), but it can’t claim the program as a whole is FIPS certified without passing the certification process, nor claim it is FIPS compliant without ensuring all `crypto` APIs and workflows are implemented in a FIPS-compliant manner.
 
 
-Last modified August 21, 2025
+Last modified November 17, 2025
 
 

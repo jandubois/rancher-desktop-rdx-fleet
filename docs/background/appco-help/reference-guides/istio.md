@@ -266,6 +266,6 @@ kubectl delete $(kubectl get CustomResourceDefinition -l='app.kubernetes.io/part
 ```
 
 
-Last modified July 22, 2025
+Last modified September 9, 2025
 
 

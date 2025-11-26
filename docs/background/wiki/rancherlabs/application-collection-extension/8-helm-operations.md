@@ -1,16 +1,16 @@
 # Helm Operations
 
-[Get free private DeepWikis in Devin](/private-repo)
-
-[DeepWiki](https://deepwiki.com)
+[Index your code with Devin](/private-repo)
 
 [DeepWiki](/)
 
-[rancherlabs/application-collection-extension](https://github.com/rancherlabs/application-collection-extension)
+[DeepWiki](/)
 
-[Get free private DeepWikis with
+[rancherlabs/application-collection-extension](https://github.com/rancherlabs/application-collection-extension "Open repository")
 
-Devin](/private-repo)Share
+[Index your code with
+
+Devin](/private-repo)Edit WikiShare
 
 Last indexed: 29 July 2025 ([039b43](https://github.com/rancherlabs/application-collection-extension/commits/039b43fd))
 
@@ -162,4 +162,4 @@ Enter email to refresh
 
 Ask Devin about rancherlabs/application-collection-extension
 
-Deep Research
+Fast

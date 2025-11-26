@@ -161,6 +161,6 @@ Click on the CVE name, this will take you to the vulnerability details page. Fro
 Finally, if you go back to the Dashboard, you will see that the Inherited Risk Score flattened, and that the Portfolio Vulnerabilities decreased accordingly.
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

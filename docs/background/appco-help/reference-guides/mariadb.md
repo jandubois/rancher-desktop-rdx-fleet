@@ -393,7 +393,7 @@ helm install <release-name> oci://dp.apps.rancher.io/charts/mariadb \
 
 ### Metrics
 
-The MariaDB Helm chart can deploy a metrics exporter as a sidecar container that exposes Prometheus metrics to be scrapped by a Prometheus server. The metrics exporter is deactivated by default but it can be enabled via Helm chart parameters (`metrics.yaml`):
+The MariaDB Helm chart can deploy a metrics exporter as a sidecar container that exposes Prometheus metrics to be scraped by a Prometheus server. The metrics exporter is deactivated by default but it can be enabled via Helm chart parameters (`metrics.yaml`):
 
 
 ```
@@ -419,7 +419,7 @@ helm install <release-name> oci://dp.apps.rancher.io/charts/mariadb \
 ```
 
 
-Prometheus metrics can be scrapped now:
+Prometheus metrics can be scraped now:
 
 
 ```
@@ -507,6 +507,6 @@ kubectl delete pvc --selector app.kubernetes.io/instance=<release-name>
 ```
 
 
-Last modified September 1, 2025
+Last modified October 31, 2025
 
 

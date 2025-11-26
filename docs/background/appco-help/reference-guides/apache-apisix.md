@@ -55,20 +55,42 @@ helm show values oci://dp.apps.rancher.io/charts/apache-apisix
 ```
 
 
-### Deploy the dashboard
+### Access the dashboard
 
-The Apache APISIX Helm chart offers a dashboard UI that allows you to easily manage its configurations. In order to deploy Apache APISIX with the dashboard UI, run the following command:
+The Apache APISIX Helm chart offers a dashboard UI, enabled by default, that allows you to easily manage its configurations. In order to access the Apache APISIX dashboard UI, credentials need to be provided:
 
 
 ```
+apisix:
+  admin:
+    # -- Enable Admin API
+    enabled: true
+    # -- Enable Embedded Admin UI
+    enable_admin_ui: true
+    credentials:
+      # -- Apache APISIX admin API admin role credentials
+      admin: <the_admin_key>
+      # -- Apache APISIX admin API viewer role credentials
+      viewer: <the_viewer_key>
+```
+
+
+In order to handle these credentials in a more secure way, a Kubernetes secret can be created to store the *admin* and *viewer* keys:
+
+
+```
+kubectl create namespace apisix
+kubectl --namespace apisix create secret generic apisix-admin-credentials \
+    --from-literal admin=myadminkey --from-literal viewer=myviewerkey
 helm install <release-name> oci://dp.apps.rancher.io/charts/apache-apisix \
-    --namespace apisix \
-    --create-namespace \
+    --namespace apisix
     --set global.imagePullSecrets={application-collection} \
-    --set dashboard.enabled=true \
-    --set dashboard.config.conf.etcd.endpoints[0]='<release-name>-etcd:2379'
+    --set apisix.admin.credentials.secretName=apisix-admin-credentials
+kubectl --namespace apisix port-forward svc/<release-name>-apisix-admin 9180
 ```
 
+
+Then, open `http://localhost:9180/ui` in your preferred web browser.
 
 ### Deploy the ingress controller
 
@@ -103,24 +125,6 @@ helm install <release-name> oci://dp.apps.rancher.io/charts/apache-apisix \
 ```
 
 
-As the dashboard also requires etcd to work properly, the following command should be used to install our Apache APISIX chart with the dashboard if an external etcd cluster is used:
-
-
-```
-helm install <release-name> oci://dp.apps.rancher.io/charts/apache-apisix \
-    --namespace apisix \
-    --create-namespace \
-    --set global.imagePullSecrets={application-collection} \
-    --set etcd.enabled=false \
-    --set 'externalEtcd.host[0]=<your-etcd-address>:<your-etcd-port>' \
-    --set 'externalEtcd.password=password' \
-    --set dashboard.enabled=true \
-    --set 'dashboard.config.conf.etcd.endpoints[0]=<your-etcd-address>:<your-etcd-port>' \
-    --set 'dashboard.config.conf.etcd.username=<your-etcd-username>' \
-    --set 'dashboard.config.conf.etcd.password=<your-etcd-password>'
-```
-
-
 ## Operations
 
 ### Uninstall the chart
@@ -150,6 +154,6 @@ kubectl delete $(kubectl get CustomResourceDefinition -l='apisix.apache.org/app=
 ```
 
 
-Last modified July 10, 2025
+Last modified September 10, 2025
 
 

@@ -64,6 +64,6 @@ Postman will display the response data sent from the server in the lower pane.
 ![Postman request example](images/howto-guides/postman-request-example.png "Postman request example")
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

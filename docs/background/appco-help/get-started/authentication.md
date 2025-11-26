@@ -197,6 +197,6 @@ curl -u <your-username-or-sa-username>:<access-token-or-sa-secret> https://api.a
 If you’re going to use the API intensively, we suggest using other tools such as [Postman](https://www.postman.com/) or the embedded [Swagger UI](https://swagger.io/tools/swagger-ui/). In any case, you will need to pick basic authentication, using your username or the service account as `username` and an access token or the service account secret as `password`.
 
 
-Last modified July 16, 2025
+Last modified September 9, 2025
 
 

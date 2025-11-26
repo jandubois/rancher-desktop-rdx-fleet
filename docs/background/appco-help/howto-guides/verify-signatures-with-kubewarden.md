@@ -171,6 +171,6 @@ The approach deployed here is functional and secure, yet Kubernetes Operators ma
 These are possible with Kubewarden, have a look at the [project documentation](https://docs.kubewarden.io) for more info.
 
 
-Last modified July 22, 2025
+Last modified September 9, 2025
 
 

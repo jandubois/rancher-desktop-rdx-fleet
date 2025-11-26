@@ -70,7 +70,7 @@ Notice that you can leave all other fields with their default values. At this po
 
 ## Use Application Collection container images
 
-In order to make this section easier to follow, we will take GitLab’s example[NPM with semantic-release](https://docs.gitlab.com/ee/ci/examples/semantic-release.md). In this example we will create a basic NPM project with a basic CI/CD pipeline that performs a release on every commit pushed to the main branch. We won’t dive into NPM specifics or other pipeline details apart from the image migration.
+In order to make this section easier to follow, we will take GitLab’s example [NPM with semantic-release](https://docs.gitlab.com/ee/ci/examples/semantic-release.md). In this example we will create a basic NPM project with a basic CI/CD pipeline that performs a release on every commit pushed to the main branch. We won’t dive into NPM specifics or other pipeline details apart from the image migration.
 
 This is the original pipeline we’re given:
 
@@ -154,6 +154,6 @@ publish:
 🎉 Exactly, a single-line change!
 
 
-Last modified July 10, 2025
+Last modified November 4, 2025
 
 

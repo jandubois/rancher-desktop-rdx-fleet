@@ -232,6 +232,6 @@ kubectl delete pvc --selector app.kubernetes.io/instance=<release-name>
 > Remember to uninstall any Penpot external dependency deployed during this guide.
 
 
-Last modified July 22, 2025
+Last modified September 9, 2025
 
 

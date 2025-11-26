@@ -35,9 +35,19 @@ Before reading these articles, we suggest following the [Get started](get-starte
 ###### Learn how to install and use Apache Kafka
 
 
+### [Argo CD](reference-guides/argo-cd.md)
+
+###### Learn how to install and use Argo CD
+
+
 ### [ClamAV](reference-guides/clamav.md)
 
 ###### Learn how to install and use ClamAV
+
+
+### [CoreDNS](reference-guides/coredns.md)
+
+###### Learn how to install and use CoreDNS
 
 
 ### [External Secrets Operator](reference-guides/external-secrets-operator.md)
@@ -50,9 +60,19 @@ Before reading these articles, we suggest following the [Get started](get-starte
 ###### Learn how to install and use ExternalDNS
 
 
+### [Git](reference-guides/git.md)
+
+###### Learn how to run and use Git
+
+
 ### [Go FIPS](reference-guides/go-fips.md)
 
 ###### Learn how to install and use Go FIPS
+
+
+### [Helm](reference-guides/helm.md)
+
+###### Learn how to run and use Helm
 
 
 ### [InfluxDB](reference-guides/influxdb.md)
@@ -68,6 +88,11 @@ Before reading these articles, we suggest following the [Get started](get-starte
 ### [Kiali](reference-guides/kiali.md)
 
 ###### Learn how to install and use Kiali
+
+
+### [kubectl](reference-guides/kubectl.md)
+
+###### Learn how to run and use kubectl
 
 
 ### [Local Path Provisioner](reference-guides/local-path-provisioner.md)
@@ -90,6 +115,11 @@ Before reading these articles, we suggest following the [Get started](get-starte
 ###### Learn how to install and use NATS
 
 
+### [OpenSearch](reference-guides/opensearch.md)
+
+###### Learn how to install and use OpenSearch
+
+
 ### [OpenTelemetry Collector](reference-guides/opentelemetry-collector.md)
 
 ###### Learn how to install and use OpenTelemetry Collector
@@ -110,11 +140,26 @@ Before reading these articles, we suggest following the [Get started](get-starte
 ###### Learn how to install and use PostgreSQL
 
 
+### [Redis](reference-guides/redis.md)
+
+###### Learn how to install and use Redis
+
+
+### [Rust](reference-guides/rust.md)
+
+###### Learn how to install and use Rust
+
+
+### [Valkey](reference-guides/valkey.md)
+
+###### Learn how to install and use Valkey
+
+
 ### [Velero](reference-guides/velero.md)
 
 ###### Learn how to install and use Velero
 
 
-Last modified July 8, 2025
+Last modified September 9, 2025
 
 

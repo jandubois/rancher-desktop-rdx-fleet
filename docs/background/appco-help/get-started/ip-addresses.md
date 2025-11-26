@@ -38,6 +38,6 @@ These ranges are in [CIDR notation](https://en.wikipedia.org/wiki/Classless_Inte
 These ranges are updated frequently. In case of allowing by IP address, we recommend regular monitoring of our API.
 
 
-Last modified July 8, 2025
+Last modified September 9, 2025
 
 

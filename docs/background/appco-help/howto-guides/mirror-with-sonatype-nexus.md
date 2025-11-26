@@ -101,6 +101,6 @@ To double check that the mirroring is working as expected, log in to the Nexus w
 From this point on, you have the repository fully functional. You can now configure *Content Selectors* and *Privileges* to fine-grain the access management, *Cleanup Policies* to improve storage performance or *Routing Rules* for global routing restrictions.
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

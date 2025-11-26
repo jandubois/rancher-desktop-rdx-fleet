@@ -83,6 +83,6 @@ Additionally, Application Collection users can check their current rate limits s
 ![Settings](images/get-started/rate-limits-settings.png "Settings")
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

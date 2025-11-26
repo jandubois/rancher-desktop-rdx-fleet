@@ -172,6 +172,6 @@ kubectl delete namespace velero
 > Remember to uninstall any MinIO dependency you deployed during this guide.
 
 
-Last modified July 17, 2025
+Last modified September 9, 2025
 
 

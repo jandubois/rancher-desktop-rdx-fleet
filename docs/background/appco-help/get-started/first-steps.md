@@ -151,6 +151,6 @@ docker run -d --name nginx -p 8080:80 \
 ![Hello world result](images/get-started/first-steps-result.png "Hello world result")
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

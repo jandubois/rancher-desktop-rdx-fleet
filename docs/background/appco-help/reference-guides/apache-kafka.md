@@ -419,6 +419,6 @@ $ helm uninstall <release-name>
 Keep in mind PVCs won’t be removed unless you define the `<nodeType>.statefulset.persistentVolumeClaimRetentionPolicy.whenDeleted=Delete` parameter.
 
 
-Last modified August 28, 2025
+Last modified September 9, 2025
 
 

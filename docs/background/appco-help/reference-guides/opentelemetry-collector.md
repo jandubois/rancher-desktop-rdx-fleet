@@ -124,7 +124,7 @@ presets:
     enabled: true
 
 config:
-  exporter:
+  exporters:
     debug:
       verbosity: detailed
 ```
@@ -191,6 +191,6 @@ helm uninstall <release-name>
 ```
 
 
-Last modified July 22, 2025
+Last modified November 21, 2025
 
 

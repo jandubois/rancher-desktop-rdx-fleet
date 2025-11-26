@@ -35,14 +35,14 @@ Before digging into the details of the available subscriptions, it is important 
 
 At the moment, the following subscriptions are available:
 
-|  | `Free` | `Prime` | `Extended` | `SUSE AI` |
-|----|----|----|----|----|
-| Available with SUSE products | \- | [SUSE Rancher Prime](https://www.suse.com/products/rancher) | [SUSE Rancher Suite](https://www.suse.com/products/rancher) & [SUSE AI Suite](https://www.suse.com/products/ai) | [SUSE AI Suite](https://www.suse.com/products/ai) |
-| Content | `Free` | `Free` + `Prime` | `Free` + `Prime` + `Extended` | `Free` + `Prime` + `SUSE AI` |
-| User accounts | 1 | 10 | 100 | 100 |
-| User account pulls | 100 | 200 | 500 | 500 |
-| Service accounts | 0 | 5 | 10 | 10 |
-| Service account pulls | \- | 2000 | 5000 | 5000 |
+|  | `Free` | `Prime` | `Extended` | `SUSE AI` | `Storage` |
+|----|----|----|----|----|----|
+| Available with SUSE products | \- | [SUSE Rancher Prime](https://www.suse.com/products/rancher) | [SUSE Rancher Suite](https://www.suse.com/products/rancher) & [SUSE AI Suite](https://www.suse.com/products/ai) | [SUSE AI Suite](https://www.suse.com/products/ai) | [SUSE Storage](https://www.suse.com/products/rancher/storage/) & [SUSE Rancher Suite](https://www.suse.com/products/rancher) |
+| Content | `Free` | `Free` + `Prime` | `Free` + `Prime` + `Extended` | `Free` + `Prime` + `SUSE AI` | `Free` + `Prime` + `Storage` |
+| User accounts | 1 | 10 | 100 | 100 | 100 |
+| User account pulls | 100 | 200 | 500 | 500 | 500 |
+| Service accounts | 0 | 5 | 10 | 10 | 10 |
+| Service account pulls | \- | 2000 | 5000 | 5000 | 5000 |
 
 We suggest reading how the [rate limits](get-started/rate-limits) work.
 
@@ -82,6 +82,6 @@ Taking that into account, checking the subscriptions of a user is easy. You just
     ![Subscriptions of a free user](images/get-started/subscriptions-free-user.png "Free user subscriptions")
 
 
-Last modified July 11, 2025
+Last modified November 10, 2025
 
 

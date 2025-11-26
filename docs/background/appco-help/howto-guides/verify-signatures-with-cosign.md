@@ -56,7 +56,7 @@ For example, the following command will verify the signature of the Application 
 ```
 $ docker run --rm dp.apps.rancher.io/containers/cosign:2 \
     verify dp.apps.rancher.io/containers/etcd:3.5.12 \
-    --registry-username USERNAME --registry-password PASSWORD /
+    --registry-username USERNAME --registry-password PASSWORD \
     --key https://apps.rancher.io/ap-pubkey.pem
 
 Verification for dp.apps.rancher.io/containers/etcd:3.5.12 --
@@ -207,12 +207,12 @@ To verify the signature of the OCI attestations attached to a container image, w
     
 
     ```
-    crane pull dp.apps.rancher.io/containers/IMAGE_NAME:sha256-DIGEST attestations.tar
+    crane pull dp.apps.rancher.io/containers/IMAGE_NAME:sha256-DIGEST.att attestations.tar
     ```
 
     
 
-    For example, to pull all OCI attestations for `etcd 3.5.12` on the `amd64*` architecture, into the `attestations.tar` archive, execute the following command:
+    For example, to pull all OCI attestations for `etcd 3.5.12` on the `amd64` architecture, into the `attestations.tar` archive, execute the following command:
 
     
 
@@ -344,6 +344,6 @@ docker run --rm -v ./ap-pubkey.pem:/ap-pubkey.pem:ro \
 ```
 
 
-Last modified July 10, 2025
+Last modified September 17, 2025
 
 

@@ -310,6 +310,6 @@ helm uninstall <release-name> -n istio-system
 > Remember to uninstall any Kiali dependency you deployed during this guide.
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

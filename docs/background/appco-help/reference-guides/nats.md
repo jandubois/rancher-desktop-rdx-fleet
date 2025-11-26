@@ -114,7 +114,7 @@ When JetStream is active, messages are persisted and can be replayed at a later 
 
 
 ```
-$ kubectl exec -it deployment/<release-name>-box -- nats bench js pub test --create --msgs=2
+$ kubectl exec -it deployment/<release-name>-box -- nats bench js pub sync test --create --msgs=2
 15:20:01 Starting JetStream publish benchmark [batch=500, clients=1, dedup-window=2m0s, deduplication=false, max-bytes=1,073,741,824, msg-size=128 B, msgs=2, multi-subject=false, multi-subject-max=100,000, purge=false, replicas=1, sleep=0s, storage=file, stream=benchstream, subject=test]
 15:20:01 Starting publisher, publishing 2 messages
 Finished      0s [===============================================================================================================================================================================] 100%
@@ -214,6 +214,6 @@ kubectl delete pvc --selector app.kubernetes.io/instance=<release-name>
 ```
 
 
-Last modified July 22, 2025
+Last modified October 24, 2025
 
 

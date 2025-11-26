@@ -155,6 +155,6 @@ helm install RELEASE-NAME oci://core.harbor.domain/application-collection/charts
 ```
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

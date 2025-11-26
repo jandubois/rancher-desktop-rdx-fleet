@@ -294,11 +294,12 @@ Read more on its usage [here](https://github.com/open-telemetry/opentelemetry-op
 
 The OpenTelemetry Operator supports [injecting and configuring auto-instrumentation](https://opentelemetry.io/docs/platforms/kubernetes/operator/automatic/) libraries for services based on several supported programming languages. The steps below shows how to [auto-instrument a Go service](https://opentelemetry.io/docs/platforms/kubernetes/operator/automatic/#go) and shows how traces are collected by a [previously deployed OpenTelemetry Collector](index.html#install-opentelemetry-collector).
 
-To start, make sure that the OpenTelemetry Operator allows to automatically instrument Go applications by passing the `--enable-go-instrumentation` flag:
+To start, make sure that the OpenTelemetry Operator allows to automatically instrument Go applications by passing the `--set manager.autoInstrumentation.go.enabled=true` Helm chart parameter:
 
 
 ```
-helm upgrade --install <release-name> oci://dp.apps.rancher.io/charts/opentelemetry-operator --reuse-values --set manager.extraArgs={--enable-go-instrumentation}
+helm upgrade --install <release-name> oci://dp.apps.rancher.io/charts/opentelemetry-operator --reuse-values \
+    --set manager.autoInstrumentation.go.enabled=true
 ```
 
 
@@ -416,6 +417,6 @@ kubectl delete namespace cert-manager
 ```
 
 
-Last modified July 22, 2025
+Last modified September 9, 2025
 
 

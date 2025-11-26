@@ -229,6 +229,6 @@ helm uninstall <release-name>
 > Remember to remove any AWS resource you deployed during this guide.
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

@@ -124,6 +124,6 @@ Then, within the `local` cluster, navigate to `Service Discovery` → `Services`
 This opens up Grafana in a new tab via Rancher Manager as a proxy. Click on `Home` in the top-left breadcrumbs, and insert the admin credentials. This logs you in and, due to how the proxying works, redirects you back to Rancher Manager. If you repeat the process again, you will see that now Grafana opens up with the admin user already logged in.
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

@@ -115,6 +115,6 @@ Application Collection is fully integrated for user management with [SUSE Custom
 Once you have created your user account in SCC, you can use those credentials (username + password) to authenticate in the [web application](https://apps.rancher.io/). However, to interact with the REST API or the Distribution Platform you will need an [access token](index.html#access-token).
 
 
-Last modified July 10, 2025
+Last modified September 9, 2025
 
 

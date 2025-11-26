@@ -30,6 +30,11 @@ Before reading these articles, we suggest following the [Get started](get-starte
 ###### Use Application Collection container images in your CI/CD workflows
 
 
+### [Integrate with Hauler](howto-guides/integrate-with-hauler.md)
+
+###### Learn how to add content from Application Collection to a local Hauler store
+
+
 ### [Integrate with Rancher Manager](howto-guides/integrate-with-rancher-manager.md)
 
 ###### Learn how to set up the OCI registry to deploy applications with Rancher Manager
@@ -75,6 +80,6 @@ Before reading these articles, we suggest following the [Get started](get-starte
 ###### Configure a NeuVector Admission Control to ensure only images signed by Application Collection are deployed to the cluster.
 
 
-Last modified July 8, 2025
+Last modified September 9, 2025
 
 

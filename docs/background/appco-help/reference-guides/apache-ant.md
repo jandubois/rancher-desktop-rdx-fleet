@@ -44,7 +44,7 @@ docker run \
 
 ## Container overview
 
-Since there is no official upstream container for Apache Ant, our container is built from scratch using a BCI Micro and includes our best practices.
+Since there is no official upstream container for Apache Ant, our container is built from scratch using the SUSE Linux BCI Micro base image and following our best practices.
 
 ### Flavors
 
@@ -152,6 +152,6 @@ docker rm <container-name>
 ```
 
 
-Last modified July 21, 2025
+Last modified November 17, 2025
 
 
