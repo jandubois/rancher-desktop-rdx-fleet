@@ -318,31 +318,32 @@ All K8s operations via Rancher Desktop's bundled CLI tools:
 
 ### Phase 1: MVP (Core Functionality)
 
-#### Milestone 1.1: Project Setup
-- [ ] Initialize extension project structure
-- [ ] Set up Dockerfile with multi-stage build
-- [ ] Create metadata.json
-- [ ] Set up React + Vite frontend
-- [ ] Basic "Hello World" extension working in Rancher Desktop
+#### Milestone 1.1: Project Setup ✅ COMPLETE
+- [x] Initialize extension project structure
+- [x] Set up Dockerfile with multi-stage build
+- [x] Create metadata.json
+- [x] Set up React + Vite frontend
+- [x] Basic "Hello World" extension working in Rancher Desktop
 
-#### Milestone 1.2: Fleet Management
-- [ ] Implement Fleet detection (check for CRDs/controller)
-- [ ] Implement Fleet installation
-- [ ] Display Fleet status in UI
-- [ ] Handle Fleet not installed state
+#### Milestone 1.2: Fleet Management ✅ COMPLETE
+- [x] Implement Fleet detection (check for CRDs/controller)
+- [x] Implement Fleet installation via Helm
+- [x] Display Fleet status in UI (with version)
+- [x] Handle Fleet not installed state
 
-#### Milestone 1.3: GitRepo Management
-- [ ] Create GitRepo form component
-- [ ] Implement GitRepo CR creation via kubectl
-- [ ] List existing GitRepos
-- [ ] Delete GitRepo functionality
-- [ ] Edit GitRepo functionality
+#### Milestone 1.3: GitRepo Management ✅ COMPLETE
+- [x] Create GitRepo form component with path discovery
+- [x] Implement GitRepo CR creation via kubectl
+- [x] List existing GitRepos as cards
+- [x] Delete GitRepo functionality
+- [x] Edit GitRepo paths via toggle checkboxes (auto-update on change)
 
-#### Milestone 1.4: Status Dashboard
-- [ ] Display GitRepo sync status
-- [ ] Show Bundle list and status
-- [ ] Basic error display
-- [ ] Manual sync button
+#### Milestone 1.4: Status Dashboard ✅ COMPLETE
+- [x] Display GitRepo sync status (Ready, Syncing, Error states)
+- [x] Show deployed resources per GitRepo
+- [x] Error display with full message
+- [x] Auto-refresh while syncing (5s interval)
+- [x] Manual refresh button
 
 #### Milestone 1.5: Authentication
 - [ ] Secret creation for Git credentials
@@ -352,12 +353,20 @@ All K8s operations via Rancher Desktop's bundled CLI tools:
 
 ### Phase 2: Enhanced Features
 
-#### Milestone 2.1: AppCo Integration
+#### Milestone 2.1: Dependency Awareness
+- [ ] Fetch and parse fleet.yaml for each discovered path
+- [ ] Extract `dependsOn` declarations from fleet.yaml
+- [ ] Show dependency info in UI (e.g., "depends on: monitoring-crds")
+- [ ] Grey out / disable paths with unresolved dependencies
+- [ ] Auto-select in-repo dependencies when enabling a path
+- [ ] Warn about external dependencies (CRDs from other charts)
+
+#### Milestone 2.2: AppCo Integration
 - [ ] AppCo catalog browsing
 - [ ] Chart installation via Fleet
 - [ ] Authentication integration
 
-#### Milestone 2.2: Advanced UI
+#### Milestone 2.3: Advanced UI
 - [ ] Polling interval configuration
 - [ ] Pause/resume functionality
 - [ ] Resource details view
@@ -394,13 +403,53 @@ The following questions have been resolved:
 
 | Question | Decision |
 |----------|----------|
-| **Host Binaries** | Use Rancher Desktop's bundled `kubectl`, `helm`, `docker` - no need to ship our own |
+| **Host Binaries** | Use wrapper scripts in `host/` that delegate to `~/.rd/bin/kubectl` and `~/.rd/bin/helm`. RD extension SDK expects binaries at specific paths, but we use RD's bundled tools. |
+| **kubectl apply stdin** | RD SDK doesn't support stdin for exec(). Workaround: `--apply-json` flag handled by kubectl wrapper script that pipes JSON to `kubectl apply -f -` |
+| **Binary extraction limit** | RD only extracts first 2 binaries from extension. Workaround: embed extra functionality in existing wrapper scripts |
 | **Offline Support** | Not a priority for MVP - can revisit later |
-| **Multi-cluster** | Focus on local cluster only - not needed initially |
+| **Multi-cluster** | Focus on local cluster only (fleet-local namespace) - not needed initially |
 | **AppCo Dependency** | Standalone - integrate AppCo directly without requiring AppCo extension |
 | **Helm Values UI** | Keep simple initially (text-based YAML), expand sophistication later |
 | **Fleet Version** | Use latest Fleet version at build time; Fleet updates only occur via extension updates |
 | **Error Recovery** | Simple error display with retry button; no complex recovery flows for MVP |
+| **Path Discovery** | Use GitHub API to find `fleet.yaml` files. Cache paths per repo URL to avoid repeated API calls. |
+| **UI Updates** | Only update UI when data changes (JSON comparison) to prevent scroll reset during auto-refresh |
+
+## Implementation Notes
+
+### Actual Architecture (as built)
+
+The extension uses a simpler architecture than originally planned:
+
+```
+extension/
+├── Dockerfile              # Multi-stage build
+├── metadata.json           # Extension metadata with host binaries config
+├── host/                   # Wrapper scripts for kubectl/helm
+│   ├── darwin/
+│   │   ├── kubectl         # Delegates to ~/.rd/bin/kubectl, handles --apply-json
+│   │   └── helm            # Delegates to ~/.rd/bin/helm
+│   ├── linux/
+│   │   ├── kubectl
+│   │   └── helm
+│   └── windows/
+│       ├── kubectl.cmd
+│       └── helm.cmd
+└── ui/                     # React frontend (single App.tsx component)
+    ├── src/
+    │   ├── App.tsx         # Main component with all functionality
+    │   └── lib/
+    │       └── ddClient.ts # Docker Desktop client SDK wrapper
+    ├── package.json
+    └── vite.config.ts
+```
+
+**Key simplifications from original plan:**
+- No separate components - single `App.tsx` handles everything
+- No backend service needed - all operations via kubectl/helm CLI
+- Card-based UI instead of table for GitRepos
+- Inline path editing via checkboxes instead of separate edit dialog
+- Auto-discovery of available paths from GitHub repos
 
 ## Open Questions
 

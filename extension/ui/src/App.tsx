@@ -77,6 +77,12 @@ function getErrorMessage(err: unknown): string {
   return String(err);
 }
 
+// Path info with dependency data
+interface PathInfo {
+  path: string;
+  dependsOn?: string[];  // Bundle names this path depends on
+}
+
 // Parse GitHub URL to get owner/repo
 function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
   const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
@@ -84,8 +90,37 @@ function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
   return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
 }
 
-// Fetch available paths from GitHub repo
-async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<string[]> {
+// Fetch fleet.yaml content and parse dependsOn
+async function fetchFleetYamlDeps(owner: string, repo: string, branch: string, path: string): Promise<string[] | undefined> {
+  try {
+    const fleetYamlPath = path ? `${path}/fleet.yaml` : 'fleet.yaml';
+    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${fleetYamlPath}`;
+    const response = await fetch(rawUrl);
+    if (!response.ok) return undefined;
+
+    const content = await response.text();
+    // Simple YAML parsing for dependsOn - look for "dependsOn:" section
+    const dependsOnMatch = content.match(/dependsOn:\s*\n((?:\s+-\s*(?:name:\s*)?\S+\s*\n?)+)/);
+    if (!dependsOnMatch) return undefined;
+
+    // Extract bundle names from dependsOn list
+    const deps: string[] = [];
+    const lines = dependsOnMatch[1].split('\n');
+    for (const line of lines) {
+      // Match "- name: bundlename" or "- bundlename"
+      const nameMatch = line.match(/^\s*-\s*(?:name:\s*)?(\S+)/);
+      if (nameMatch) {
+        deps.push(nameMatch[1]);
+      }
+    }
+    return deps.length > 0 ? deps : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// Fetch available paths from GitHub repo with dependency info
+async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<PathInfo[]> {
   const parsed = parseGitHubUrl(repoUrl);
   if (!parsed) {
     throw new Error('Only GitHub repositories are supported for path discovery');
@@ -109,7 +144,16 @@ async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<strin
         })
         .filter((path: string) => path !== '.')
         .sort();
-      return paths;
+
+      // Fetch dependency info for each path (in parallel, but limit concurrency)
+      const pathInfos: PathInfo[] = await Promise.all(
+        paths.map(async (path: string) => {
+          const deps = await fetchFleetYamlDeps(parsed.owner, parsed.repo, b, path);
+          return { path, dependsOn: deps };
+        })
+      );
+
+      return pathInfos;
     }
   }
 
@@ -132,14 +176,14 @@ function App() {
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
 
   // Path discovery state (for add dialog and existing repos)
-  const [discoveredPaths, setDiscoveredPaths] = useState<string[]>([]);
+  const [discoveredPaths, setDiscoveredPaths] = useState<PathInfo[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [discoveringPaths, setDiscoveringPaths] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
 
   // Cache of available paths per repo URL (use state for re-render, ref for stable access)
-  const [repoPathsCache, setRepoPathsCache] = useState<Record<string, string[]>>({});
-  const repoPathsCacheRef = useRef<Record<string, string[]>>({});
+  const [repoPathsCache, setRepoPathsCache] = useState<Record<string, PathInfo[]>>({});
+  const repoPathsCacheRef = useRef<Record<string, PathInfo[]>>({});
   const loadingRepoPathsRef = useRef<Set<string>>(new Set());
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
 
@@ -626,24 +670,40 @@ function App() {
 
         {availablePaths.length > 0 ? (
           <FormGroup sx={{ pl: 1 }}>
-            {availablePaths.map((path) => (
-              <FormControlLabel
-                key={path}
-                control={
-                  <Checkbox
-                    checked={enabledPaths.includes(path)}
-                    onChange={() => toggleRepoPath(repo, path)}
-                    size="small"
-                    disabled={isUpdating}
-                  />
-                }
-                label={
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                    {path}
-                  </Typography>
-                }
-              />
-            ))}
+            {availablePaths.map((pathInfo) => {
+              const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
+              return (
+                <FormControlLabel
+                  key={pathInfo.path}
+                  control={
+                    <Checkbox
+                      checked={enabledPaths.includes(pathInfo.path)}
+                      onChange={() => toggleRepoPath(repo, pathInfo.path)}
+                      size="small"
+                      disabled={isUpdating || hasDeps}
+                    />
+                  }
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontFamily: 'monospace',
+                          color: hasDeps ? 'text.disabled' : 'text.primary',
+                        }}
+                      >
+                        {pathInfo.path}
+                      </Typography>
+                      {hasDeps && (
+                        <Typography variant="caption" color="text.disabled">
+                          (depends on: {pathInfo.dependsOn!.join(', ')})
+                        </Typography>
+                      )}
+                    </Box>
+                  }
+                />
+              );
+            })}
           </FormGroup>
         ) : isLoadingPaths ? (
           <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
@@ -845,19 +905,40 @@ function App() {
               {discoveredPaths.length > 0 && (
                 <Paper variant="outlined" sx={{ p: 1, maxHeight: 200, overflow: 'auto' }}>
                   <FormGroup>
-                    {discoveredPaths.map((path) => (
-                      <FormControlLabel
-                        key={path}
-                        control={
-                          <Checkbox
-                            checked={selectedPaths.has(path)}
-                            onChange={() => togglePathSelection(path)}
-                            size="small"
-                          />
-                        }
-                        label={<Typography variant="body2" sx={{ fontFamily: 'monospace' }}>{path}</Typography>}
-                      />
-                    ))}
+                    {discoveredPaths.map((pathInfo) => {
+                      const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
+                      return (
+                        <FormControlLabel
+                          key={pathInfo.path}
+                          control={
+                            <Checkbox
+                              checked={selectedPaths.has(pathInfo.path)}
+                              onChange={() => togglePathSelection(pathInfo.path)}
+                              size="small"
+                              disabled={hasDeps}
+                            />
+                          }
+                          label={
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  fontFamily: 'monospace',
+                                  color: hasDeps ? 'text.disabled' : 'text.primary',
+                                }}
+                              >
+                                {pathInfo.path}
+                              </Typography>
+                              {hasDeps && (
+                                <Typography variant="caption" color="text.disabled">
+                                  (depends on: {pathInfo.dependsOn!.join(', ')})
+                                </Typography>
+                              )}
+                            </Box>
+                          }
+                        />
+                      );
+                    })}
                   </FormGroup>
                 </Paper>
               )}
