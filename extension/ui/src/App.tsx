@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -7,23 +7,15 @@ import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableContainer from '@mui/material/TableContainer';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
 import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
-import Collapse from '@mui/material/Collapse';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import FormGroup from '@mui/material/FormGroup';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
+import Divider from '@mui/material/Divider';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -85,6 +77,45 @@ function getErrorMessage(err: unknown): string {
   return String(err);
 }
 
+// Parse GitHub URL to get owner/repo
+function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
+  if (!match) return null;
+  return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
+}
+
+// Fetch available paths from GitHub repo
+async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<string[]> {
+  const parsed = parseGitHubUrl(repoUrl);
+  if (!parsed) {
+    throw new Error('Only GitHub repositories are supported for path discovery');
+  }
+
+  const branches = branch ? [branch] : ['master', 'main'];
+
+  for (const b of branches) {
+    const apiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/${b}?recursive=1`;
+    const response = await fetch(apiUrl);
+
+    if (response.ok) {
+      const data = await response.json();
+      const paths = data.tree
+        .filter((item: { path: string; type: string }) =>
+          item.type === 'blob' && item.path.endsWith('fleet.yaml'))
+        .map((item: { path: string }) => {
+          const parts = item.path.split('/');
+          parts.pop();
+          return parts.join('/') || '.';
+        })
+        .filter((path: string) => path !== '.')
+        .sort();
+      return paths;
+    }
+  }
+
+  throw new Error('Repository not found or not accessible');
+}
+
 function App() {
   const [fleetState, setFleetState] = useState<FleetState>({ status: 'checking' });
   const [installing, setInstalling] = useState(false);
@@ -94,19 +125,22 @@ function App() {
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newRepoName, setNewRepoName] = useState('sample');
+  const [newRepoName, setNewRepoName] = useState('fleet-examples');
   const [newRepoUrl, setNewRepoUrl] = useState('https://github.com/rancher/fleet-examples');
   const [newRepoBranch, setNewRepoBranch] = useState('');
-  const [newRepoPaths, setNewRepoPaths] = useState('simple');
   const [addingRepo, setAddingRepo] = useState(false);
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
-  const [expandedRepos, setExpandedRepos] = useState<Set<string>>(new Set());
 
-  // Path discovery state
+  // Path discovery state (for add dialog and existing repos)
   const [discoveredPaths, setDiscoveredPaths] = useState<string[]>([]);
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [discoveringPaths, setDiscoveringPaths] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+
+  // Cache of available paths per repo URL
+  const [repoPathsCache, setRepoPathsCache] = useState<Record<string, string[]>>({});
+  const [loadingRepoPaths, setLoadingRepoPaths] = useState<Set<string>>(new Set());
+  const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
 
   const fetchGitRepos = useCallback(async () => {
     setLoadingRepos(true);
@@ -160,9 +194,15 @@ function App() {
       });
 
       setGitRepos(repos);
+
+      // Auto-discover paths for repos we haven't cached yet
+      repos.forEach((repo) => {
+        if (!repoPathsCache[repo.repo] && !loadingRepoPaths.has(repo.repo)) {
+          discoverPathsForRepo(repo.repo, repo.branch);
+        }
+      });
     } catch (err) {
       const errMsg = getErrorMessage(err);
-      // No GitRepos found is not an error
       if (errMsg.includes('No resources found')) {
         setGitRepos([]);
       } else {
@@ -172,7 +212,28 @@ function App() {
     } finally {
       setLoadingRepos(false);
     }
-  }, []);
+  }, [repoPathsCache, loadingRepoPaths]);
+
+  // Discover paths for an existing repo and cache them
+  const discoverPathsForRepo = async (repoUrl: string, branch?: string) => {
+    if (repoPathsCache[repoUrl] || loadingRepoPaths.has(repoUrl)) return;
+
+    setLoadingRepoPaths((prev) => new Set(prev).add(repoUrl));
+    try {
+      const paths = await fetchGitHubPaths(repoUrl, branch);
+      setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: paths }));
+    } catch (err) {
+      console.error(`Failed to discover paths for ${repoUrl}:`, err);
+      // Cache empty array to prevent retrying
+      setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: [] }));
+    } finally {
+      setLoadingRepoPaths((prev) => {
+        const next = new Set(prev);
+        next.delete(repoUrl);
+        return next;
+      });
+    }
+  };
 
   const checkFleetStatus = useCallback(async () => {
     setFleetState({ status: 'checking' });
@@ -184,11 +245,9 @@ function App() {
           'get', 'crd', 'gitrepos.fleet.cattle.io',
           '-o', 'jsonpath={.metadata.name}',
         ]);
-        console.log('kubectl get crd result:', result);
         crdExists = !result?.stderr && (result?.stdout?.includes('gitrepos.fleet.cattle.io') ?? false);
       } catch (crdErr) {
         const errMsg = getErrorMessage(crdErr);
-        console.log('CRD check error (expected if not installed):', errMsg);
         if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
           setFleetState({ status: 'not-installed' });
           return;
@@ -208,8 +267,6 @@ function App() {
         '-o', 'jsonpath={.items[0].status.phase}',
       ]);
 
-      console.log('kubectl get pods result:', podResult);
-
       if (podResult?.stdout === 'Running') {
         const versionResult = await ddClient.extension.host?.cli.exec('helm', [
           '--kube-context', KUBE_CONTEXT,
@@ -227,7 +284,6 @@ function App() {
           // Ignore parse errors
         }
         setFleetState({ status: 'running', version });
-        // Fetch GitRepos when Fleet is running
         fetchGitRepos();
       } else {
         setFleetState({ status: 'not-installed' });
@@ -280,22 +336,55 @@ function App() {
     }
   };
 
+  // Update GitRepo paths
+  const updateGitRepoPaths = async (repo: GitRepo, newPaths: string[]) => {
+    setUpdatingRepo(repo.name);
+    try {
+      const gitRepoYaml = {
+        apiVersion: 'fleet.cattle.io/v1alpha1',
+        kind: 'GitRepo',
+        metadata: {
+          name: repo.name,
+          namespace: FLEET_NAMESPACE,
+        },
+        spec: {
+          repo: repo.repo,
+          ...(repo.branch && { branch: repo.branch }),
+          ...(newPaths.length > 0 && { paths: newPaths }),
+        },
+      };
+
+      const jsonStr = JSON.stringify(gitRepoYaml);
+      await ddClient.extension.host?.cli.exec('kubectl', [
+        '--apply-json', jsonStr,
+        '--context', KUBE_CONTEXT,
+      ]);
+
+      await fetchGitRepos();
+    } catch (err) {
+      console.error('Failed to update GitRepo:', err);
+      setRepoError(getErrorMessage(err));
+    } finally {
+      setUpdatingRepo(null);
+    }
+  };
+
+  // Toggle a path for an existing repo
+  const toggleRepoPath = (repo: GitRepo, path: string) => {
+    const currentPaths = repo.paths || [];
+    const newPaths = currentPaths.includes(path)
+      ? currentPaths.filter((p) => p !== path)
+      : [...currentPaths, path];
+    updateGitRepoPaths(repo, newPaths);
+  };
+
   const addGitRepo = async () => {
     if (!newRepoName || !newRepoUrl) return;
 
     setAddingRepo(true);
     setAddRepoError(null);
     try {
-      // Build paths from selected checkboxes or manual input
-      let paths: string[] = [];
-      if (selectedPaths.size > 0) {
-        paths = Array.from(selectedPaths);
-      } else if (newRepoPaths) {
-        paths = newRepoPaths
-          .split(',')
-          .map((p) => p.trim())
-          .filter((p) => p.length > 0);
-      }
+      const paths = Array.from(selectedPaths);
 
       const gitRepoYaml = {
         apiVersion: 'fleet.cattle.io/v1alpha1',
@@ -311,7 +400,6 @@ function App() {
         },
       };
 
-      // Apply using kubectl with --apply-json flag (handled by our wrapper)
       const jsonStr = JSON.stringify(gitRepoYaml);
       await ddClient.extension.host?.cli.exec('kubectl', [
         '--apply-json', jsonStr,
@@ -320,10 +408,9 @@ function App() {
 
       // Close dialog and refresh
       setAddDialogOpen(false);
-      setNewRepoName('');
-      setNewRepoUrl('');
+      setNewRepoName('fleet-examples');
+      setNewRepoUrl('https://github.com/rancher/fleet-examples');
       setNewRepoBranch('');
-      setNewRepoPaths('');
       setDiscoveredPaths([]);
       setSelectedPaths(new Set());
       setDiscoveryError(null);
@@ -336,7 +423,7 @@ function App() {
     }
   };
 
-  // Discover paths containing fleet.yaml in a GitHub repo
+  // Discover paths for add dialog
   const discoverPaths = async () => {
     if (!newRepoUrl) return;
 
@@ -346,62 +433,17 @@ function App() {
     setSelectedPaths(new Set());
 
     try {
-      // Parse GitHub URL to get owner/repo
-      const match = newRepoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
-      if (!match) {
-        throw new Error('Only GitHub repositories are supported for path discovery');
+      const paths = await fetchGitHubPaths(newRepoUrl, newRepoBranch || undefined);
+      if (paths.length === 0) {
+        setDiscoveryError('No fleet.yaml files found in this repository');
+      } else {
+        setDiscoveredPaths(paths);
       }
-
-      const [, owner, repoName] = match;
-      const cleanRepo = repoName.replace(/\.git$/, '');
-      const branch = newRepoBranch || 'master';
-
-      // Fetch repo tree from GitHub API
-      const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/${branch}?recursive=1`;
-      const response = await fetch(apiUrl);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          // Try 'main' branch if 'master' failed
-          const mainResponse = await fetch(
-            `https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/main?recursive=1`
-          );
-          if (!mainResponse.ok) {
-            throw new Error(`Repository not found or not accessible`);
-          }
-          const mainData = await mainResponse.json();
-          processTreeData(mainData);
-          return;
-        }
-        throw new Error(`GitHub API error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      processTreeData(data);
     } catch (err) {
       console.error('Path discovery error:', err);
       setDiscoveryError(getErrorMessage(err));
     } finally {
       setDiscoveringPaths(false);
-    }
-  };
-
-  const processTreeData = (data: { tree: Array<{ path: string; type: string }> }) => {
-    // Find all fleet.yaml files and extract their parent directories
-    const fleetYamlPaths = data.tree
-      .filter((item) => item.type === 'blob' && item.path.endsWith('fleet.yaml'))
-      .map((item) => {
-        const parts = item.path.split('/');
-        parts.pop(); // Remove 'fleet.yaml'
-        return parts.join('/') || '.';
-      })
-      .filter((path) => path !== '.') // Exclude root
-      .sort();
-
-    if (fleetYamlPaths.length === 0) {
-      setDiscoveryError('No fleet.yaml files found in this repository');
-    } else {
-      setDiscoveredPaths(fleetYamlPaths);
     }
   };
 
@@ -442,7 +484,6 @@ function App() {
     const hasUnreadyRepos = gitRepos.some((repo) => !repo.status?.ready);
 
     if (hasUnreadyRepos && fleetState.status === 'running') {
-      // Poll every 3 seconds while syncing
       refreshIntervalRef.current = setInterval(() => {
         fetchGitRepos();
       }, 3000);
@@ -471,18 +512,6 @@ function App() {
     }
   };
 
-  const toggleRepoExpanded = (name: string) => {
-    setExpandedRepos((prev) => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
-      } else {
-        next.add(name);
-      }
-      return next;
-    });
-  };
-
   const getRepoStatusChip = (repo: GitRepo) => {
     if (!repo.status) {
       return <Chip label="Unknown" size="small" />;
@@ -491,7 +520,7 @@ function App() {
       const resourceCount = repo.status.resources?.length || 0;
       return (
         <Chip
-          label={`Ready${resourceCount > 0 ? ` (${resourceCount} resources)` : ''}`}
+          label={`Ready${resourceCount > 0 ? ` (${resourceCount})` : ''}`}
           color="success"
           size="small"
           icon={<CheckCircleIcon />}
@@ -499,11 +528,10 @@ function App() {
       );
     }
 
-    // Check for error state
     if (repo.status.display?.error) {
       return (
         <Chip
-          label={repo.status.display.message?.substring(0, 30) || 'Error'}
+          label={repo.status.display.message?.substring(0, 20) || 'Error'}
           color="error"
           size="small"
           icon={<ErrorIcon />}
@@ -512,11 +540,10 @@ function App() {
       );
     }
 
-    // Show syncing state with spinner
     const state = repo.status.display?.state || 'Syncing';
     const stateLabels: Record<string, string> = {
-      'GitUpdating': 'Cloning repo...',
-      'WaitApplied': 'Applying resources...',
+      'GitUpdating': 'Cloning...',
+      'WaitApplied': 'Applying...',
       'Active': 'Deploying...',
       'Modified': 'Updating...',
     };
@@ -529,6 +556,110 @@ function App() {
         icon={<SyncIcon sx={{ animation: 'spin 2s linear infinite', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } } }} />}
         title={repo.status.display?.message}
       />
+    );
+  };
+
+  // Render a single GitRepo card
+  const renderRepoCard = (repo: GitRepo) => {
+    const availablePaths = repoPathsCache[repo.repo] || [];
+    const isLoadingPaths = loadingRepoPaths.has(repo.repo);
+    const enabledPaths = repo.paths || [];
+    const isUpdating = updatingRepo === repo.name;
+
+    return (
+      <Paper key={repo.name} sx={{ p: 2, mb: 2 }}>
+        {/* Header */}
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
+          <Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+              <Typography variant="h6">{repo.name}</Typography>
+              {getRepoStatusChip(repo)}
+              {isUpdating && <CircularProgress size={16} />}
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
+              {repo.repo}
+            </Typography>
+            {repo.branch && (
+              <Typography variant="caption" color="text.secondary">
+                Branch: {repo.branch}
+              </Typography>
+            )}
+          </Box>
+          <IconButton
+            size="small"
+            onClick={() => deleteGitRepo(repo.name)}
+            title="Delete repository"
+            disabled={isUpdating}
+          >
+            <DeleteIcon />
+          </IconButton>
+        </Box>
+
+        <Divider sx={{ my: 1.5 }} />
+
+        {/* Paths */}
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          Paths {isLoadingPaths && <CircularProgress size={12} sx={{ ml: 1 }} />}
+        </Typography>
+
+        {availablePaths.length > 0 ? (
+          <FormGroup sx={{ pl: 1 }}>
+            {availablePaths.map((path) => (
+              <FormControlLabel
+                key={path}
+                control={
+                  <Checkbox
+                    checked={enabledPaths.includes(path)}
+                    onChange={() => toggleRepoPath(repo, path)}
+                    size="small"
+                    disabled={isUpdating}
+                  />
+                }
+                label={
+                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                    {path}
+                  </Typography>
+                }
+              />
+            ))}
+          </FormGroup>
+        ) : isLoadingPaths ? (
+          <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
+            Discovering available paths...
+          </Typography>
+        ) : enabledPaths.length > 0 ? (
+          <Box sx={{ pl: 1 }}>
+            {enabledPaths.map((path) => (
+              <Chip key={path} label={path} size="small" sx={{ mr: 0.5, mb: 0.5, fontFamily: 'monospace' }} />
+            ))}
+          </Box>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
+            All paths (root)
+          </Typography>
+        )}
+
+        {/* Resources summary */}
+        {repo.status?.resources && repo.status.resources.length > 0 && (
+          <>
+            <Divider sx={{ my: 1.5 }} />
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>
+              Resources ({repo.status.resources.length})
+            </Typography>
+            <Box sx={{ pl: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              {repo.status.resources.map((resource, idx) => (
+                <Chip
+                  key={idx}
+                  label={`${resource.kind}/${resource.name}`}
+                  size="small"
+                  color={resource.state === 'Ready' ? 'success' : resource.state === 'WaitApplied' ? 'info' : 'default'}
+                  variant="outlined"
+                />
+              ))}
+            </Box>
+          </>
+        )}
+      </Paper>
     );
   };
 
@@ -581,11 +712,9 @@ function App() {
 
       {/* GitRepo Management Section */}
       {fleetState.status === 'running' && (
-        <Paper sx={{ p: 3 }}>
+        <>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h6">
-              Git Repositories
-            </Typography>
+            <Typography variant="h5">Git Repositories</Typography>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button
                 variant="outlined"
@@ -618,108 +747,24 @@ function App() {
               <CircularProgress />
             </Box>
           ) : gitRepos.length === 0 ? (
-            <Typography color="text.secondary" sx={{ textAlign: 'center', py: 3 }}>
-              No repositories configured. Click "Add Repository" to get started.
-            </Typography>
+            <Paper sx={{ p: 3 }}>
+              <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
+                No repositories configured. Click "Add Repository" to get started.
+              </Typography>
+            </Paper>
           ) : (
-            <TableContainer>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell width={40} />
-                    <TableCell>Name</TableCell>
-                    <TableCell>Repository</TableCell>
-                    <TableCell>Branch</TableCell>
-                    <TableCell>Paths</TableCell>
-                    <TableCell>Status</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {gitRepos.map((repo) => {
-                    const isExpanded = expandedRepos.has(repo.name);
-                    const hasResources = (repo.status?.resources?.length || 0) > 0;
-                    return (
-                      <React.Fragment key={repo.name}>
-                        <TableRow>
-                          <TableCell>
-                            {hasResources && (
-                              <IconButton
-                                size="small"
-                                onClick={() => toggleRepoExpanded(repo.name)}
-                              >
-                                {isExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-                              </IconButton>
-                            )}
-                          </TableCell>
-                          <TableCell>{repo.name}</TableCell>
-                          <TableCell sx={{ maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {repo.repo}
-                          </TableCell>
-                          <TableCell>{repo.branch || 'default'}</TableCell>
-                          <TableCell sx={{ maxWidth: 150, overflow: 'hidden', textOverflow: 'ellipsis' }} title={repo.paths?.join(', ')}>
-                            {repo.paths?.join(', ') || '/'}
-                          </TableCell>
-                          <TableCell>{getRepoStatusChip(repo)}</TableCell>
-                          <TableCell align="right">
-                            <IconButton
-                              size="small"
-                              onClick={() => deleteGitRepo(repo.name)}
-                              title="Delete"
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                        {hasResources && (
-                          <TableRow>
-                            <TableCell colSpan={7} sx={{ py: 0, borderBottom: isExpanded ? undefined : 'none' }}>
-                              <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                                <Box sx={{ py: 2, pl: 6 }}>
-                                  <Typography variant="subtitle2" gutterBottom>
-                                    Deployed Resources
-                                  </Typography>
-                                  <Table size="small">
-                                    <TableHead>
-                                      <TableRow>
-                                        <TableCell>Kind</TableCell>
-                                        <TableCell>Name</TableCell>
-                                        <TableCell>State</TableCell>
-                                      </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                      {repo.status?.resources?.map((resource, idx) => (
-                                        <TableRow key={idx}>
-                                          <TableCell>{resource.kind}</TableCell>
-                                          <TableCell>{resource.name}</TableCell>
-                                          <TableCell>
-                                            <Chip
-                                              label={resource.state}
-                                              size="small"
-                                              color={resource.state === 'Ready' ? 'success' : resource.state === 'WaitApplied' ? 'info' : 'default'}
-                                            />
-                                          </TableCell>
-                                        </TableRow>
-                                      ))}
-                                    </TableBody>
-                                  </Table>
-                                </Box>
-                              </Collapse>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </TableContainer>
+            gitRepos.map((repo) => renderRepoCard(repo))
           )}
-        </Paper>
+        </>
       )}
 
       {/* Add Repository Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => { setAddDialogOpen(false); setAddRepoError(null); }} maxWidth="sm" fullWidth>
+      <Dialog
+        open={addDialogOpen}
+        onClose={() => { setAddDialogOpen(false); setAddRepoError(null); setDiscoveredPaths([]); setSelectedPaths(new Set()); }}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle>Add Git Repository</DialogTitle>
         <DialogContent>
           {addRepoError && (
@@ -740,7 +785,7 @@ function App() {
             <TextField
               label="Repository URL"
               value={newRepoUrl}
-              onChange={(e) => setNewRepoUrl(e.target.value)}
+              onChange={(e) => { setNewRepoUrl(e.target.value); setDiscoveredPaths([]); setSelectedPaths(new Set()); }}
               placeholder="https://github.com/rancher/fleet-examples"
               helperText="Git repository URL (HTTPS)"
               required
@@ -754,6 +799,7 @@ function App() {
               helperText="Branch to track (leave empty for default)"
               fullWidth
             />
+
             {/* Path Discovery Section */}
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -774,7 +820,7 @@ function App() {
                 </Alert>
               )}
 
-              {discoveredPaths.length > 0 ? (
+              {discoveredPaths.length > 0 && (
                 <Paper variant="outlined" sx={{ p: 1, maxHeight: 200, overflow: 'auto' }}>
                   <FormGroup>
                     {discoveredPaths.map((path) => (
@@ -792,25 +838,18 @@ function App() {
                     ))}
                   </FormGroup>
                 </Paper>
-              ) : (
-                <TextField
-                  value={newRepoPaths}
-                  onChange={(e) => setNewRepoPaths(e.target.value)}
-                  placeholder="simple, helm/nginx"
-                  helperText="Comma-separated paths, or click 'Discover Paths' to find fleet.yaml locations"
-                  fullWidth
-                  size="small"
-                />
               )}
             </Box>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setAddDialogOpen(false); setDiscoveredPaths([]); setSelectedPaths(new Set()); setDiscoveryError(null); }}>Cancel</Button>
+          <Button onClick={() => { setAddDialogOpen(false); setDiscoveredPaths([]); setSelectedPaths(new Set()); setDiscoveryError(null); }}>
+            Cancel
+          </Button>
           <Button
             onClick={addGitRepo}
             variant="contained"
-            disabled={!newRepoName || !newRepoUrl || addingRepo}
+            disabled={!newRepoName || !newRepoUrl || addingRepo || selectedPaths.size === 0}
           >
             {addingRepo ? 'Adding...' : 'Add'}
           </Button>
