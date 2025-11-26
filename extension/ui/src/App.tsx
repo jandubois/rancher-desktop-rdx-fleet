@@ -193,13 +193,20 @@ function App() {
         };
       });
 
-      setGitRepos(repos);
-
-      // Auto-discover paths for repos we haven't cached yet
-      repos.forEach((repo) => {
-        if (!repoPathsCache[repo.repo] && !loadingRepoPaths.has(repo.repo)) {
-          discoverPathsForRepo(repo.repo, repo.branch);
+      // Only update state if data actually changed (prevents scroll reset)
+      setGitRepos((prevRepos) => {
+        const prevJson = JSON.stringify(prevRepos);
+        const newJson = JSON.stringify(repos);
+        if (prevJson === newJson) {
+          return prevRepos;
         }
+        // Auto-discover paths for new repos
+        repos.forEach((repo) => {
+          if (!repoPathsCache[repo.repo] && !loadingRepoPaths.has(repo.repo)) {
+            discoverPathsForRepo(repo.repo, repo.branch);
+          }
+        });
+        return repos;
       });
     } catch (err) {
       const errMsg = getErrorMessage(err);
@@ -479,25 +486,30 @@ function App() {
   }, [checkFleetStatus]);
 
   // Auto-refresh when there are repos that aren't ready yet
+  // Use refs to avoid re-creating interval on every gitRepos change
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shouldRefreshRef = useRef(false);
+
+  // Update the ref when conditions change
   useEffect(() => {
     const hasUnreadyRepos = gitRepos.some((repo) => !repo.status?.ready);
+    shouldRefreshRef.current = hasUnreadyRepos && fleetState.status === 'running';
+  }, [gitRepos, fleetState.status]);
 
-    if (hasUnreadyRepos && fleetState.status === 'running') {
-      refreshIntervalRef.current = setInterval(() => {
+  // Set up polling interval once
+  useEffect(() => {
+    refreshIntervalRef.current = setInterval(() => {
+      if (shouldRefreshRef.current) {
         fetchGitRepos();
-      }, 3000);
-    } else if (refreshIntervalRef.current) {
-      clearInterval(refreshIntervalRef.current);
-      refreshIntervalRef.current = null;
-    }
+      }
+    }, 5000);
 
     return () => {
       if (refreshIntervalRef.current) {
         clearInterval(refreshIntervalRef.current);
       }
     };
-  }, [gitRepos, fleetState.status, fetchGitRepos]);
+  }, [fetchGitRepos]);
 
   const renderStatusIcon = () => {
     switch (fleetState.status) {
@@ -531,11 +543,10 @@ function App() {
     if (repo.status.display?.error) {
       return (
         <Chip
-          label={repo.status.display.message?.substring(0, 20) || 'Error'}
+          label="Error"
           color="error"
           size="small"
           icon={<ErrorIcon />}
-          title={repo.status.display.message}
         />
       );
     }
@@ -594,6 +605,13 @@ function App() {
             <DeleteIcon />
           </IconButton>
         </Box>
+
+        {/* Error message if any */}
+        {repo.status?.display?.error && repo.status.display.message && (
+          <Alert severity="error" sx={{ my: 1, fontSize: '0.85rem' }}>
+            {repo.status.display.message}
+          </Alert>
+        )}
 
         <Divider sx={{ my: 1.5 }} />
 
