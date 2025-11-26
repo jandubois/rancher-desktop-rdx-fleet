@@ -137,10 +137,16 @@ function App() {
   const [discoveringPaths, setDiscoveringPaths] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
 
-  // Cache of available paths per repo URL
+  // Cache of available paths per repo URL (use state for re-render, ref for stable access)
   const [repoPathsCache, setRepoPathsCache] = useState<Record<string, string[]>>({});
-  const [loadingRepoPaths, setLoadingRepoPaths] = useState<Set<string>>(new Set());
+  const repoPathsCacheRef = useRef<Record<string, string[]>>({});
+  const loadingRepoPathsRef = useRef<Set<string>>(new Set());
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    repoPathsCacheRef.current = repoPathsCache;
+  }, [repoPathsCache]);
 
   const fetchGitRepos = useCallback(async () => {
     setLoadingRepos(true);
@@ -197,16 +203,14 @@ function App() {
       setGitRepos((prevRepos) => {
         const prevJson = JSON.stringify(prevRepos);
         const newJson = JSON.stringify(repos);
-        if (prevJson === newJson) {
-          return prevRepos;
+        return prevJson === newJson ? prevRepos : repos;
+      });
+
+      // Auto-discover paths for new repos (using refs to avoid dependency issues)
+      repos.forEach((repo) => {
+        if (repoPathsCacheRef.current[repo.repo] === undefined && !loadingRepoPathsRef.current.has(repo.repo)) {
+          discoverPathsForRepo(repo.repo, repo.branch);
         }
-        // Auto-discover paths for new repos
-        repos.forEach((repo) => {
-          if (!repoPathsCache[repo.repo] && !loadingRepoPaths.has(repo.repo)) {
-            discoverPathsForRepo(repo.repo, repo.branch);
-          }
-        });
-        return repos;
       });
     } catch (err) {
       const errMsg = getErrorMessage(err);
@@ -219,26 +223,26 @@ function App() {
     } finally {
       setLoadingRepos(false);
     }
-  }, [repoPathsCache, loadingRepoPaths]);
+  }, []); // No dependencies - uses refs for mutable data
 
   // Discover paths for an existing repo and cache them
   const discoverPathsForRepo = async (repoUrl: string, branch?: string) => {
-    if (repoPathsCache[repoUrl] || loadingRepoPaths.has(repoUrl)) return;
+    // Check ref to prevent duplicate requests
+    if (repoPathsCacheRef.current[repoUrl] !== undefined || loadingRepoPathsRef.current.has(repoUrl)) return;
 
-    setLoadingRepoPaths((prev) => new Set(prev).add(repoUrl));
+    loadingRepoPathsRef.current.add(repoUrl);
     try {
       const paths = await fetchGitHubPaths(repoUrl, branch);
+      // Update both ref and state immediately
+      repoPathsCacheRef.current[repoUrl] = paths;
       setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: paths }));
     } catch (err) {
       console.error(`Failed to discover paths for ${repoUrl}:`, err);
-      // Cache empty array to prevent retrying
+      // Cache empty array to prevent retrying - update both ref and state
+      repoPathsCacheRef.current[repoUrl] = [];
       setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: [] }));
     } finally {
-      setLoadingRepoPaths((prev) => {
-        const next = new Set(prev);
-        next.delete(repoUrl);
-        return next;
-      });
+      loadingRepoPathsRef.current.delete(repoUrl);
     }
   };
 
@@ -573,7 +577,7 @@ function App() {
   // Render a single GitRepo card
   const renderRepoCard = (repo: GitRepo) => {
     const availablePaths = repoPathsCache[repo.repo] || [];
-    const isLoadingPaths = loadingRepoPaths.has(repo.repo);
+    const isLoadingPaths = repoPathsCache[repo.repo] === undefined; // Still loading if not in cache
     const enabledPaths = repo.paths || [];
     const isUpdating = updatingRepo === repo.name;
 
