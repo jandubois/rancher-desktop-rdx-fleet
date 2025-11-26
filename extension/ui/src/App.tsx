@@ -77,11 +77,12 @@ function App() {
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newRepoName, setNewRepoName] = useState('');
-  const [newRepoUrl, setNewRepoUrl] = useState('');
+  const [newRepoName, setNewRepoName] = useState('sample');
+  const [newRepoUrl, setNewRepoUrl] = useState('https://github.com/rancher/fleet-examples');
   const [newRepoBranch, setNewRepoBranch] = useState('');
-  const [newRepoPaths, setNewRepoPaths] = useState('');
+  const [newRepoPaths, setNewRepoPaths] = useState('simple');
   const [addingRepo, setAddingRepo] = useState(false);
+  const [addRepoError, setAddRepoError] = useState<string | null>(null);
 
   const fetchGitRepos = useCallback(async () => {
     setLoadingRepos(true);
@@ -247,6 +248,7 @@ function App() {
     if (!newRepoName || !newRepoUrl) return;
 
     setAddingRepo(true);
+    setAddRepoError(null);
     try {
       // Build the GitRepo YAML
       const paths = newRepoPaths
@@ -284,7 +286,7 @@ function App() {
       await fetchGitRepos();
     } catch (err) {
       console.error('Failed to add GitRepo:', err);
-      setRepoError(getErrorMessage(err));
+      setAddRepoError(getErrorMessage(err));
     } finally {
       setAddingRepo(false);
     }
@@ -473,9 +475,14 @@ function App() {
       )}
 
       {/* Add Repository Dialog */}
-      <Dialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog open={addDialogOpen} onClose={() => { setAddDialogOpen(false); setAddRepoError(null); }} maxWidth="sm" fullWidth>
         <DialogTitle>Add Git Repository</DialogTitle>
         <DialogContent>
+          {addRepoError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setAddRepoError(null)}>
+              {addRepoError}
+            </Alert>
+          )}
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
             <TextField
               label="Name"
