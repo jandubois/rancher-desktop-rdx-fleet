@@ -43,16 +43,27 @@ function App() {
     setFleetState({ status: 'checking' });
     try {
       // Check if Fleet CRDs exist
-      const result = await ddClient.extension.host?.cli.exec('kubectl', [
-        '--context', KUBE_CONTEXT,
-        'get', 'crd', 'gitrepos.fleet.cattle.io',
-        '-o', 'jsonpath={.metadata.name}',
-      ]);
+      let crdExists = false;
+      try {
+        const result = await ddClient.extension.host?.cli.exec('kubectl', [
+          '--context', KUBE_CONTEXT,
+          'get', 'crd', 'gitrepos.fleet.cattle.io',
+          '-o', 'jsonpath={.metadata.name}',
+        ]);
+        console.log('kubectl get crd result:', result);
+        crdExists = !result?.stderr && (result?.stdout?.includes('gitrepos.fleet.cattle.io') ?? false);
+      } catch (crdErr) {
+        // CRD not found throws an error - this means Fleet is not installed
+        const errMsg = getErrorMessage(crdErr);
+        console.log('CRD check error (expected if not installed):', errMsg);
+        if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
+          setFleetState({ status: 'not-installed' });
+          return;
+        }
+        throw crdErr; // Re-throw if it's a different error
+      }
 
-      console.log('kubectl get crd result:', result);
-
-      if (result?.stderr) {
-        // CRD not found means Fleet is not installed
+      if (!crdExists) {
         setFleetState({ status: 'not-installed' });
         return;
       }
