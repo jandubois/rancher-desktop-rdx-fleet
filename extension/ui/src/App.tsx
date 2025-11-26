@@ -17,6 +17,9 @@ interface FleetState {
   error?: string;
 }
 
+// Always target the Rancher Desktop cluster, regardless of user's current context
+const KUBE_CONTEXT = 'rancher-desktop';
+
 function App() {
   const [fleetState, setFleetState] = useState<FleetState>({ status: 'checking' });
   const [installing, setInstalling] = useState(false);
@@ -26,6 +29,7 @@ function App() {
     try {
       // Check if Fleet CRDs exist
       const result = await ddClient.extension.host?.cli.exec('kubectl', [
+        '--context', KUBE_CONTEXT,
         'get', 'crd', 'gitrepos.fleet.cattle.io',
         '-o', 'jsonpath={.metadata.name}',
       ]);
@@ -37,6 +41,7 @@ function App() {
 
       // Check Fleet controller status
       const podResult = await ddClient.extension.host?.cli.exec('kubectl', [
+        '--context', KUBE_CONTEXT,
         'get', 'pods', '-n', 'cattle-fleet-system',
         '-l', 'app=fleet-controller',
         '-o', 'jsonpath={.items[0].status.phase}',
@@ -45,6 +50,7 @@ function App() {
       if (podResult?.stdout === 'Running') {
         // Get Fleet version from helm
         const versionResult = await ddClient.extension.host?.cli.exec('helm', [
+          '--kube-context', KUBE_CONTEXT,
           'list', '-n', 'cattle-fleet-system',
           '-f', 'fleet',
           '-o', 'json',
@@ -75,15 +81,18 @@ function App() {
     try {
       // Add Fleet helm repo
       await ddClient.extension.host?.cli.exec('helm', [
+        '--kube-context', KUBE_CONTEXT,
         'repo', 'add', 'fleet', 'https://rancher.github.io/fleet-helm-charts/',
       ]);
 
       await ddClient.extension.host?.cli.exec('helm', [
+        '--kube-context', KUBE_CONTEXT,
         'repo', 'update',
       ]);
 
       // Install Fleet CRDs
       await ddClient.extension.host?.cli.exec('helm', [
+        '--kube-context', KUBE_CONTEXT,
         'install', '--create-namespace', '-n', 'cattle-fleet-system',
         'fleet-crd', 'fleet/fleet-crd',
         '--wait',
@@ -91,6 +100,7 @@ function App() {
 
       // Install Fleet controller
       await ddClient.extension.host?.cli.exec('helm', [
+        '--kube-context', KUBE_CONTEXT,
         'install', '--create-namespace', '-n', 'cattle-fleet-system',
         'fleet', 'fleet/fleet',
         '--wait',
