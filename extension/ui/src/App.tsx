@@ -270,10 +270,10 @@ function App() {
         },
       };
 
-      // Apply using our helper script that handles stdin piping
+      // Apply using kubectl with --apply-json flag (handled by our wrapper)
       const jsonStr = JSON.stringify(gitRepoYaml);
-      await ddClient.extension.host?.cli.exec('kubectl-apply-json', [
-        jsonStr,
+      await ddClient.extension.host?.cli.exec('kubectl', [
+        '--apply-json', jsonStr,
         '--context', KUBE_CONTEXT,
       ]);
 

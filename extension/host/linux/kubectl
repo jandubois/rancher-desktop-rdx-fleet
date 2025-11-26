@@ -1,2 +1,10 @@
 #!/bin/sh
-exec "$HOME/.rd/bin/kubectl" "$@"
+# If first arg is --apply-json, pipe the second arg as JSON to kubectl apply
+if [ "$1" = "--apply-json" ]; then
+  shift
+  JSON="$1"
+  shift
+  echo "$JSON" | "$HOME/.rd/bin/kubectl" apply -f - "$@"
+else
+  exec "$HOME/.rd/bin/kubectl" "$@"
+fi
