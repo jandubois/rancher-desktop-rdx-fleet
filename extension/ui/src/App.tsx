@@ -20,6 +20,21 @@ interface FleetState {
 // Always target the Rancher Desktop cluster, regardless of user's current context
 const KUBE_CONTEXT = 'rancher-desktop';
 
+// Helper to extract error message from various error types
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === 'object' && err !== null) {
+    // Docker extension SDK errors often have stderr property
+    const errObj = err as Record<string, unknown>;
+    if (errObj.stderr) return String(errObj.stderr);
+    if (errObj.message) return String(errObj.message);
+    return JSON.stringify(err);
+  }
+  return String(err);
+}
+
 function App() {
   const [fleetState, setFleetState] = useState<FleetState>({ status: 'checking' });
   const [installing, setInstalling] = useState(false);
@@ -34,7 +49,10 @@ function App() {
         '-o', 'jsonpath={.metadata.name}',
       ]);
 
+      console.log('kubectl get crd result:', result);
+
       if (result?.stderr) {
+        // CRD not found means Fleet is not installed
         setFleetState({ status: 'not-installed' });
         return;
       }
@@ -46,6 +64,8 @@ function App() {
         '-l', 'app=fleet-controller',
         '-o', 'jsonpath={.items[0].status.phase}',
       ]);
+
+      console.log('kubectl get pods result:', podResult);
 
       if (podResult?.stdout === 'Running') {
         // Get Fleet version from helm
@@ -69,9 +89,10 @@ function App() {
         setFleetState({ status: 'not-installed' });
       }
     } catch (err) {
+      console.error('Fleet status check error:', err);
       setFleetState({
         status: 'error',
-        error: err instanceof Error ? err.message : 'Failed to check Fleet status',
+        error: getErrorMessage(err),
       });
     }
   };
@@ -108,9 +129,10 @@ function App() {
 
       await checkFleetStatus();
     } catch (err) {
+      console.error('Fleet install error:', err);
       setFleetState({
         status: 'error',
-        error: err instanceof Error ? err.message : 'Failed to install Fleet',
+        error: getErrorMessage(err),
       });
     } finally {
       setInstalling(false);
@@ -153,7 +175,7 @@ function App() {
         </Box>
 
         {fleetState.status === 'error' && fleetState.error && (
-          <Alert severity="error" sx={{ mb: 2 }}>
+          <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
             {fleetState.error}
           </Alert>
         )}
