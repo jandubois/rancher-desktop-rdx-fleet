@@ -23,5 +23,6 @@ COPY --from=ui-builder /app/build /ui
 COPY metadata.json /
 COPY icons/ /icons/
 
-# No backend for MVP - extension is UI-only
-# All operations use ddClient.extension.host.cli to invoke kubectl/helm on host
+# Copy host binary wrapper scripts
+COPY host/ /host/
+RUN chmod +x /host/darwin/* /host/linux/*

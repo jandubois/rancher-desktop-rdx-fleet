@@ -6,5 +6,23 @@
       "root": "/ui",
       "src": "index.html"
     }
+  },
+  "host": {
+    "binaries": [
+      {
+        "darwin": [
+          { "path": "/host/darwin/kubectl" },
+          { "path": "/host/darwin/helm" }
+        ],
+        "linux": [
+          { "path": "/host/linux/kubectl" },
+          { "path": "/host/linux/helm" }
+        ],
+        "windows": [
+          { "path": "/host/windows/kubectl.cmd" },
+          { "path": "/host/windows/helm.cmd" }
+        ]
+      }
+    ]
   }
 }

@@ -27,7 +27,6 @@ function App() {
       // Check if Fleet CRDs exist
       const result = await ddClient.extension.host?.cli.exec('kubectl', [
         'get', 'crd', 'gitrepos.fleet.cattle.io',
-        '--context', 'rancher-desktop',
         '-o', 'jsonpath={.metadata.name}',
       ]);
 
@@ -40,7 +39,6 @@ function App() {
       const podResult = await ddClient.extension.host?.cli.exec('kubectl', [
         'get', 'pods', '-n', 'cattle-fleet-system',
         '-l', 'app=fleet-controller',
-        '--context', 'rancher-desktop',
         '-o', 'jsonpath={.items[0].status.phase}',
       ]);
 
@@ -49,7 +47,6 @@ function App() {
         const versionResult = await ddClient.extension.host?.cli.exec('helm', [
           'list', '-n', 'cattle-fleet-system',
           '-f', 'fleet',
-          '--context', 'rancher-desktop',
           '-o', 'json',
         ]);
         let version = 'unknown';
@@ -79,19 +76,16 @@ function App() {
       // Add Fleet helm repo
       await ddClient.extension.host?.cli.exec('helm', [
         'repo', 'add', 'fleet', 'https://rancher.github.io/fleet-helm-charts/',
-        '--context', 'rancher-desktop',
       ]);
 
       await ddClient.extension.host?.cli.exec('helm', [
         'repo', 'update',
-        '--context', 'rancher-desktop',
       ]);
 
       // Install Fleet CRDs
       await ddClient.extension.host?.cli.exec('helm', [
         'install', '--create-namespace', '-n', 'cattle-fleet-system',
         'fleet-crd', 'fleet/fleet-crd',
-        '--context', 'rancher-desktop',
         '--wait',
       ]);
 
@@ -99,7 +93,6 @@ function App() {
       await ddClient.extension.host?.cli.exec('helm', [
         'install', '--create-namespace', '-n', 'cattle-fleet-system',
         'fleet', 'fleet/fleet',
-        '--context', 'rancher-desktop',
         '--wait',
       ]);
 
