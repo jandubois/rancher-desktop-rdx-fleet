@@ -82,10 +82,10 @@ Fleet provides a **pull-based GitOps model** that solves these problems:
 
 ### Phase 2: Enhanced Features
 
-#### F5: AppCo Integration
-- **F5.1**: Browse SUSE Application Collection catalog
+#### F5: AppCo Integration (Standalone)
+- **F5.1**: Browse SUSE Application Collection catalog directly (no AppCo extension required)
 - **F5.2**: One-click install of AppCo charts via Fleet
-- **F5.3**: AppCo authentication (reuse from AppCo extension if installed)
+- **F5.3**: AppCo authentication within this extension
 - **F5.4**: Generate Fleet-compatible manifests for AppCo charts
 
 #### F6: Advanced Configuration
@@ -93,7 +93,7 @@ Fleet provides a **pull-based GitOps model** that solves these problems:
 - **F6.2**: Pause/resume sync for specific repos
 - **F6.3**: Force sync (ignore cache)
 - **F6.4**: Namespace targeting preferences
-- **F6.5**: Helm values override UI
+- **F6.5**: Simple Helm values override (text-based, expand later)
 
 #### F7: Enterprise Features
 - **F7.1**: Pre-configured repository URL (build-time configuration)
@@ -139,44 +139,37 @@ fleet-extension/
 │   │       └── ddClient.ts
 │   ├── package.json
 │   └── vite.config.ts
-├── backend/                # Express.js (optional, for complex operations)
-│   ├── app.js
-│   └── package.json
-└── host/                   # Host binaries
-    ├── darwin/
-    │   └── kubectl
-    ├── linux/
-    │   └── kubectl
-    └── windows/
-        └── kubectl.exe
+└── backend/                # Express.js (optional, for complex operations)
+    ├── app.js
+    └── package.json
 ```
+
+**Note**: Rancher Desktop already bundles `kubectl`, `helm`, and `docker` binaries. We use these directly via the Docker Desktop Client SDK - no need to ship our own binaries.
 
 ### Key Technical Decisions
 
 #### 1. Fleet Installation Method
-**Option A**: Helm install via kubectl (Recommended)
+Install Fleet using `helm` (provided by Rancher Desktop):
 ```typescript
-await ddClient.extension.host?.cli.exec("kubectl", [
-  "apply", "-f",
-  "https://github.com/rancher/fleet/releases/download/v0.10.0/fleet-crd.yaml"
+// Install Fleet CRDs and controller via Helm
+await ddClient.extension.host?.cli.exec("helm", [
+  "repo", "add", "fleet", "https://rancher.github.io/fleet-helm-charts/"
 ]);
-await ddClient.extension.host?.cli.exec("kubectl", [
-  "apply", "-f",
-  "https://github.com/rancher/fleet/releases/download/v0.10.0/fleet.yaml"
+await ddClient.extension.host?.cli.exec("helm", [
+  "install", "--create-namespace", "-n", "cattle-fleet-system",
+  "fleet-crd", "fleet/fleet-crd", "--wait"
+]);
+await ddClient.extension.host?.cli.exec("helm", [
+  "install", "--create-namespace", "-n", "cattle-fleet-system",
+  "fleet", "fleet/fleet", "--wait"
 ]);
 ```
 
-**Option B**: Bundle Fleet manifests in extension image
-- Pro: Works offline
-- Con: Larger image, version coupling
-
-**Recommendation**: Option A with fallback to bundled manifests.
-
 #### 2. Kubernetes Interaction
-All K8s operations via `kubectl` host binary:
-- Ships with extension (multi-arch)
-- Uses Rancher Desktop's kubeconfig automatically
-- Simpler than direct API client
+All K8s operations via Rancher Desktop's bundled CLI tools:
+- `kubectl` for resource management (get, apply, delete)
+- `helm` for Fleet installation
+- Uses Rancher Desktop's kubeconfig automatically via `--context rancher-desktop`
 
 #### 3. State Management
 - GitRepo CRs are the source of truth
@@ -191,22 +184,22 @@ All K8s operations via `kubectl` host binary:
 ### API Flow
 
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   React UI      │────▶│  ddClient SDK   │────▶│  kubectl (host) │
-└─────────────────┘     └─────────────────┘     └────────┬────────┘
-                                                         │
-                                                         ▼
-                                               ┌─────────────────┐
-                                               │  Kubernetes API │
-                                               └────────┬────────┘
-                                                         │
-                        ┌────────────────────────────────┼────────────────────────────────┐
-                        │                                │                                │
-                        ▼                                ▼                                ▼
-              ┌─────────────────┐            ┌─────────────────┐            ┌─────────────────┐
-              │  Fleet CRDs     │            │ Fleet Controller │            │  Deployed Apps  │
-              │  (GitRepo, etc) │            │  (watches CRs)   │            │  (from Git)     │
-              └─────────────────┘            └─────────────────┘            └─────────────────┘
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────────┐
+│   React UI      │────▶│  ddClient SDK   │────▶│  kubectl / helm (RD host)   │
+└─────────────────┘     └─────────────────┘     └──────────────┬──────────────┘
+                                                               │
+                                                               ▼
+                                                     ┌─────────────────┐
+                                                     │  Kubernetes API │
+                                                     └────────┬────────┘
+                                                               │
+                        ┌──────────────────────────────────────┼──────────────────────────────────────┐
+                        │                                      │                                      │
+                        ▼                                      ▼                                      ▼
+              ┌─────────────────┐                  ┌─────────────────┐                  ┌─────────────────┐
+              │  Fleet CRDs     │                  │ Fleet Controller │                  │  Deployed Apps  │
+              │  (GitRepo, etc) │                  │  (watches CRs)   │                  │  (from Git)     │
+              └─────────────────┘                  └─────────────────┘                  └─────────────────┘
 ```
 
 ---
@@ -330,7 +323,6 @@ All K8s operations via `kubectl` host binary:
 - [ ] Set up Dockerfile with multi-stage build
 - [ ] Create metadata.json
 - [ ] Set up React + Vite frontend
-- [ ] Add kubectl binary fetching to build
 - [ ] Basic "Hello World" extension working in Rancher Desktop
 
 #### Milestone 1.2: Fleet Management
@@ -396,12 +388,23 @@ All K8s operations via `kubectl` host binary:
 
 ---
 
+## Design Decisions (Resolved)
+
+The following questions have been resolved:
+
+| Question | Decision |
+|----------|----------|
+| **Host Binaries** | Use Rancher Desktop's bundled `kubectl`, `helm`, `docker` - no need to ship our own |
+| **Offline Support** | Not a priority for MVP - can revisit later |
+| **Multi-cluster** | Focus on local cluster only - not needed initially |
+| **AppCo Dependency** | Standalone - integrate AppCo directly without requiring AppCo extension |
+| **Helm Values UI** | Keep simple initially (text-based YAML), expand sophistication later |
+
 ## Open Questions
 
-1. **Offline Support**: Should we bundle Fleet manifests for air-gapped environments?
-2. **Multi-cluster**: Should we support deploying to remote clusters (not just local)?
-3. **Helm Values UI**: How sophisticated should the values editor be?
-4. **AppCo Dependency**: Should AppCo integration require the AppCo extension, or be standalone?
+1. **Credential Management**: How should we handle credentials for AppCo, GitHub, and internal Git repos in a unified way?
+2. **Fleet Version**: Which Fleet version should we target, and how do we handle upgrades?
+3. **Error Recovery**: What's the UX for common failure scenarios (network issues, invalid manifests)?
 
 ---
 
