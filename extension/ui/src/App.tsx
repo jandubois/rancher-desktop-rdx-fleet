@@ -836,7 +836,7 @@ function App() {
             sx={{
               pl: 1,
               ...(availablePaths.length > maxVisiblePaths && {
-                maxHeight: maxVisiblePaths * 40,  // ~40px per checkbox item
+                maxHeight: maxVisiblePaths * 28,  // ~28px per compact checkbox item
                 overflowY: 'auto',
                 border: '1px solid',
                 borderColor: 'divider',
@@ -845,18 +845,20 @@ function App() {
               }),
             }}
           >
-            <FormGroup>
+            <FormGroup sx={{ gap: 0 }}>
               {availablePaths.map((pathInfo) => {
                 const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
                 return (
                   <FormControlLabel
                     key={pathInfo.path}
+                    sx={{ my: -0.5 }}
                     control={
                       <Checkbox
                         checked={enabledPaths.includes(pathInfo.path)}
                         onChange={() => toggleRepoPath(repo, pathInfo.path)}
                         size="small"
                         disabled={isUpdating || hasDeps}
+                        sx={{ py: 0.25 }}
                       />
                     }
                     label={
