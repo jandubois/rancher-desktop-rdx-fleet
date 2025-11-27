@@ -1,0 +1,6 @@
+#!/bin/sh
+# Helper script to apply JSON manifest via kubectl
+# Usage: kubectl-apply-json <json-string> [kubectl-args...]
+JSON="$1"
+shift
+echo "$JSON" | "$HOME/.rd/bin/kubectl" apply -f - "$@"
