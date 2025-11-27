@@ -116,7 +116,7 @@ Fleet provides a **pull-based GitOps model** that solves these problems:
 - **F9.3**: `auth-github` card - GitHub PAT/OAuth authentication
 - **F9.4**: `auth-git` card - Generic Git credentials (username/token, SSH)
 - **F9.5**: `auth-appco` card - SUSE Application Collection credentials
-- **F9.6**: `text-block` card - Static markdown/HTML content
+- **F9.6**: `markdown` card - Markdown content (supports plain text and HTML)
 - **F9.7**: `image` card - Static image display
 - **F9.8**: `video` card - Embedded video content
 
@@ -274,7 +274,7 @@ The extension should evolve to support multiple card types with a manifest-drive
 | `auth-appco` | AppCo/SUSE authentication | No | No |
 | `auth-git` | Generic Git credentials (username/token or SSH) | Yes | No |
 | `gitrepo` | Fleet GitRepo configuration | Yes | Yes |
-| `text-block` | Static markdown/HTML content | Yes | No |
+| `markdown` | Markdown content (plain text, HTML supported) | Yes | No |
 | `image` | Static image display | Yes | No |
 | `video` | Embedded video content | Yes | No |
 
@@ -397,7 +397,7 @@ layout:
 cards:
   # Welcome message (first in list = shown at top)
   - id: welcome
-    type: text-block
+    type: markdown
     settings:
       content: |
         ## Welcome to Acme Developer Setup
@@ -463,8 +463,8 @@ cards:
 - Path discovery and selection
 - Status display (syncing, ready, error)
 
-**text-block**:
-- Display markdown or HTML content
+**markdown**:
+- Render Markdown content (superset of plain text and HTML)
 - Useful for instructions, welcome messages, links
 - Can include variables like `{{username}}`
 
@@ -833,7 +833,7 @@ To edit a previously built extension:
 #### Milestone 4.2: Core Card Types
 - [ ] Implement card base component with common settings (visible, enabled, order)
 - [ ] Refactor existing GitRepo UI into `gitrepo` card type
-- [ ] Implement `text-block` card type (markdown rendering)
+- [ ] Implement `markdown` card type (Markdown rendering)
 - [ ] Implement `image` card type
 - [ ] Implement card ordering from manifest
 
@@ -878,7 +878,7 @@ To edit a previously built extension:
 - [ ] Implement `auth-appco` card type
 - [ ] Implement `appco-catalog` card (browse/install AppCo charts)
 - [ ] Implement `video` card type
-- [ ] Add variable substitution support (`{{username}}`) for text-block
+- [ ] Add variable substitution support (`{{username}}`) for markdown card
 
 ---
 
@@ -919,6 +919,9 @@ The following questions have been resolved:
 | **Enterprise Customization** | Simple Dockerfile FROM + manifest.yaml replacement pattern. No plugin system needed - just replace the manifest and assets. |
 | **Card Ordering** | Card order is determined by position in the `cards` list, not a separate `order` field. Simpler and more intuitive. |
 | **Edit Mode** | Visual extension builder built into the official extension. Controlled by `layout.edit_mode` flag - disabled in enterprise builds to prevent end-user modifications. |
+| **Manifest Parsing** | Permissive parsing: ignore unknown settings (with console log warning), use defaults for missing fields. No strict validation since manifest is read at runtime inside container with no direct developer feedback path. |
+| **Docker Access for Builder** | Use ddClient Docker API (part of Docker Extension SDK) for "Build Extension Now" feature. No additional socket access needed. |
+| **Text Content Cards** | Use `markdown` card type instead of `text-block`. Markdown is a superset that supports plain text and HTML. |
 
 ## Implementation Notes
 
@@ -960,15 +963,9 @@ extension/
 
 1. **Credential Management**: How should we handle credentials for AppCo, GitHub, and internal Git repos in a unified way? (To be addressed in Phase 2)
 
-2. **Manifest Schema Versioning**: How do we handle manifest schema evolution? Options: (a) strict versioning with migrations, (b) permissive parsing with defaults for missing fields, (c) schema validation with deprecation warnings. (To be addressed in Phase 4)
+2. **Card Type Extensibility**: Should enterprises be able to define custom card types beyond the built-in ones? If so, what's the plugin mechanism? (Future consideration)
 
-3. **Card Type Extensibility**: Should enterprises be able to define custom card types beyond the built-in ones? If so, what's the plugin mechanism? (Future consideration)
-
-4. **Runtime vs Build-time Configuration**: Should any manifest settings be changeable at runtime (e.g., via admin UI), or is everything fixed at build time? (To be addressed in Phase 4)
-
-5. **Extension Image Extraction**: What's the best approach to extract manifest.yaml and assets from an existing extension image? Options: (a) `docker cp` from a temporary container, (b) use Docker image layer inspection APIs, (c) require extensions to embed a metadata endpoint. (To be addressed in Phase 4)
-
-6. **Build vs Download Trade-offs**: Should "Build Extension Now" be the primary flow, or should we encourage downloading files and building externally? Building in-browser requires Docker socket access and may have security implications. (To be addressed in Phase 4)
+3. **Extension Image Extraction**: What's the best approach to extract manifest.yaml and assets from an existing extension image? Options: (a) `docker cp` from a temporary container via ddClient, (b) use Docker image layer inspection APIs, (c) require extensions to embed a metadata endpoint. (To be addressed in Phase 4)
 
 ---
 
