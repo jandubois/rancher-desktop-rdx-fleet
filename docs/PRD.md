@@ -932,6 +932,8 @@ The following questions have been resolved:
 | **Manifest Parsing** | Permissive parsing: ignore unknown settings (with console log warning), use defaults for missing fields. No strict validation since manifest is read at runtime inside container with no direct developer feedback path. |
 | **Docker Access for Builder** | Use ddClient Docker API (part of Docker Extension SDK) for "Build Extension Now" feature. No additional socket access needed. |
 | **Text Content Cards** | Use `markdown` card type instead of `text-block`. Markdown is a superset that supports plain text and HTML. |
+| **Card Type Extensibility** | Custom card types require modifying the extension source. No plugin mechanism - we add generalized, customizable card types as requirements emerge. The manifest system is designed for easy expansion. |
+| **Runtime Compatibility** | Extension builder and image extraction must work with both moby/dockerd and containerd runtimes (Rancher Desktop supports both). |
 
 ## Implementation Notes
 
@@ -973,9 +975,7 @@ extension/
 
 1. **Credential Management**: How should we handle credentials for AppCo, GitHub, and internal Git repos in a unified way? (To be addressed in Phase 2)
 
-2. **Card Type Extensibility**: Should enterprises be able to define custom card types beyond the built-in ones? If so, what's the plugin mechanism? (Future consideration)
-
-3. **Extension Image Extraction**: What's the best approach to extract manifest.yaml and assets from an existing extension image? Options: (a) `docker cp` from a temporary container via ddClient, (b) use Docker image layer inspection APIs, (c) require extensions to embed a metadata endpoint. (To be addressed in Phase 4)
+2. **Extension Image Extraction**: What's the best approach to extract manifest.yaml and assets from an existing extension image? Preference is to extract directly without spinning up a container. Options: (a) `docker cp` from a temporary container via ddClient, (b) use Docker/containerd image layer inspection APIs. Need to verify this works with both moby/dockerd and containerd runtimes. (To be addressed in Phase 4)
 
 ---
 
