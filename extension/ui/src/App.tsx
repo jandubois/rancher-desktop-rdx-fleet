@@ -730,13 +730,37 @@ function App() {
     );
   };
 
+  // Render an uninitialized GitRepo card (no repo configured yet)
+  const renderUninitializedCard = () => {
+    return (
+      <Paper sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3, gap: 2 }}>
+          <Typography variant="h6" color="text.secondary">
+            Git Repository
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+            No repository configured yet.
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => setAddDialogOpen(true)}
+            startIcon={<AddIcon />}
+          >
+            Configure Repository
+          </Button>
+        </Box>
+      </Paper>
+    );
+  };
+
   // Render a single GitRepo card
-  const renderRepoCard = (repo: GitRepo, maxVisiblePaths: number = 6) => {
+  const renderRepoCard = (repo: GitRepo, _index: number, totalCount: number, maxVisiblePaths: number = 6) => {
     const availablePaths = repoPathsCache[repo.repo] || [];
     const isLoadingPaths = loadingRepoPathsRef.current.has(repo.repo);
     const hasDiscoveredPaths = repoPathsCache[repo.repo] !== undefined;
     const enabledPaths = repo.paths || [];
     const isUpdating = updatingRepo === repo.name;
+    const canDelete = totalCount > 1;
 
     // Check for discovery error or timeout
     const discoveryError = discoveryErrors[repo.repo];
@@ -759,7 +783,7 @@ function App() {
       <Paper key={repo.name} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-          <Box>
+          <Box sx={{ flex: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
               <Typography variant="h6">{repo.name}</Typography>
               {getRepoStatusChip(repo)}
@@ -774,14 +798,25 @@ function App() {
               </Typography>
             )}
           </Box>
-          <IconButton
-            size="small"
-            onClick={() => deleteGitRepo(repo.name)}
-            title="Delete repository"
-            disabled={isUpdating}
-          >
-            <DeleteIcon />
-          </IconButton>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <IconButton
+              size="small"
+              onClick={() => setAddDialogOpen(true)}
+              title="Add another repository"
+            >
+              <AddIcon />
+            </IconButton>
+            {canDelete && (
+              <IconButton
+                size="small"
+                onClick={() => deleteGitRepo(repo.name)}
+                title="Delete repository"
+                disabled={isUpdating}
+              >
+                <DeleteIcon />
+              </IconButton>
+            )}
+          </Box>
         </Box>
 
         {/* Error message if any */}
@@ -836,7 +871,7 @@ function App() {
             sx={{
               pl: 1,
               ...(availablePaths.length > maxVisiblePaths && {
-                maxHeight: maxVisiblePaths * 32,  // ~32px per checkbox item
+                maxHeight: maxVisiblePaths * 26 + 16,  // 26px per item + 16px for padding
                 overflowY: 'auto',
                 border: '1px solid',
                 borderColor: 'divider',
@@ -1100,32 +1135,9 @@ function App() {
         </Box>
       </Paper>
 
-      {/* GitRepo Management Section */}
+      {/* GitRepo Cards */}
       {fleetState.status === 'running' && (
         <>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5">Git Repositories</Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={fetchGitRepos}
-                disabled={loadingRepos}
-                startIcon={<RefreshIcon />}
-              >
-                Refresh
-              </Button>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() => setAddDialogOpen(true)}
-                startIcon={<AddIcon />}
-              >
-                Add Repository
-              </Button>
-            </Box>
-          </Box>
-
           {repoError && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setRepoError(null)}>
               {repoError}
@@ -1137,17 +1149,13 @@ function App() {
               <CircularProgress />
             </Box>
           ) : gitRepos.length === 0 ? (
-            <Paper sx={{ p: 3, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
-              <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
-                No repositories configured. Click "Add Repository" to get started.
-              </Typography>
-            </Paper>
+            renderUninitializedCard()
           ) : (
             // Get max_visible_paths from the gitrepo card in the manifest (default: 6)
             (() => {
               const gitRepoCard = manifestCards.find((c) => c.type === 'gitrepo');
               const maxVisiblePaths = (gitRepoCard?.settings as GitRepoCardSettings | undefined)?.max_visible_paths ?? 6;
-              return gitRepos.map((repo) => renderRepoCard(repo, maxVisiblePaths));
+              return gitRepos.map((repo, index) => renderRepoCard(repo, index, gitRepos.length, maxVisiblePaths));
             })()
           )}
         </>
