@@ -67,7 +67,8 @@ export type CardType =
   | 'auth-appco'
   | 'markdown'
   | 'image'
-  | 'video';
+  | 'video'
+  | 'placeholder';  // Temporary type for cards being configured
 
 export interface CardDefinition {
   id: string;

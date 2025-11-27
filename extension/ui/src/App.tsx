@@ -384,7 +384,7 @@ function App() {
       // Keep existing order, add new repos, remove deleted ones
       const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
       const manifestCardIds = manifestCards
-        .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video')
+        .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'placeholder')
         .map((c) => c.id);
       const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
 
@@ -1135,6 +1135,93 @@ function App() {
   // Check if edit mode is allowed
   const editModeAllowed = manifest.layout?.edit_mode !== false;
 
+  // Handle exiting edit mode - remove placeholder cards
+  const handleExitEditMode = () => {
+    // Remove any placeholder cards that haven't been configured
+    setManifestCards((prev) => prev.filter((c) => c.type !== 'placeholder'));
+    setEditMode(false);
+  };
+
+  // Insert a placeholder card after a given card ID
+  const insertCardAfter = (afterCardId: string) => {
+    const newCard: CardDefinition = {
+      id: `placeholder-${Date.now()}`,
+      type: 'placeholder',
+      title: 'New Card',
+    };
+    setManifestCards((prev) => [...prev, newCard]);
+    // Insert into card order after the specified card
+    setCardOrder((prev) => {
+      const index = prev.indexOf(afterCardId);
+      if (index === -1) return [...prev, newCard.id];
+      return [...prev.slice(0, index + 1), newCard.id, ...prev.slice(index + 1)];
+    });
+  };
+
+  // Convert a placeholder card to a specific type
+  const convertPlaceholderCard = (cardId: string, newType: 'markdown' | 'gitrepo') => {
+    if (newType === 'gitrepo') {
+      // Open the add repo dialog instead
+      setAddDialogOpen(true);
+      // Remove the placeholder
+      setManifestCards((prev) => prev.filter((c) => c.id !== cardId));
+      setCardOrder((prev) => prev.filter((id) => id !== cardId));
+    } else {
+      // Convert to markdown card
+      setManifestCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId
+            ? { ...c, type: 'markdown', settings: { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings }
+            : c
+        )
+      );
+    }
+  };
+
+  // Render a placeholder card with type selector
+  const renderPlaceholderCard = (card: CardDefinition) => {
+    return (
+      <Paper sx={{ p: 2, mb: 2, border: '2px dashed', borderColor: 'primary.main', boxShadow: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 2, gap: 2 }}>
+          <Typography variant="subtitle1" color="text.secondary">
+            Select card type:
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={() => convertPlaceholderCard(card.id, 'markdown')}
+            >
+              Markdown
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => convertPlaceholderCard(card.id, 'gitrepo')}
+            >
+              Git Repository
+            </Button>
+          </Box>
+        </Box>
+      </Paper>
+    );
+  };
+
+  // Render the "add card below" button
+  const renderAddCardButton = (afterCardId: string) => {
+    if (!editMode) return null;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+        <Button
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={() => insertCardAfter(afterCardId)}
+          sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}
+        >
+          Add card
+        </Button>
+      </Box>
+    );
+  };
+
   // Render a card by ID
   const renderCardById = (cardId: string) => {
     // Fleet Status card
@@ -1142,40 +1229,25 @@ function App() {
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
           <Paper sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
-            {/* Header row with title and edit toggle */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                {renderStatusIcon()}
-                <Typography variant="h6">
-                  {manifest.app?.name || 'Fleet GitOps'}
-                  {fleetState.status === 'running' && ` — Fleet ${fleetState.version}`}
-                </Typography>
-              </Box>
-              {editModeAllowed && (
-                <IconButton
-                  onClick={() => setEditMode(!editMode)}
-                  title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
-                  color={editMode ? 'primary' : 'default'}
-                  size="small"
-                >
-                  {editMode ? <EditOffIcon /> : <EditIcon />}
-                </IconButton>
-              )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: fleetState.status === 'running' ? 0 : 1 }}>
+              {renderStatusIcon()}
+              <Typography variant="h6">
+                Fleet Status
+                {fleetState.status === 'running' && `: Running (${fleetState.version})`}
+                {fleetState.status === 'checking' && ': Checking...'}
+                {fleetState.status === 'not-installed' && ': Not Installed'}
+                {fleetState.status === 'error' && ': Error'}
+              </Typography>
             </Box>
 
-            {fleetState.status === 'checking' && (
-              <Typography color="text.secondary">Checking Fleet status...</Typography>
-            )}
-
             {fleetState.status === 'error' && fleetState.error && (
-              <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+              <Alert severity="error" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
                 {fleetState.error}
               </Alert>
             )}
 
             {fleetState.status === 'not-installed' && (
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Typography color="text.secondary">Fleet is not installed.</Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
                 <Button
                   variant="contained"
                   size="small"
@@ -1193,6 +1265,19 @@ function App() {
               </Alert>
             )}
           </Paper>
+          {renderAddCardButton(cardId)}
+        </SortableCard>
+      );
+    }
+
+    // Placeholder cards (for type selection)
+    if (cardId.startsWith('placeholder-')) {
+      const card = manifestCards.find((c) => c.id === cardId);
+      if (!card) return null;
+      return (
+        <SortableCard key={cardId} id={cardId} editMode={editMode}>
+          {renderPlaceholderCard(card)}
+          {renderAddCardButton(cardId)}
         </SortableCard>
       );
     }
@@ -1210,6 +1295,7 @@ function App() {
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
           {renderRepoCard(repo, repoIndex, gitRepos.length, maxVisiblePaths)}
+          {renderAddCardButton(cardId)}
         </SortableCard>
       );
     }
@@ -1222,6 +1308,7 @@ function App() {
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
           {renderManifestCard(card, index)}
+          {renderAddCardButton(cardId)}
         </SortableCard>
       );
     }
@@ -1230,52 +1317,62 @@ function App() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', py: 3 }}>
-      <Box sx={{ px: 3, maxWidth: 900, margin: '0 auto' }}>
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={cardOrder} strategy={verticalListSortingStrategy}>
-            {/* Render all cards in order */}
-            {cardOrder.map((cardId) => renderCardById(cardId))}
+    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', display: 'flex', flexDirection: 'column' }}>
+      {/* Fixed Header */}
+      <Box
+        sx={{
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          py: 2,
+          px: 3,
+          boxShadow: 1,
+        }}
+      >
+        <Box sx={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h5" sx={{ fontWeight: 500 }}>
+            {manifest.app?.name || 'Fleet GitOps'}
+          </Typography>
+          {editModeAllowed && (
+            <IconButton
+              onClick={() => editMode ? handleExitEditMode() : setEditMode(true)}
+              title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
+              sx={{ color: editMode ? 'warning.light' : 'primary.contrastText' }}
+            >
+              {editMode ? <EditOffIcon /> : <EditIcon />}
+            </IconButton>
+          )}
+        </Box>
+      </Box>
 
-            {/* Show uninitialized card if no gitrepos and fleet is running */}
-            {fleetState.status === 'running' && gitRepos.length === 0 && !loadingRepos && (
-              <SortableCard id="uninitialized-repo" editMode={editMode}>
-                {renderUninitializedCard()}
-              </SortableCard>
-            )}
+      {/* Scrollable Card Area */}
+      <Box sx={{ flex: 1, overflow: 'auto', py: 3 }}>
+        <Box sx={{ px: 3, maxWidth: 900, margin: '0 auto' }}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={cardOrder} strategy={verticalListSortingStrategy}>
+              {/* Render all cards in order */}
+              {cardOrder.map((cardId) => renderCardById(cardId))}
 
-            {/* Loading indicator */}
-            {loadingRepos && (
-              <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-                <CircularProgress />
-              </Box>
-            )}
+              {/* Show uninitialized card if no gitrepos and fleet is running */}
+              {fleetState.status === 'running' && gitRepos.length === 0 && !loadingRepos && (
+                <SortableCard id="uninitialized-repo" editMode={editMode}>
+                  {renderUninitializedCard()}
+                  {renderAddCardButton('uninitialized-repo')}
+                </SortableCard>
+              )}
 
-            {/* Add Card button in edit mode */}
-            {editMode && (
-              <Paper sx={{ p: 2, mb: 2, border: '2px dashed', borderColor: 'divider', textAlign: 'center' }}>
-                <Button
-                  startIcon={<AddIcon />}
-                  onClick={() => {
-                    const newCard: CardDefinition = {
-                      id: `markdown-${Date.now()}`,
-                      type: 'markdown',
-                      title: 'New Content',
-                      settings: { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings,
-                    };
-                    setManifestCards((prev) => [...prev, newCard]);
-                  }}
-                >
-                  Add Markdown Card
-                </Button>
-              </Paper>
-            )}
-          </SortableContext>
-        </DndContext>
+              {/* Loading indicator */}
+              {loadingRepos && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              )}
+            </SortableContext>
+          </DndContext>
+        </Box>
       </Box>
 
       {/* Add Repository Dialog */}
