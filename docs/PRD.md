@@ -101,17 +101,68 @@ Fleet provides a **pull-based GitOps model** that solves these problems:
 - **F7.3**: Multiple repo support with priorities
 - **F7.4**: Audit log of deployments
 
-### Phase 3: Advanced Operations
+### Phase 4: Multi-Card Architecture
 
-#### F8: Drift Detection & Remediation
-- **F8.1**: Show resources that have drifted from Git state
-- **F8.2**: One-click remediation to restore Git state
-- **F8.3**: Diff view of changes
+#### F8: Manifest-Driven Configuration
+- **F8.1**: Load extension configuration from manifest.yaml
+- **F8.2**: Support app-level settings (name, description, icon)
+- **F8.3**: Support branding customization (colors, logo, favicon)
+- **F8.4**: Support layout settings (show/hide Fleet status, activity log)
+- **F8.5**: Fall back to default manifest when none provided
 
-#### F9: Rollback & History
-- **F9.1**: View deployment history
-- **F9.2**: Rollback to previous commit
-- **F9.3**: Pin to specific version
+#### F9: Card Type System
+- **F9.1**: Card registry with pluggable card types
+- **F9.2**: `gitrepo` card - Fleet GitRepo configuration (existing functionality)
+- **F9.3**: `auth-github` card - GitHub PAT/OAuth authentication
+- **F9.4**: `auth-git` card - Generic Git credentials (username/token, SSH)
+- **F9.5**: `auth-appco` card - SUSE Application Collection credentials
+- **F9.6**: `markdown` card - Markdown content (supports plain text and HTML)
+- **F9.7**: `image` card - Static image display
+- **F9.8**: `video` card - Embedded video content
+
+#### F10: Card Behaviors
+- **F10.1**: Card ordering via list position in manifest
+- **F10.2**: Card visibility toggle (show/hide)
+- **F10.3**: Card enabled/disabled state (read-only mode)
+- **F10.4**: Duplicatable cards with "Add Another" button
+- **F10.5**: Field-level locking (prevent user edits)
+- **F10.6**: Field-level defaults (pre-filled values)
+- **F10.7**: Path whitelisting for gitrepo cards
+
+#### F11: Card Dependencies
+- **F11.1**: Declare dependencies between cards
+- **F11.2**: Blocked state for cards with unmet dependencies
+- **F11.3**: Visual indication of what's blocking a card
+- **F11.4**: Required auth cards that block downstream cards
+
+#### F12: Enterprise Subclassing
+- **F12.1**: Simple Dockerfile FROM pattern for customization
+- **F12.2**: Manifest replacement via COPY
+- **F12.3**: Branding asset override (/ui/assets/)
+- **F12.4**: Documentation and examples for enterprise customization
+
+#### F13: Edit Mode & Extension Builder
+- **F13.1**: Edit mode toggle in header (controlled by `layout.edit_mode`)
+- **F13.2**: Global config card for app name, colors, logo upload
+- **F13.3**: Card controls: drag reorder, settings panel, delete, visibility
+- **F13.4**: Add card button with card type picker
+- **F13.5**: Card settings panel for type-specific configuration
+- **F13.6**: Download build files (Dockerfile + manifest.yaml + assets ZIP)
+- **F13.7**: Build extension now (direct Docker build with progress)
+- **F13.8**: Import from existing extension image (extract manifest/assets)
+- **F13.9**: Import from ZIP/files
+
+### Phase 5: Advanced Operations
+
+#### F14: Drift Detection & Remediation
+- **F14.1**: Show resources that have drifted from Git state
+- **F14.2**: One-click remediation to restore Git state
+- **F14.3**: Diff view of changes
+
+#### F15: Rollback & History
+- **F15.1**: View deployment history
+- **F15.2**: Rollback to previous commit
+- **F15.3**: Pin to specific version
 
 ---
 
@@ -200,6 +251,406 @@ All K8s operations via Rancher Desktop's bundled CLI tools:
               │  Fleet CRDs     │                  │ Fleet Controller │                  │  Deployed Apps  │
               │  (GitRepo, etc) │                  │  (watches CRs)   │                  │  (from Git)     │
               └─────────────────┘                  └─────────────────┘                  └─────────────────┘
+```
+
+---
+
+## Multi-Card Architecture (Planned)
+
+### Overview
+
+The extension should evolve to support multiple card types with a manifest-driven configuration system. This enables:
+- **Flexible UI composition** - Mix and match card types for different use cases
+- **Enterprise customization** - Organizations can rebrand and restrict functionality
+- **Simple "subclassing"** - Custom extensions via Dockerfile `FROM` + manifest replacement
+
+### Card Type System
+
+#### Core Card Types
+
+| Card Type | Purpose | Duplicatable | Default |
+|-----------|---------|--------------|---------|
+| `auth-github` | GitHub authentication (PAT/OAuth) | No | Yes |
+| `auth-appco` | AppCo/SUSE authentication | No | No |
+| `auth-git` | Generic Git credentials (username/token or SSH) | Yes | No |
+| `gitrepo` | Fleet GitRepo configuration | Yes | Yes |
+| `markdown` | Markdown content (plain text, HTML supported) | Yes | No |
+| `image` | Static image display | Yes | No |
+| `video` | Embedded video content | Yes | No |
+
+#### Card Dependencies
+
+Cards can declare dependencies on other cards:
+- `gitrepo` → `auth-github` or `auth-git` (for private repos)
+- `appco-catalog` → `auth-appco`
+
+**Blocked State**: Cards with unmet dependencies appear greyed out with a message indicating what's needed (e.g., "Add GitHub credentials to access private repositories").
+
+### Card Settings Schema
+
+Each card type has configurable behaviors:
+
+```yaml
+# Common settings for all cards
+card:
+  id: string           # Unique identifier
+  type: string         # Card type (gitrepo, auth-github, etc.)
+  title: string        # Display title (optional, uses default)
+  visible: boolean     # Show/hide card (default: true)
+  enabled: boolean     # Interactive or read-only (default: true)
+  # Note: Card order is determined by position in the cards list
+
+# Type-specific settings examples
+gitrepo:
+  duplicatable: boolean      # Allow adding multiple GitRepo cards (default: true)
+  repo_url:
+    editable: boolean        # User can change repo URL (default: true)
+    default: string          # Pre-filled URL
+    locked: boolean          # Prevent changes (default: false)
+  branch:
+    editable: boolean
+    default: string
+    locked: boolean
+  paths:
+    editable: boolean        # User can toggle paths (default: true)
+    default: string[]        # Pre-selected paths
+    locked: boolean          # Lock path selection
+    allowed: string[]        # Whitelist of allowed paths (empty = all)
+
+auth-github:
+  required: boolean          # Block other cards until completed
+  show_status: boolean       # Display auth status indicator
+```
+
+### Manifest System
+
+#### manifest.yaml Structure
+
+```yaml
+# manifest.yaml - Defines the extension configuration
+version: "1.0"
+
+app:
+  name: "Fleet GitOps"           # Extension title
+  icon: "/assets/icon.svg"       # Extension icon (shown in RD sidebar)
+  description: "GitOps for developer environments"
+
+branding:
+  primary_color: "#2453FF"       # Primary accent color
+  logo: "/assets/logo.svg"       # Header logo (within extension UI)
+
+layout:
+  show_fleet_status: true        # Show Fleet installation banner
+  show_activity_log: true        # Show recent activity section
+  edit_mode: true                # Allow edit mode (only for official extension)
+
+cards:
+  # Cards are rendered in list order (first = top)
+  - id: github-auth
+    type: auth-github
+    title: "GitHub Authentication"
+    settings:
+      required: false
+
+  - id: main-repo
+    type: gitrepo
+    title: "Configuration Repository"
+    settings:
+      duplicatable: true
+      repo_url:
+        editable: true
+      paths:
+        editable: true
+```
+
+#### Enterprise Customization Example
+
+An enterprise can "subclass" the extension by providing their own manifest:
+
+```dockerfile
+# Acme Corp custom Fleet extension
+FROM ghcr.io/rancher/fleet-extension:latest
+
+# Replace manifest with corporate configuration
+COPY manifest.yaml /ui/manifest.yaml
+
+# Add corporate branding assets
+COPY assets/ /ui/assets/
+```
+
+**acme-manifest.yaml** - Locked-down enterprise configuration:
+```yaml
+version: "1.0"
+
+app:
+  name: "Acme Developer Setup"
+  icon: "/assets/acme-icon.svg"
+
+branding:
+  primary_color: "#FF6600"
+  logo: "/assets/acme-logo.svg"
+
+layout:
+  show_fleet_status: true
+  edit_mode: false             # Disable edit mode for enterprise builds
+
+cards:
+  # Welcome message (first in list = shown at top)
+  - id: welcome
+    type: markdown
+    settings:
+      content: |
+        ## Welcome to Acme Developer Setup
+
+        This extension will configure your local Kubernetes environment
+        with the required security policies and optional developer tools.
+
+        **Questions?** Contact #platform-support on Slack
+
+  # Corporate SSO - required before anything else
+  - id: corp-auth
+    type: auth-git
+    title: "Acme GitLab Login"
+    settings:
+      required: true
+
+  # Locked repo - users can only select bundles
+  - id: corp-baseline
+    type: gitrepo
+    title: "Developer Baseline"
+    settings:
+      duplicatable: false
+      repo_url:
+        default: "https://gitlab.acme.corp/platform/dev-baseline"
+        locked: true
+      branch:
+        default: "main"
+        locked: true
+      paths:
+        editable: true         # Users CAN select which bundles
+        allowed:               # But only from this whitelist
+          - "required/security-policies"
+          - "optional/observability"
+          - "optional/dev-tools"
+          - "optional/ai-tools"
+        default:
+          - "required/security-policies"  # Pre-selected
+```
+
+### Card Type Details
+
+#### Auth Cards
+
+**auth-github**:
+- OAuth flow or Personal Access Token entry
+- Validates token against GitHub API
+- Shows authenticated user info when complete
+- Token stored in Kubernetes Secret
+
+**auth-appco**:
+- SUSE Application Collection credentials
+- Enables AppCo catalog browsing card
+
+**auth-git**:
+- Generic username/password or SSH key
+- For self-hosted Git servers (GitLab, Bitbucket, etc.)
+- Can have multiple instances for different servers
+
+#### Content Cards
+
+**gitrepo** (existing functionality):
+- Configure Fleet GitRepo resources
+- Path discovery and selection
+- Status display (syncing, ready, error)
+
+**GitRepo Card UX Flow:**
+1. Card initially shows "Add Repository" button or empty state
+2. Clicking opens a **modal overlay** to enter/select the Git repo URL and branch
+3. After confirming, modal closes and returns to card view
+4. Card shows repo URL with **loading indicator** while discovering paths
+5. Available paths appear as checkboxes as they're discovered
+6. If no paths discovered after 30s, show a **retry button**
+7. User toggles paths on/off; changes auto-save to GitRepo CR
+8. Card displays sync status (Ready, Syncing, Error) with deployed resource count
+
+**markdown**:
+- Render Markdown content (superset of plain text and HTML)
+- Useful for instructions, welcome messages, links
+- Can include variables like `{{username}}`
+
+**image**:
+- Display static images
+- Useful for diagrams, branding, instructions
+
+**video**:
+- Embed video content (local or URL)
+- Useful for onboarding tutorials
+
+### Card Interactions
+
+#### Dependency Flow
+
+```
+┌─────────────────┐
+│  auth-github    │ ◄── Required for private repos
+│  (optional)     │
+└────────┬────────┘
+         │ unlocks
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│    gitrepo      │     │    gitrepo      │
+│  (public repo)  │     │ (private repo)  │
+│    [active]     │     │   [blocked]     │
+└─────────────────┘     └─────────────────┘
+```
+
+#### Duplicate Card Flow
+
+When a card is duplicatable:
+1. Card displays an "Add Another" button
+2. New instance appears below with empty/default values
+3. Each instance is independently configurable
+4. Remove button on non-primary instances
+
+### Default Extension Manifest
+
+The official extension ships with a minimal manifest:
+
+```yaml
+version: "1.0"
+
+app:
+  name: "Fleet GitOps"
+
+layout:
+  show_fleet_status: true
+  show_activity_log: true
+  edit_mode: true              # Official extension allows editing
+
+cards:
+  - id: github-auth
+    type: auth-github
+    title: "GitHub Credentials"
+    settings:
+      required: false
+
+  - id: default-gitrepo
+    type: gitrepo
+    title: "Git Repository"
+    settings:
+      duplicatable: true
+      repo_url:
+        editable: true
+      paths:
+        editable: true
+```
+
+### Migration Path
+
+The current single-GitRepo UI would become a default manifest configuration. Existing functionality maps to:
+- Fleet status banner → `layout.show_fleet_status`
+- GitRepo card → `cards[type=gitrepo]`
+- Add button → `duplicatable: true`
+
+### Edit Mode & Extension Builder
+
+The official extension includes an **Edit Mode** that allows users to visually configure and build custom extensions without writing code.
+
+#### Entering Edit Mode
+
+When `layout.edit_mode: true` (only in official extension):
+- A small **pencil/edit icon** appears in the header
+- Clicking it enters edit mode
+
+#### Edit Mode UI Changes
+
+When edit mode is active:
+
+1. **Global Config Card** - A special card appears at the top:
+   - App name and description
+   - Primary color picker
+   - Logo upload (drag & drop or file picker)
+   - Extension icon upload
+
+2. **Card Controls** - Each card gains additional controls:
+   - Drag handle for reordering
+   - Settings button (opens card-specific settings panel)
+   - Delete button (with confirmation)
+   - Visibility toggle (eye icon)
+
+3. **Add Card Button** - Floating button to add new cards:
+   - Opens card type picker
+   - New card inserted at bottom (can be reordered)
+
+4. **Card Settings Panel** - Slide-out or modal for each card type:
+   - Title override
+   - Enabled/disabled toggle
+   - Type-specific settings (duplicatable, locked fields, etc.)
+
+#### Export Options
+
+Two export actions available in edit mode:
+
+**1. Download Build Files**
+- Generates a ZIP containing:
+  - `Dockerfile` (using `FROM` official extension)
+  - `manifest.yaml` (current configuration)
+  - `assets/` folder (uploaded logo, icon, images)
+- User can build locally: `docker build -t my-fleet-extension .`
+
+**2. Build Extension Now**
+- Builds the extension image directly using Docker
+- Prompts for image name/tag
+- Shows build progress
+- Offers to install the built extension
+
+#### Import / Edit Existing Extension
+
+To edit a previously built extension:
+
+1. **From Image** - Enter an existing extension image name
+   - Extracts `manifest.yaml` from `/ui/manifest.yaml`
+   - Extracts assets from `/ui/assets/`
+   - Loads configuration into edit mode
+
+2. **From Files** - Upload a ZIP or individual files
+   - Supports previously downloaded build files
+
+#### Edit Mode Security
+
+- Edit mode is **disabled by default** in custom builds (`edit_mode: false`)
+- This prevents end users from modifying locked-down enterprise configurations
+- Only the official extension (or explicitly enabled custom builds) can enter edit mode
+
+#### Example Edit Mode Flow
+
+```
+┌────────────────────────────────────────────────────────────────┐
+│  Fleet GitOps                              [✏️ Edit] [Settings] │
+├────────────────────────────────────────────────────────────────┤
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │ ≡  Global Settings                              [⚙️] [👁️] │ │
+│  │    App Name: [Fleet GitOps          ]                    │ │
+│  │    Primary Color: [#2453FF] 🎨                           │ │
+│  │    Logo: [fleet-logo.svg] [Upload...]                    │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │ ≡  GitHub Credentials (auth-github)             [⚙️] [👁️] │ │
+│  │    ● Configured: user@example.com                        │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │ ≡  Git Repository (gitrepo)                     [⚙️] [👁️] │ │
+│  │    https://github.com/acme/fleet-config                  │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                │
+│                        [+ Add Card]                            │
+│                                                                │
+├────────────────────────────────────────────────────────────────┤
+│  [Download Build Files]              [Build Extension Now]     │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -379,6 +830,66 @@ All K8s operations via Rancher Desktop's bundled CLI tools:
 - [ ] Locked repo configuration
 - [ ] Multi-repo support
 
+### Phase 4: Multi-Card Architecture
+
+#### Milestone 4.1: Manifest Foundation
+- [ ] Define manifest.yaml JSON schema with validation
+- [ ] Create manifest loader that reads `/ui/manifest.yaml`
+- [ ] Implement fallback to default manifest if none provided
+- [ ] Create card registry system for registering card types
+- [ ] Refactor App.tsx to render cards from manifest configuration
+- [ ] Apply branding settings (colors, logo) from manifest
+
+#### Milestone 4.2: Core Card Types
+- [ ] Implement card base component with common settings (visible, enabled, order)
+- [ ] Refactor existing GitRepo UI into `gitrepo` card type
+- [ ] Implement `markdown` card type (Markdown rendering)
+- [ ] Implement `image` card type
+- [ ] Implement card ordering from manifest
+
+#### Milestone 4.3: Auth Cards
+- [ ] Implement `auth-github` card (PAT entry, validation, status display)
+- [ ] Implement `auth-git` card (username/token and SSH key options)
+- [ ] Store credentials in Kubernetes Secrets
+- [ ] Implement credential availability detection for gitrepo cards
+
+#### Milestone 4.4: Card Behaviors
+- [ ] Implement card dependency system (blocked state when deps unmet)
+- [ ] Implement `duplicatable` setting with "Add Another" button
+- [ ] Implement field-level `locked` and `editable` settings
+- [ ] Implement `allowed` path whitelist for gitrepo cards
+- [ ] Implement `required` setting for auth cards (blocks downstream cards)
+
+#### Milestone 4.5: Edit Mode UI
+- [ ] Add edit mode toggle button in header (respect `layout.edit_mode`)
+- [ ] Implement Global Config card (app name, description, colors)
+- [ ] Add logo/icon upload with drag & drop
+- [ ] Add card controls: drag handle, settings button, delete, visibility
+- [ ] Implement card reordering via drag & drop
+- [ ] Implement Add Card button with card type picker
+- [ ] Implement card settings panel (slide-out or modal)
+
+#### Milestone 4.6: Extension Builder
+- [ ] Generate Dockerfile from current configuration
+- [ ] Generate manifest.yaml from current state
+- [ ] Bundle assets into ZIP for download
+- [ ] Implement "Download Build Files" action
+- [ ] Implement "Build Extension Now" using Docker API
+- [ ] Show build progress and handle errors
+- [ ] Offer to install built extension
+
+#### Milestone 4.7: Import Existing Extension
+- [ ] Extract manifest.yaml from Docker image
+- [ ] Extract assets folder from Docker image
+- [ ] Load extracted config into edit mode
+- [ ] Support importing from ZIP/files upload
+
+#### Milestone 4.8: Additional Card Types (Optional)
+- [ ] Implement `auth-appco` card type
+- [ ] Implement `appco-catalog` card (browse/install AppCo charts)
+- [ ] Implement `video` card type
+- [ ] Add variable substitution support (`{{username}}`) for markdown card
+
 ---
 
 ## Success Metrics
@@ -414,6 +925,15 @@ The following questions have been resolved:
 | **Error Recovery** | Simple error display with retry button; no complex recovery flows for MVP |
 | **Path Discovery** | Use GitHub API to find `fleet.yaml` files. Cache paths per repo URL to avoid repeated API calls. |
 | **UI Updates** | Only update UI when data changes (JSON comparison) to prevent scroll reset during auto-refresh |
+| **Multi-Card Architecture** | Manifest-driven card system for flexibility and enterprise customization. Cards are configurable via manifest.yaml with support for locking, dependencies, and duplication. |
+| **Enterprise Customization** | Simple Dockerfile FROM + manifest.yaml replacement pattern. No plugin system needed - just replace the manifest and assets. |
+| **Card Ordering** | Card order is determined by position in the `cards` list, not a separate `order` field. Simpler and more intuitive. |
+| **Edit Mode** | Visual extension builder built into the official extension. Controlled by `layout.edit_mode` flag - disabled in enterprise builds to prevent end-user modifications. |
+| **Manifest Parsing** | Permissive parsing: ignore unknown settings (with console log warning), use defaults for missing fields. No strict validation since manifest is read at runtime inside container with no direct developer feedback path. |
+| **Docker Access for Builder** | Use ddClient Docker API (part of Docker Extension SDK) for "Build Extension Now" feature. No additional socket access needed. |
+| **Text Content Cards** | Use `markdown` card type instead of `text-block`. Markdown is a superset that supports plain text and HTML. |
+| **Card Type Extensibility** | Custom card types require modifying the extension source. No plugin mechanism - we add generalized, customizable card types as requirements emerge. The manifest system is designed for easy expansion. |
+| **Runtime Compatibility** | Extension builder and image extraction must work with both moby/dockerd and containerd runtimes (Rancher Desktop supports both). |
 
 ## Implementation Notes
 
@@ -454,6 +974,8 @@ extension/
 ## Open Questions
 
 1. **Credential Management**: How should we handle credentials for AppCo, GitHub, and internal Git repos in a unified way? (To be addressed in Phase 2)
+
+2. **Extension Image Extraction**: What's the best approach to extract manifest.yaml and assets from an existing extension image? Preference is to extract directly without spinning up a container. Options: (a) `docker cp` from a temporary container via ddClient, (b) use Docker/containerd image layer inspection APIs. Need to verify this works with both moby/dockerd and containerd runtimes. (To be addressed in Phase 4)
 
 ---
 

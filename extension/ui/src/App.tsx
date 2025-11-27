@@ -20,9 +20,30 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
+import EditIcon from '@mui/icons-material/Edit';
+import EditOffIcon from '@mui/icons-material/EditOff';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { ddClient } from './lib/ddClient';
+import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings } from './manifest';
+import { CardWrapper, getCardComponent } from './cards';
 
 type FleetStatus = 'checking' | 'not-installed' | 'running' | 'error';
 
@@ -256,6 +277,53 @@ async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<PathI
   throw new Error(lastError || `Could not access repository. Tried branches: ${triedBranches}`);
 }
 
+// Sortable card wrapper for drag-and-drop reordering
+interface SortableCardProps {
+  id: string;
+  editMode: boolean;
+  children: React.ReactNode;
+}
+
+function SortableCard({ id, editMode, children }: SortableCardProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <Box ref={setNodeRef} style={style}>
+      {editMode && (
+        <Box
+          {...attributes}
+          {...listeners}
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            cursor: 'grab',
+            py: 0.5,
+            mb: -1,
+            '&:hover': { bgcolor: 'action.hover' },
+            borderRadius: '4px 4px 0 0',
+          }}
+        >
+          <DragIndicatorIcon fontSize="small" color="action" />
+        </Box>
+      )}
+      {children}
+    </Box>
+  );
+}
+
 function App() {
   const [fleetState, setFleetState] = useState<FleetState>({ status: 'checking' });
   const [installing, setInstalling] = useState(false);
@@ -271,17 +339,83 @@ function App() {
   const [addingRepo, setAddingRepo] = useState(false);
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
 
-  // Path discovery state (for add dialog and existing repos)
-  const [discoveredPaths, setDiscoveredPaths] = useState<PathInfo[]>([]);
-  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
-  const [discoveringPaths, setDiscoveringPaths] = useState(false);
-  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
+  // Open dialog with default values
+  const openAddRepoDialog = () => {
+    setNewRepoName('fleet-examples');
+    setNewRepoUrl('https://github.com/rancher/fleet-examples');
+    setNewRepoBranch('');
+    setAddRepoError(null);
+    setAddDialogOpen(true);
+  };
 
   // Cache of available paths per repo URL (use state for re-render, ref for stable access)
   const [repoPathsCache, setRepoPathsCache] = useState<Record<string, PathInfo[]>>({});
   const repoPathsCacheRef = useRef<Record<string, PathInfo[]>>({});
   const loadingRepoPathsRef = useRef<Set<string>>(new Set());
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
+
+  // Track discovery start time for timeout handling (30s)
+  const [discoveryStartTimes, setDiscoveryStartTimes] = useState<Record<string, number>>({});
+  const [discoveryErrors, setDiscoveryErrors] = useState<Record<string, string>>({});
+
+  // Manifest and edit mode state
+  const [manifest, setManifest] = useState<Manifest>(DEFAULT_MANIFEST);
+  const [editMode, setEditMode] = useState(false);
+  const [manifestCards, setManifestCards] = useState<CardDefinition[]>(DEFAULT_MANIFEST.cards);
+
+  // Card order for drag-and-drop (IDs of all cards in display order)
+  // Format: 'fleet-status', 'gitrepo-{name}', or manifest card IDs
+  const [cardOrder, setCardOrder] = useState<string[]>(['fleet-status']);
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // Handle drag end - reorder cards
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setCardOrder((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  // Update card order when gitRepos change
+  useEffect(() => {
+    setCardOrder((prev) => {
+      // Keep existing order, add new repos, remove deleted ones
+      const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
+      const manifestCardIds = manifestCards
+        .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'placeholder')
+        .map((c) => c.id);
+      const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
+
+      // Filter out deleted cards
+      const filtered = prev.filter((id) => allValidIds.has(id));
+
+      // Add new cards that aren't in the order yet
+      const existingIds = new Set(filtered);
+      const newIds = [...allValidIds].filter((id) => !existingIds.has(id));
+
+      return [...filtered, ...newIds];
+    });
+  }, [gitRepos, manifestCards]);
+
+  // Load manifest on startup
+  useEffect(() => {
+    loadManifest().then((m) => {
+      setManifest(m);
+      setManifestCards(m.cards);
+      console.log('[Manifest] Loaded:', m);
+    });
+  }, []);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -366,25 +500,41 @@ function App() {
   }, []); // No dependencies - uses refs for mutable data
 
   // Discover paths for an existing repo and cache them
-  const discoverPathsForRepo = async (repoUrl: string, branch?: string) => {
-    // Check ref to prevent duplicate requests
-    if (repoPathsCacheRef.current[repoUrl] !== undefined || loadingRepoPathsRef.current.has(repoUrl)) return;
+  const discoverPathsForRepo = useCallback(async (repoUrl: string, branch?: string, isRetry = false) => {
+    // Check ref to prevent duplicate requests (unless retry)
+    if (!isRetry && (repoPathsCacheRef.current[repoUrl] !== undefined || loadingRepoPathsRef.current.has(repoUrl))) return;
 
     loadingRepoPathsRef.current.add(repoUrl);
+
+    // Track start time for timeout display
+    setDiscoveryStartTimes((prev) => ({ ...prev, [repoUrl]: Date.now() }));
+    // Clear any previous error
+    setDiscoveryErrors((prev) => {
+      const next = { ...prev };
+      delete next[repoUrl];
+      return next;
+    });
+
     try {
       const paths = await fetchGitHubPaths(repoUrl, branch);
       // Update both ref and state immediately
       repoPathsCacheRef.current[repoUrl] = paths;
       setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: paths }));
+      // Clear start time on success
+      setDiscoveryStartTimes((prev) => {
+        const next = { ...prev };
+        delete next[repoUrl];
+        return next;
+      });
     } catch (err) {
       console.error(`Failed to discover paths for ${repoUrl}:`, err);
-      // Cache empty array to prevent retrying - update both ref and state
-      repoPathsCacheRef.current[repoUrl] = [];
-      setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: [] }));
+      const errorMsg = getErrorMessage(err);
+      setDiscoveryErrors((prev) => ({ ...prev, [repoUrl]: errorMsg }));
+      // Don't cache empty array on error - allow retry
     } finally {
       loadingRepoPathsRef.current.delete(repoUrl);
     }
-  };
+  }, []);
 
   const checkFleetStatus = useCallback(async () => {
     setFleetState({ status: 'checking' });
@@ -490,6 +640,14 @@ function App() {
   // Update GitRepo paths
   const updateGitRepoPaths = async (repo: GitRepo, newPaths: string[]) => {
     setUpdatingRepo(repo.name);
+
+    // Optimistic update - update local state immediately to prevent scroll jump
+    setGitRepos((prev) =>
+      prev.map((r) =>
+        r.name === repo.name ? { ...r, paths: newPaths } : r
+      )
+    );
+
     try {
       const gitRepoYaml = {
         apiVersion: 'fleet.cattle.io/v1alpha1',
@@ -511,10 +669,13 @@ function App() {
         '--context', KUBE_CONTEXT,
       ]);
 
-      await fetchGitRepos();
+      // Don't call fetchGitRepos() - optimistic update is sufficient
+      // The periodic refresh will sync any server-side changes
     } catch (err) {
       console.error('Failed to update GitRepo:', err);
       setRepoError(getErrorMessage(err));
+      // Revert optimistic update on error
+      await fetchGitRepos();
     } finally {
       setUpdatingRepo(null);
     }
@@ -532,11 +693,16 @@ function App() {
   const addGitRepo = async () => {
     if (!newRepoName || !newRepoUrl) return;
 
+    // Check if a repo with this name already exists
+    if (gitRepos.some((r) => r.name === newRepoName)) {
+      setAddRepoError(`A repository named "${newRepoName}" already exists. Please choose a different name.`);
+      return;
+    }
+
     setAddingRepo(true);
     setAddRepoError(null);
     try {
-      const paths = Array.from(selectedPaths);
-
+      // Create GitRepo with empty paths - user will select paths on the card
       const gitRepoYaml = {
         apiVersion: 'fleet.cattle.io/v1alpha1',
         kind: 'GitRepo',
@@ -547,7 +713,7 @@ function App() {
         spec: {
           repo: newRepoUrl,
           ...(newRepoBranch && { branch: newRepoBranch }),
-          ...(paths.length > 0 && { paths }),
+          // No paths initially - paths are selected on the card after discovery
         },
       };
 
@@ -559,12 +725,10 @@ function App() {
 
       // Close dialog and refresh
       setAddDialogOpen(false);
+      // Reset to defaults for next time
       setNewRepoName('fleet-examples');
       setNewRepoUrl('https://github.com/rancher/fleet-examples');
       setNewRepoBranch('');
-      setDiscoveredPaths([]);
-      setSelectedPaths(new Set());
-      setDiscoveryError(null);
       await fetchGitRepos();
     } catch (err) {
       console.error('Failed to add GitRepo:', err);
@@ -572,42 +736,6 @@ function App() {
     } finally {
       setAddingRepo(false);
     }
-  };
-
-  // Discover paths for add dialog
-  const discoverPaths = async () => {
-    if (!newRepoUrl) return;
-
-    setDiscoveringPaths(true);
-    setDiscoveryError(null);
-    setDiscoveredPaths([]);
-    setSelectedPaths(new Set());
-
-    try {
-      const paths = await fetchGitHubPaths(newRepoUrl, newRepoBranch || undefined);
-      if (paths.length === 0) {
-        setDiscoveryError('No fleet.yaml files found in this repository');
-      } else {
-        setDiscoveredPaths(paths);
-      }
-    } catch (err) {
-      console.error('Path discovery error:', err);
-      setDiscoveryError(getErrorMessage(err));
-    } finally {
-      setDiscoveringPaths(false);
-    }
-  };
-
-  const togglePathSelection = (path: string) => {
-    setSelectedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
   };
 
   const deleteGitRepo = async (name: string) => {
@@ -654,6 +782,19 @@ function App() {
       }
     };
   }, [fetchGitRepos]);
+
+  // Force re-render every 5s when there are active discovery operations (for timeout check)
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const hasActiveDiscovery = Object.keys(discoveryStartTimes).length > 0;
+    if (!hasActiveDiscovery) return;
+
+    const timer = setInterval(() => {
+      forceUpdate((n) => n + 1);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [discoveryStartTimes]);
 
   const renderStatusIcon = () => {
     switch (fleetState.status) {
@@ -714,18 +855,60 @@ function App() {
     );
   };
 
+  // Render an uninitialized GitRepo card (no repo configured yet)
+  const renderUninitializedCard = () => {
+    return (
+      <Paper sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 3, gap: 2 }}>
+          <Typography variant="h6" color="text.secondary">
+            Git Repository
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
+            No repository configured yet.
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={openAddRepoDialog}
+            startIcon={<AddIcon />}
+          >
+            Configure Repository
+          </Button>
+        </Box>
+      </Paper>
+    );
+  };
+
   // Render a single GitRepo card
-  const renderRepoCard = (repo: GitRepo) => {
+  const renderRepoCard = (repo: GitRepo, _index: number, totalCount: number, maxVisiblePaths: number = 6) => {
     const availablePaths = repoPathsCache[repo.repo] || [];
-    const isLoadingPaths = repoPathsCache[repo.repo] === undefined; // Still loading if not in cache
+    const isLoadingPaths = loadingRepoPathsRef.current.has(repo.repo);
+    const hasDiscoveredPaths = repoPathsCache[repo.repo] !== undefined;
     const enabledPaths = repo.paths || [];
     const isUpdating = updatingRepo === repo.name;
+    const canDelete = totalCount > 1;
+
+    // Check for discovery error or timeout
+    const discoveryError = discoveryErrors[repo.repo];
+    const discoveryStartTime = discoveryStartTimes[repo.repo];
+    const isTimedOut = discoveryStartTime && (Date.now() - discoveryStartTime) > 30000;
+
+    // Retry handler
+    const handleRetryDiscovery = () => {
+      // Clear previous cache/error state for this repo
+      setRepoPathsCache((prev) => {
+        const next = { ...prev };
+        delete next[repo.repo];
+        return next;
+      });
+      delete repoPathsCacheRef.current[repo.repo];
+      discoverPathsForRepo(repo.repo, repo.branch, true);
+    };
 
     return (
-      <Paper key={repo.name} sx={{ p: 2, mb: 2 }}>
+      <Paper key={repo.name} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
-          <Box>
+          <Box sx={{ flex: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
               <Typography variant="h6">{repo.name}</Typography>
               {getRepoStatusChip(repo)}
@@ -740,14 +923,25 @@ function App() {
               </Typography>
             )}
           </Box>
-          <IconButton
-            size="small"
-            onClick={() => deleteGitRepo(repo.name)}
-            title="Delete repository"
-            disabled={isUpdating}
-          >
-            <DeleteIcon />
-          </IconButton>
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <IconButton
+              size="small"
+              onClick={openAddRepoDialog}
+              title="Add another repository"
+            >
+              <AddIcon />
+            </IconButton>
+            {canDelete && (
+              <IconButton
+                size="small"
+                onClick={() => deleteGitRepo(repo.name)}
+                title="Delete repository"
+                disabled={isUpdating}
+              >
+                <DeleteIcon />
+              </IconButton>
+            )}
+          </Box>
         </Box>
 
         {/* Error message if any */}
@@ -760,36 +954,84 @@ function App() {
         <Divider sx={{ my: 1.5 }} />
 
         {/* Paths */}
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Paths {isLoadingPaths && <CircularProgress size={12} sx={{ ml: 1 }} />}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="subtitle2">
+            Paths{enabledPaths.length > 0 ? ` (${enabledPaths.length} deployed)` : ''}
+          </Typography>
+          {isLoadingPaths && <CircularProgress size={12} />}
+        </Box>
+
+        {/* Discovery error with retry */}
+        {discoveryError && !isLoadingPaths && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 1 }}
+            action={
+              <Button color="inherit" size="small" onClick={handleRetryDiscovery}>
+                Retry
+              </Button>
+            }
+          >
+            {discoveryError}
+          </Alert>
+        )}
+
+        {/* Timeout warning with retry */}
+        {isTimedOut && isLoadingPaths && (
+          <Alert
+            severity="info"
+            sx={{ mb: 1 }}
+            action={
+              <Button color="inherit" size="small" onClick={handleRetryDiscovery}>
+                Retry
+              </Button>
+            }
+          >
+            Path discovery is taking longer than expected...
+          </Alert>
+        )}
 
         {availablePaths.length > 0 ? (
-          <FormGroup sx={{ pl: 1 }}>
-            {availablePaths.map((pathInfo) => {
-              const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
-              return (
-                <FormControlLabel
-                  key={pathInfo.path}
-                  control={
-                    <Checkbox
-                      checked={enabledPaths.includes(pathInfo.path)}
-                      onChange={() => toggleRepoPath(repo, pathInfo.path)}
-                      size="small"
-                      disabled={isUpdating || hasDeps}
-                    />
-                  }
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontFamily: 'monospace',
-                          color: hasDeps ? 'text.disabled' : 'text.primary',
-                        }}
-                      >
-                        {pathInfo.path}
-                      </Typography>
+          <Box
+            sx={{
+              pl: 1,
+              ...(availablePaths.length > maxVisiblePaths && {
+                maxHeight: maxVisiblePaths * 24,  // ~24px per item (small checkbox + negative margin)
+                overflowY: 'auto',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 1,
+                p: 1,
+              }),
+            }}
+          >
+            <FormGroup sx={{ gap: 0 }}>
+              {availablePaths.map((pathInfo) => {
+                const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
+                return (
+                  <FormControlLabel
+                    key={pathInfo.path}
+                    sx={{ my: -0.25 }}
+                    control={
+                      <Checkbox
+                        checked={enabledPaths.includes(pathInfo.path)}
+                        onChange={() => toggleRepoPath(repo, pathInfo.path)}
+                        size="small"
+                        disabled={isUpdating || hasDeps}
+                        sx={{ py: 0.5 }}
+                      />
+                    }
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontFamily: 'monospace',
+                            color: hasDeps ? 'text.disabled' : 'text.primary',
+                          }}
+                        >
+                          {pathInfo.path}
+                        </Typography>
                       {hasDeps && (
                         <Typography variant="caption" color="text.disabled">
                           (depends on: {pathInfo.dependsOn!.join(', ')})
@@ -799,23 +1041,35 @@ function App() {
                   }
                 />
               );
-            })}
-          </FormGroup>
-        ) : isLoadingPaths ? (
+              })}
+            </FormGroup>
+          </Box>
+        ) : isLoadingPaths && !isTimedOut ? (
           <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
             Discovering available paths...
           </Typography>
-        ) : enabledPaths.length > 0 ? (
-          <Box sx={{ pl: 1 }}>
-            {enabledPaths.map((path) => (
-              <Chip key={path} label={path} size="small" sx={{ mr: 0.5, mb: 0.5, fontFamily: 'monospace' }} />
-            ))}
+        ) : !hasDiscoveredPaths && !discoveryError ? (
+          <Box sx={{ pl: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Click to discover available paths
+            </Typography>
+            <Button size="small" onClick={() => discoverPathsForRepo(repo.repo, repo.branch, true)}>
+              Discover
+            </Button>
           </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
-            All paths (root)
-          </Typography>
-        )}
+        ) : hasDiscoveredPaths && availablePaths.length === 0 && !discoveryError ? (
+          enabledPaths.length > 0 ? (
+            <Box sx={{ pl: 1 }}>
+              {enabledPaths.map((path) => (
+                <Chip key={path} label={path} size="small" sx={{ mr: 0.5, mb: 0.5, fontFamily: 'monospace' }} />
+              ))}
+            </Box>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
+              No fleet.yaml files found. Deploying all paths (root).
+            </Typography>
+          )
+        ) : null}
 
         {/* Resources summary */}
         {repo.status?.resources && repo.status.resources.length > 0 && (
@@ -841,105 +1095,306 @@ function App() {
     );
   };
 
-  return (
-    <Box sx={{ p: 3, maxWidth: 900, margin: '0 auto' }}>
-      <Typography variant="h4" gutterBottom>
-        Fleet GitOps
-      </Typography>
+  // Render a manifest card (markdown, image, etc.)
+  const renderManifestCard = (card: CardDefinition, index: number) => {
+    // Skip gitrepo and auth cards for now - they're handled separately
+    if (card.type === 'gitrepo' || card.type.startsWith('auth-')) {
+      return null;
+    }
 
-      {/* Fleet Status Section */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-          {renderStatusIcon()}
-          <Typography variant="h6">
-            Fleet Status:{' '}
-            {fleetState.status === 'checking' && 'Checking...'}
-            {fleetState.status === 'running' && `Running (${fleetState.version})`}
-            {fleetState.status === 'not-installed' && 'Not Installed'}
-            {fleetState.status === 'error' && 'Error'}
+    const CardComponent = getCardComponent(card.type);
+    if (!CardComponent) {
+      console.warn(`[Cards] Unknown card type: ${card.type}`);
+      return null;
+    }
+
+    const handleSettingsChange = (newSettings: typeof card.settings) => {
+      setManifestCards((prev) => {
+        const next = [...prev];
+        next[index] = { ...card, settings: newSettings };
+        return next;
+      });
+    };
+
+    const handleDelete = () => {
+      if (confirm(`Delete this ${card.type} card?`)) {
+        setManifestCards((prev) => prev.filter((_, i) => i !== index));
+      }
+    };
+
+    const handleVisibilityToggle = () => {
+      setManifestCards((prev) => {
+        const next = [...prev];
+        next[index] = { ...card, visible: card.visible === false ? true : false };
+        return next;
+      });
+    };
+
+    return (
+      <CardWrapper
+        key={card.id}
+        definition={card}
+        editMode={editMode}
+        onDelete={handleDelete}
+        onVisibilityToggle={handleVisibilityToggle}
+      >
+        <CardComponent
+          definition={card}
+          settings={card.settings || {}}
+          editMode={editMode}
+          onSettingsChange={handleSettingsChange}
+        />
+      </CardWrapper>
+    );
+  };
+
+  // Check if edit mode is allowed
+  const editModeAllowed = manifest.layout?.edit_mode !== false;
+
+  // Handle exiting edit mode - remove placeholder cards
+  const handleExitEditMode = () => {
+    // Remove any placeholder cards that haven't been configured
+    setManifestCards((prev) => prev.filter((c) => c.type !== 'placeholder'));
+    setEditMode(false);
+  };
+
+  // Insert a placeholder card after a given card ID
+  const insertCardAfter = (afterCardId: string) => {
+    const newCard: CardDefinition = {
+      id: `placeholder-${Date.now()}`,
+      type: 'placeholder',
+      title: 'New Card',
+    };
+    setManifestCards((prev) => [...prev, newCard]);
+    // Insert into card order after the specified card
+    setCardOrder((prev) => {
+      const index = prev.indexOf(afterCardId);
+      if (index === -1) return [...prev, newCard.id];
+      return [...prev.slice(0, index + 1), newCard.id, ...prev.slice(index + 1)];
+    });
+  };
+
+  // Convert a placeholder card to a specific type
+  const convertPlaceholderCard = (cardId: string, newType: 'markdown' | 'gitrepo') => {
+    if (newType === 'gitrepo') {
+      // Open the add repo dialog instead
+      openAddRepoDialog();
+      // Remove the placeholder
+      setManifestCards((prev) => prev.filter((c) => c.id !== cardId));
+      setCardOrder((prev) => prev.filter((id) => id !== cardId));
+    } else {
+      // Convert to markdown card
+      setManifestCards((prev) =>
+        prev.map((c) =>
+          c.id === cardId
+            ? { ...c, type: 'markdown', settings: { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings }
+            : c
+        )
+      );
+    }
+  };
+
+  // Render a placeholder card with type selector
+  const renderPlaceholderCard = (card: CardDefinition) => {
+    return (
+      <Paper sx={{ p: 2, mb: 2, border: '2px dashed', borderColor: 'primary.main', boxShadow: 2 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 2, gap: 2 }}>
+          <Typography variant="subtitle1" color="text.secondary">
+            Select card type:
           </Typography>
-        </Box>
-
-        {fleetState.status === 'error' && fleetState.error && (
-          <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
-            {fleetState.error}
-          </Alert>
-        )}
-
-        <Box sx={{ display: 'flex', gap: 2 }}>
-          {fleetState.status === 'not-installed' && (
+          <Box sx={{ display: 'flex', gap: 2 }}>
             <Button
-              variant="contained"
-              onClick={installFleet}
-              disabled={installing}
+              variant="outlined"
+              onClick={() => convertPlaceholderCard(card.id, 'markdown')}
             >
-              {installing ? 'Installing...' : 'Install Fleet'}
+              Markdown
             </Button>
-          )}
-
-          <Button
-            variant="outlined"
-            onClick={checkFleetStatus}
-            disabled={fleetState.status === 'checking' || installing}
-            startIcon={<RefreshIcon />}
-          >
-            Refresh
-          </Button>
+            <Button
+              variant="outlined"
+              onClick={() => convertPlaceholderCard(card.id, 'gitrepo')}
+            >
+              Git Repository
+            </Button>
+          </Box>
         </Box>
       </Paper>
+    );
+  };
 
-      {/* GitRepo Management Section */}
-      {fleetState.status === 'running' && (
-        <>
-          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-            <Typography variant="h5">Git Repositories</Typography>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="outlined"
-                size="small"
-                onClick={fetchGitRepos}
-                disabled={loadingRepos}
-                startIcon={<RefreshIcon />}
-              >
-                Refresh
-              </Button>
-              <Button
-                variant="contained"
-                size="small"
-                onClick={() => setAddDialogOpen(true)}
-                startIcon={<AddIcon />}
-              >
-                Add Repository
-              </Button>
-            </Box>
-          </Box>
+  // Render the "add card below" button
+  const renderAddCardButton = (afterCardId: string) => {
+    if (!editMode) return null;
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', my: 1 }}>
+        <Button
+          size="small"
+          startIcon={<AddIcon />}
+          onClick={() => insertCardAfter(afterCardId)}
+          sx={{ opacity: 0.6, '&:hover': { opacity: 1 } }}
+        >
+          Add card
+        </Button>
+      </Box>
+    );
+  };
 
-          {repoError && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setRepoError(null)}>
-              {repoError}
-            </Alert>
-          )}
-
-          {loadingRepos ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : gitRepos.length === 0 ? (
-            <Paper sx={{ p: 3 }}>
-              <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
-                No repositories configured. Click "Add Repository" to get started.
+  // Render a card by ID
+  const renderCardById = (cardId: string) => {
+    // Fleet Status card
+    if (cardId === 'fleet-status') {
+      return (
+        <SortableCard key={cardId} id={cardId} editMode={editMode}>
+          <Paper sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: fleetState.status === 'running' ? 0 : 1 }}>
+              {renderStatusIcon()}
+              <Typography variant="h6">
+                Fleet Status
+                {fleetState.status === 'running' && `: Running (${fleetState.version})`}
+                {fleetState.status === 'checking' && ': Checking...'}
+                {fleetState.status === 'not-installed' && ': Not Installed'}
+                {fleetState.status === 'error' && ': Error'}
               </Typography>
-            </Paper>
-          ) : (
-            gitRepos.map((repo) => renderRepoCard(repo))
+            </Box>
+
+            {fleetState.status === 'error' && fleetState.error && (
+              <Alert severity="error" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
+                {fleetState.error}
+              </Alert>
+            )}
+
+            {fleetState.status === 'not-installed' && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={installFleet}
+                  disabled={installing}
+                >
+                  {installing ? 'Installing...' : 'Install Fleet'}
+                </Button>
+              </Box>
+            )}
+
+            {repoError && (
+              <Alert severity="error" sx={{ mt: 1 }} onClose={() => setRepoError(null)}>
+                {repoError}
+              </Alert>
+            )}
+          </Paper>
+          {renderAddCardButton(cardId)}
+        </SortableCard>
+      );
+    }
+
+    // Placeholder cards (for type selection)
+    if (cardId.startsWith('placeholder-')) {
+      const card = manifestCards.find((c) => c.id === cardId);
+      if (!card) return null;
+      return (
+        <SortableCard key={cardId} id={cardId} editMode={editMode}>
+          {renderPlaceholderCard(card)}
+          {renderAddCardButton(cardId)}
+        </SortableCard>
+      );
+    }
+
+    // GitRepo cards
+    if (cardId.startsWith('gitrepo-')) {
+      const repoName = cardId.replace('gitrepo-', '');
+      const repo = gitRepos.find((r) => r.name === repoName);
+      if (!repo) return null;
+
+      const gitRepoCardDef = manifestCards.find((c) => c.type === 'gitrepo');
+      const maxVisiblePaths = (gitRepoCardDef?.settings as GitRepoCardSettings | undefined)?.max_visible_paths ?? 6;
+      const repoIndex = gitRepos.findIndex((r) => r.name === repoName);
+
+      return (
+        <SortableCard key={cardId} id={cardId} editMode={editMode}>
+          {renderRepoCard(repo, repoIndex, gitRepos.length, maxVisiblePaths)}
+          {renderAddCardButton(cardId)}
+        </SortableCard>
+      );
+    }
+
+    // Manifest cards (markdown, image, video)
+    const card = manifestCards.find((c) => c.id === cardId);
+    if (card && (card.type === 'markdown' || card.type === 'image' || card.type === 'video')) {
+      if (card.visible === false && !editMode) return null;
+      const index = manifestCards.indexOf(card);
+      return (
+        <SortableCard key={cardId} id={cardId} editMode={editMode}>
+          {renderManifestCard(card, index)}
+          {renderAddCardButton(cardId)}
+        </SortableCard>
+      );
+    }
+
+    return null;
+  };
+
+  return (
+    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', display: 'flex', flexDirection: 'column' }}>
+      {/* Fixed Header */}
+      <Box
+        sx={{
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          py: 2,
+          px: 3,
+          boxShadow: 1,
+        }}
+      >
+        <Box sx={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h5" sx={{ fontWeight: 500 }}>
+            {manifest.app?.name || 'Fleet GitOps'}
+          </Typography>
+          {editModeAllowed && (
+            <IconButton
+              onClick={() => editMode ? handleExitEditMode() : setEditMode(true)}
+              title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
+              sx={{ color: editMode ? 'warning.light' : 'primary.contrastText' }}
+            >
+              {editMode ? <EditOffIcon /> : <EditIcon />}
+            </IconButton>
           )}
-        </>
-      )}
+        </Box>
+      </Box>
+
+      {/* Scrollable Card Area */}
+      <Box sx={{ flex: 1, overflow: 'auto', py: 3 }}>
+        <Box sx={{ px: 3, maxWidth: 900, margin: '0 auto' }}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={cardOrder} strategy={verticalListSortingStrategy}>
+              {/* Render all cards in order */}
+              {cardOrder.map((cardId) => renderCardById(cardId))}
+
+              {/* Show uninitialized card if no gitrepos and fleet is running */}
+              {fleetState.status === 'running' && gitRepos.length === 0 && !loadingRepos && (
+                <SortableCard id="uninitialized-repo" editMode={editMode}>
+                  {renderUninitializedCard()}
+                  {renderAddCardButton('uninitialized-repo')}
+                </SortableCard>
+              )}
+
+              {/* Loading indicator */}
+              {loadingRepos && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+                  <CircularProgress />
+                </Box>
+              )}
+            </SortableContext>
+          </DndContext>
+        </Box>
+      </Box>
 
       {/* Add Repository Dialog */}
       <Dialog
         open={addDialogOpen}
-        onClose={() => { setAddDialogOpen(false); setAddRepoError(null); setDiscoveredPaths([]); setSelectedPaths(new Set()); }}
+        onClose={() => { setAddDialogOpen(false); setAddRepoError(null); }}
         maxWidth="sm"
         fullWidth
       >
@@ -963,7 +1418,7 @@ function App() {
             <TextField
               label="Repository URL"
               value={newRepoUrl}
-              onChange={(e) => { setNewRepoUrl(e.target.value); setDiscoveredPaths([]); setSelectedPaths(new Set()); }}
+              onChange={(e) => setNewRepoUrl(e.target.value)}
               placeholder="https://github.com/rancher/fleet-examples"
               helperText="Git repository URL (HTTPS)"
               required
@@ -977,78 +1432,20 @@ function App() {
               helperText="Branch to track (leave empty for default)"
               fullWidth
             />
-
-            {/* Path Discovery Section */}
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Typography variant="subtitle2">Paths</Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={discoverPaths}
-                  disabled={!newRepoUrl || discoveringPaths}
-                >
-                  {discoveringPaths ? 'Discovering...' : 'Discover Paths'}
-                </Button>
-              </Box>
-
-              {discoveryError && (
-                <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setDiscoveryError(null)}>
-                  {discoveryError}
-                </Alert>
-              )}
-
-              {discoveredPaths.length > 0 && (
-                <Paper variant="outlined" sx={{ p: 1, maxHeight: 200, overflow: 'auto' }}>
-                  <FormGroup>
-                    {discoveredPaths.map((pathInfo) => {
-                      const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
-                      return (
-                        <FormControlLabel
-                          key={pathInfo.path}
-                          control={
-                            <Checkbox
-                              checked={selectedPaths.has(pathInfo.path)}
-                              onChange={() => togglePathSelection(pathInfo.path)}
-                              size="small"
-                              disabled={hasDeps}
-                            />
-                          }
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontFamily: 'monospace',
-                                  color: hasDeps ? 'text.disabled' : 'text.primary',
-                                }}
-                              >
-                                {pathInfo.path}
-                              </Typography>
-                              {hasDeps && (
-                                <Typography variant="caption" color="text.disabled">
-                                  (depends on: {pathInfo.dependsOn!.join(', ')})
-                                </Typography>
-                              )}
-                            </Box>
-                          }
-                        />
-                      );
-                    })}
-                  </FormGroup>
-                </Paper>
-              )}
-            </Box>
+            <Typography variant="body2" color="text.secondary">
+              After adding the repository, available paths will be discovered automatically.
+              You can then select which paths to deploy from the repository card.
+            </Typography>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setAddDialogOpen(false); setDiscoveredPaths([]); setSelectedPaths(new Set()); setDiscoveryError(null); }}>
+          <Button onClick={() => { setAddDialogOpen(false); setAddRepoError(null); }}>
             Cancel
           </Button>
           <Button
             onClick={addGitRepo}
             variant="contained"
-            disabled={!newRepoName || !newRepoUrl || addingRepo || selectedPaths.size === 0}
+            disabled={!newRepoName || !newRepoUrl || addingRepo}
           >
             {addingRepo ? 'Adding...' : 'Add'}
           </Button>

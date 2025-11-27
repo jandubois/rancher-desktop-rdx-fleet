@@ -75,9 +75,32 @@ extension/
 │   └── windows/        # Windows (kubectl.cmd, helm.cmd)
 └── ui/                 # React frontend
     └── src/
-        ├── App.tsx     # Main component
+        ├── App.tsx           # Main component with card rendering
+        ├── manifest/
+        │   ├── index.ts      # Manifest loading
+        │   └── types.ts      # Card and manifest types
+        ├── cards/
+        │   ├── CardWrapper.tsx   # Common card wrapper
+        │   ├── MarkdownCard.tsx  # Markdown content card
+        │   └── registry.ts       # Card type registry
         └── lib/
-            └── ddClient.ts  # Docker Desktop SDK client
+            └── ddClient.ts   # Docker Desktop SDK client
 ```
 
 The host binaries are wrapper scripts that delegate to `~/.rd/bin/kubectl` and `~/.rd/bin/helm`, which are symlinks to Rancher Desktop's bundled tools.
+
+### Card-Based UI
+
+The UI follows a card-based architecture with drag-and-drop reordering:
+
+- **Header Bar**: Fixed header with extension name and edit toggle (not a card)
+- **Fleet Status Card**: Shows Fleet installation status
+- **GitRepo Cards**: One card per Git repository with path selection
+- **Manifest Cards**: Markdown, image, video content from manifest
+
+In edit mode:
+- Cards can be reordered via drag-and-drop (@dnd-kit)
+- "Add card" buttons appear between cards
+- Placeholder cards allow selecting new card type
+
+See [docs/reference/ui-card-architecture.md](../docs/reference/ui-card-architecture.md) for detailed documentation.
