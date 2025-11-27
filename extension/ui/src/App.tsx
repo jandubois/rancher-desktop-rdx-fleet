@@ -37,6 +37,7 @@ interface GitRepo {
   repo: string;
   branch?: string;
   paths?: string[];
+  paused?: boolean;  // When true, Fleet clones repo but doesn't deploy bundles
   status?: {
     ready: boolean;
     display?: {
@@ -62,6 +63,43 @@ interface GitRepo {
 // Always target the Rancher Desktop cluster, regardless of user's current context
 const KUBE_CONTEXT = 'rancher-desktop';
 const FLEET_NAMESPACE = 'fleet-local';
+
+// =============================================================================
+// PATH DISCOVERY DESIGN NOTES
+// =============================================================================
+//
+// We use the GitHub API to discover available paths (directories containing
+// fleet.yaml or fleet.yml files) in a repository. This approach was chosen
+// after exploring Fleet-based alternatives that didn't work reliably.
+//
+// WHAT WE TRIED (Fleet-based discovery):
+// 1. Create a paused GitRepo and wait for Fleet to create Bundle resources
+// 2. Query Bundles to extract path information
+// 3. Also tried: temporary pods to clone repos, separate discovery namespaces
+//
+// WHY FLEET-BASED DISCOVERY DOESN'T WORK:
+// - Bundle names are hashed via names.HelmReleaseName() - the original path
+//   is transformed into a hash that can't be reversed
+// - Fleet does NOT set a 'fleet.cattle.io/bundle-path' label on Bundles
+// - The only way to get paths from Fleet would be to parse the Bundle's
+//   helm.chart field or inspect the actual cloned repo on disk
+// - Paused GitRepos still create Bundles, but we can't extract the original
+//   paths from them
+//
+// WHY GITHUB API WORKS WELL:
+// - Direct access to repository structure via git trees API
+// - Can find all fleet.yaml/fleet.yml files in a single API call
+// - Works for public repos without authentication
+// - Rate limits are generous (60 req/hour unauthenticated)
+// - Can also fetch fleet.yaml content to parse dependsOn relationships
+//
+// FLEET BUNDLE DETECTION LOGIC (for reference):
+// Fleet looks for these files to identify bundle boundaries:
+// - fleet.yaml / fleet.yml (primary - defines Fleet bundle)
+// - Chart.yaml (Helm chart - becomes a bundle if no fleet.yaml above it)
+// - kustomization.yaml (Kustomize - becomes a bundle if no fleet.yaml above it)
+// We only look for fleet.yaml/fleet.yml since those are explicit Fleet bundles.
+// =============================================================================
 
 // Helper to extract error message from various error types
 function getErrorMessage(err: unknown): string {
@@ -90,33 +128,39 @@ function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
   return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
 }
 
-// Fetch fleet.yaml content and parse dependsOn
+// Fetch fleet.yaml (or fleet.yml) content and parse dependsOn
 async function fetchFleetYamlDeps(owner: string, repo: string, branch: string, path: string): Promise<string[] | undefined> {
-  try {
-    const fleetYamlPath = path ? `${path}/fleet.yaml` : 'fleet.yaml';
-    const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${fleetYamlPath}`;
-    const response = await fetch(rawUrl);
-    if (!response.ok) return undefined;
+  // Try fleet.yaml first, then fleet.yml
+  const filenames = ['fleet.yaml', 'fleet.yml'];
 
-    const content = await response.text();
-    // Simple YAML parsing for dependsOn - look for "dependsOn:" section
-    const dependsOnMatch = content.match(/dependsOn:\s*\n((?:\s+-\s*(?:name:\s*)?\S+\s*\n?)+)/);
-    if (!dependsOnMatch) return undefined;
+  for (const filename of filenames) {
+    try {
+      const fleetYamlPath = path ? `${path}/${filename}` : filename;
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${fleetYamlPath}`;
+      const response = await fetch(rawUrl);
+      if (!response.ok) continue;  // Try next filename
 
-    // Extract bundle names from dependsOn list
-    const deps: string[] = [];
-    const lines = dependsOnMatch[1].split('\n');
-    for (const line of lines) {
-      // Match "- name: bundlename" or "- bundlename"
-      const nameMatch = line.match(/^\s*-\s*(?:name:\s*)?(\S+)/);
-      if (nameMatch) {
-        deps.push(nameMatch[1]);
+      const content = await response.text();
+      // Simple YAML parsing for dependsOn - look for "dependsOn:" section
+      const dependsOnMatch = content.match(/dependsOn:\s*\n((?:\s+-\s*(?:name:\s*)?\S+\s*\n?)+)/);
+      if (!dependsOnMatch) return undefined;
+
+      // Extract bundle names from dependsOn list
+      const deps: string[] = [];
+      const lines = dependsOnMatch[1].split('\n');
+      for (const line of lines) {
+        // Match "- name: bundlename" or "- bundlename"
+        const nameMatch = line.match(/^\s*-\s*(?:name:\s*)?(\S+)/);
+        if (nameMatch) {
+          deps.push(nameMatch[1]);
+        }
       }
+      return deps.length > 0 ? deps : undefined;
+    } catch {
+      continue;  // Try next filename
     }
-    return deps.length > 0 ? deps : undefined;
-  } catch {
-    return undefined;
   }
+  return undefined;
 }
 
 // Fetch available paths from GitHub repo with dependency info
@@ -170,9 +214,10 @@ async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<PathI
         continue;
       }
 
+      // Find directories containing fleet.yaml or fleet.yml
       const paths = data.tree
         .filter((item: { path: string; type: string }) =>
-          item.type === 'blob' && item.path.endsWith('fleet.yaml'))
+          item.type === 'blob' && (item.path.endsWith('fleet.yaml') || item.path.endsWith('fleet.yml')))
         .map((item: { path: string }) => {
           const parts = item.path.split('/');
           parts.pop();
@@ -181,7 +226,7 @@ async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<PathI
         .filter((path: string) => path !== '.')
         .sort();
 
-      console.log(`[Path Discovery] Found ${paths.length} paths with fleet.yaml`);
+      console.log(`[Path Discovery] Found ${paths.length} paths with fleet.yaml/fleet.yml`);
 
       // Fetch dependency info for each path (in parallel)
       const pathInfos: PathInfo[] = await Promise.all(
