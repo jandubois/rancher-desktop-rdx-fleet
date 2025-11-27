@@ -333,25 +333,16 @@ function App() {
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newRepoName, setNewRepoName] = useState('');
-  const [newRepoUrl, setNewRepoUrl] = useState('');
+  const [newRepoName, setNewRepoName] = useState('fleet-examples');
+  const [newRepoUrl, setNewRepoUrl] = useState('https://github.com/rancher/fleet-examples');
   const [newRepoBranch, setNewRepoBranch] = useState('');
   const [addingRepo, setAddingRepo] = useState(false);
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
 
-  // Open dialog with unique default name
+  // Open dialog with default values
   const openAddRepoDialog = () => {
-    // Generate a unique name based on existing repos
-    const existingNames = new Set(gitRepos.map((r) => r.name));
-    let baseName = 'my-repo';
-    let counter = 1;
-    let uniqueName = baseName;
-    while (existingNames.has(uniqueName)) {
-      uniqueName = `${baseName}-${counter}`;
-      counter++;
-    }
-    setNewRepoName(uniqueName);
-    setNewRepoUrl('');
+    setNewRepoName('fleet-examples');
+    setNewRepoUrl('https://github.com/rancher/fleet-examples');
     setNewRepoBranch('');
     setAddRepoError(null);
     setAddDialogOpen(true);
@@ -702,6 +693,12 @@ function App() {
   const addGitRepo = async () => {
     if (!newRepoName || !newRepoUrl) return;
 
+    // Check if a repo with this name already exists
+    if (gitRepos.some((r) => r.name === newRepoName)) {
+      setAddRepoError(`A repository named "${newRepoName}" already exists. Please choose a different name.`);
+      return;
+    }
+
     setAddingRepo(true);
     setAddRepoError(null);
     try {
@@ -728,9 +725,9 @@ function App() {
 
       // Close dialog and refresh
       setAddDialogOpen(false);
-      // Clear fields (openAddRepoDialog will generate fresh defaults next time)
-      setNewRepoName('');
-      setNewRepoUrl('');
+      // Reset to defaults for next time
+      setNewRepoName('fleet-examples');
+      setNewRepoUrl('https://github.com/rancher/fleet-examples');
       setNewRepoBranch('');
       await fetchGitRepos();
     } catch (err) {
@@ -999,7 +996,7 @@ function App() {
             sx={{
               pl: 1,
               ...(availablePaths.length > maxVisiblePaths && {
-                maxHeight: maxVisiblePaths * 26 + 16,  // 26px per item + 16px for padding
+                maxHeight: maxVisiblePaths * 24,  // ~24px per item (small checkbox + negative margin)
                 overflowY: 'auto',
                 border: '1px solid',
                 borderColor: 'divider',
