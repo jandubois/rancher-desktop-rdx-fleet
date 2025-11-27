@@ -25,7 +25,7 @@ import SyncIcon from '@mui/icons-material/Sync';
 import EditIcon from '@mui/icons-material/Edit';
 import EditOffIcon from '@mui/icons-material/EditOff';
 import { ddClient } from './lib/ddClient';
-import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings } from './manifest';
+import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings } from './manifest';
 import { CardWrapper, getCardComponent } from './cards';
 
 type FleetStatus = 'checking' | 'not-installed' | 'running' | 'error';
@@ -522,6 +522,14 @@ function App() {
   // Update GitRepo paths
   const updateGitRepoPaths = async (repo: GitRepo, newPaths: string[]) => {
     setUpdatingRepo(repo.name);
+
+    // Optimistic update - update local state immediately to prevent scroll jump
+    setGitRepos((prev) =>
+      prev.map((r) =>
+        r.name === repo.name ? { ...r, paths: newPaths } : r
+      )
+    );
+
     try {
       const gitRepoYaml = {
         apiVersion: 'fleet.cattle.io/v1alpha1',
@@ -543,10 +551,13 @@ function App() {
         '--context', KUBE_CONTEXT,
       ]);
 
-      await fetchGitRepos();
+      // Don't call fetchGitRepos() - optimistic update is sufficient
+      // The periodic refresh will sync any server-side changes
     } catch (err) {
       console.error('Failed to update GitRepo:', err);
       setRepoError(getErrorMessage(err));
+      // Revert optimistic update on error
+      await fetchGitRepos();
     } finally {
       setUpdatingRepo(null);
     }
@@ -720,7 +731,7 @@ function App() {
   };
 
   // Render a single GitRepo card
-  const renderRepoCard = (repo: GitRepo) => {
+  const renderRepoCard = (repo: GitRepo, maxVisiblePaths: number = 6) => {
     const availablePaths = repoPathsCache[repo.repo] || [];
     const isLoadingPaths = loadingRepoPathsRef.current.has(repo.repo);
     const hasDiscoveredPaths = repoPathsCache[repo.repo] !== undefined;
@@ -785,7 +796,7 @@ function App() {
         {/* Paths */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
           <Typography variant="subtitle2">
-            Paths
+            Paths{enabledPaths.length > 0 ? ` (${enabledPaths.length} deployed)` : ''}
           </Typography>
           {isLoadingPaths && <CircularProgress size={12} />}
         </Box>
@@ -821,31 +832,44 @@ function App() {
         )}
 
         {availablePaths.length > 0 ? (
-          <FormGroup sx={{ pl: 1 }}>
-            {availablePaths.map((pathInfo) => {
-              const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
-              return (
-                <FormControlLabel
-                  key={pathInfo.path}
-                  control={
-                    <Checkbox
-                      checked={enabledPaths.includes(pathInfo.path)}
-                      onChange={() => toggleRepoPath(repo, pathInfo.path)}
-                      size="small"
-                      disabled={isUpdating || hasDeps}
-                    />
-                  }
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          fontFamily: 'monospace',
-                          color: hasDeps ? 'text.disabled' : 'text.primary',
-                        }}
-                      >
-                        {pathInfo.path}
-                      </Typography>
+          <Box
+            sx={{
+              pl: 1,
+              ...(availablePaths.length > maxVisiblePaths && {
+                maxHeight: maxVisiblePaths * 40,  // ~40px per checkbox item
+                overflowY: 'auto',
+                border: '1px solid',
+                borderColor: 'divider',
+                borderRadius: 1,
+                p: 1,
+              }),
+            }}
+          >
+            <FormGroup>
+              {availablePaths.map((pathInfo) => {
+                const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
+                return (
+                  <FormControlLabel
+                    key={pathInfo.path}
+                    control={
+                      <Checkbox
+                        checked={enabledPaths.includes(pathInfo.path)}
+                        onChange={() => toggleRepoPath(repo, pathInfo.path)}
+                        size="small"
+                        disabled={isUpdating || hasDeps}
+                      />
+                    }
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontFamily: 'monospace',
+                            color: hasDeps ? 'text.disabled' : 'text.primary',
+                          }}
+                        >
+                          {pathInfo.path}
+                        </Typography>
                       {hasDeps && (
                         <Typography variant="caption" color="text.disabled">
                           (depends on: {pathInfo.dependsOn!.join(', ')})
@@ -855,8 +879,9 @@ function App() {
                   }
                 />
               );
-            })}
-          </FormGroup>
+              })}
+            </FormGroup>
+          </Box>
         ) : isLoadingPaths && !isTimedOut ? (
           <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
             Discovering available paths...
@@ -1102,7 +1127,12 @@ function App() {
               </Typography>
             </Paper>
           ) : (
-            gitRepos.map((repo) => renderRepoCard(repo))
+            // Get max_visible_paths from the gitrepo card in the manifest (default: 6)
+            (() => {
+              const gitRepoCard = manifestCards.find((c) => c.type === 'gitrepo');
+              const maxVisiblePaths = (gitRepoCard?.settings as GitRepoCardSettings | undefined)?.max_visible_paths ?? 6;
+              return gitRepos.map((repo) => renderRepoCard(repo, maxVisiblePaths));
+            })()
           )}
         </>
       )}

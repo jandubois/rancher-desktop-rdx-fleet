@@ -31,6 +31,7 @@ export interface GitRepoCardSettings {
   repo_url?: FieldSettings;
   branch?: FieldSettings;
   paths?: FieldSettings;
+  max_visible_paths?: number;  // Max paths before scrolling (default: 6)
 }
 
 export interface AuthCardSettings {
