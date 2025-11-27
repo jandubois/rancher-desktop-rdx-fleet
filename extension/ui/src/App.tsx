@@ -333,11 +333,29 @@ function App() {
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newRepoName, setNewRepoName] = useState('fleet-examples');
-  const [newRepoUrl, setNewRepoUrl] = useState('https://github.com/rancher/fleet-examples');
+  const [newRepoName, setNewRepoName] = useState('');
+  const [newRepoUrl, setNewRepoUrl] = useState('');
   const [newRepoBranch, setNewRepoBranch] = useState('');
   const [addingRepo, setAddingRepo] = useState(false);
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
+
+  // Open dialog with unique default name
+  const openAddRepoDialog = () => {
+    // Generate a unique name based on existing repos
+    const existingNames = new Set(gitRepos.map((r) => r.name));
+    let baseName = 'my-repo';
+    let counter = 1;
+    let uniqueName = baseName;
+    while (existingNames.has(uniqueName)) {
+      uniqueName = `${baseName}-${counter}`;
+      counter++;
+    }
+    setNewRepoName(uniqueName);
+    setNewRepoUrl('');
+    setNewRepoBranch('');
+    setAddRepoError(null);
+    setAddDialogOpen(true);
+  };
 
   // Cache of available paths per repo URL (use state for re-render, ref for stable access)
   const [repoPathsCache, setRepoPathsCache] = useState<Record<string, PathInfo[]>>({});
@@ -710,8 +728,9 @@ function App() {
 
       // Close dialog and refresh
       setAddDialogOpen(false);
-      setNewRepoName('fleet-examples');
-      setNewRepoUrl('https://github.com/rancher/fleet-examples');
+      // Clear fields (openAddRepoDialog will generate fresh defaults next time)
+      setNewRepoName('');
+      setNewRepoUrl('');
       setNewRepoBranch('');
       await fetchGitRepos();
     } catch (err) {
@@ -852,7 +871,7 @@ function App() {
           </Typography>
           <Button
             variant="contained"
-            onClick={() => setAddDialogOpen(true)}
+            onClick={openAddRepoDialog}
             startIcon={<AddIcon />}
           >
             Configure Repository
@@ -910,7 +929,7 @@ function App() {
           <Box sx={{ display: 'flex', gap: 0.5 }}>
             <IconButton
               size="small"
-              onClick={() => setAddDialogOpen(true)}
+              onClick={openAddRepoDialog}
               title="Add another repository"
             >
               <AddIcon />
@@ -1162,7 +1181,7 @@ function App() {
   const convertPlaceholderCard = (cardId: string, newType: 'markdown' | 'gitrepo') => {
     if (newType === 'gitrepo') {
       // Open the add repo dialog instead
-      setAddDialogOpen(true);
+      openAddRepoDialog();
       // Remove the placeholder
       setManifestCards((prev) => prev.filter((c) => c.id !== cardId));
       setCardOrder((prev) => prev.filter((id) => id !== cardId));
