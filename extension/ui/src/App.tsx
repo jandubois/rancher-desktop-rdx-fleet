@@ -756,7 +756,7 @@ function App() {
     };
 
     return (
-      <Paper key={repo.name} sx={{ p: 2, mb: 2 }}>
+      <Paper key={repo.name} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
           <Box>
@@ -836,7 +836,7 @@ function App() {
             sx={{
               pl: 1,
               ...(availablePaths.length > maxVisiblePaths && {
-                maxHeight: maxVisiblePaths * 28,  // ~28px per compact checkbox item
+                maxHeight: maxVisiblePaths * 32,  // ~32px per checkbox item
                 overflowY: 'auto',
                 border: '1px solid',
                 borderColor: 'divider',
@@ -851,14 +851,14 @@ function App() {
                 return (
                   <FormControlLabel
                     key={pathInfo.path}
-                    sx={{ my: -0.5 }}
+                    sx={{ my: -0.25 }}
                     control={
                       <Checkbox
                         checked={enabledPaths.includes(pathInfo.path)}
                         onChange={() => toggleRepoPath(repo, pathInfo.path)}
                         size="small"
                         disabled={isUpdating || hasDeps}
-                        sx={{ py: 0.25 }}
+                        sx={{ py: 0.5 }}
                       />
                     }
                     label={
@@ -992,22 +992,36 @@ function App() {
   const editModeAllowed = manifest.layout?.edit_mode !== false;
 
   return (
-    <Box sx={{ p: 3, maxWidth: 900, margin: '0 auto' }}>
-      {/* Header with title and edit mode toggle */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h4">
-          {manifest.app?.name || 'Fleet GitOps'}
-        </Typography>
-        {editModeAllowed && (
-          <IconButton
-            onClick={() => setEditMode(!editMode)}
-            title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
-            color={editMode ? 'primary' : 'default'}
-          >
-            {editMode ? <EditOffIcon /> : <EditIcon />}
-          </IconButton>
-        )}
+    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50' }}>
+      {/* Header with colored background */}
+      <Box
+        sx={{
+          bgcolor: 'primary.main',
+          color: 'primary.contrastText',
+          py: 2,
+          px: 3,
+          mb: 3,
+          boxShadow: 1,
+        }}
+      >
+        <Box sx={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Typography variant="h5" sx={{ fontWeight: 500 }}>
+            {manifest.app?.name || 'Fleet GitOps'}
+          </Typography>
+          {editModeAllowed && (
+            <IconButton
+              onClick={() => setEditMode(!editMode)}
+              title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
+              sx={{ color: editMode ? 'warning.light' : 'primary.contrastText' }}
+            >
+              {editMode ? <EditOffIcon /> : <EditIcon />}
+            </IconButton>
+          )}
+        </Box>
       </Box>
+
+      {/* Main content area */}
+      <Box sx={{ px: 3, pb: 3, maxWidth: 900, margin: '0 auto' }}>
 
       {/* Edit mode indicator */}
       {editMode && (
@@ -1046,7 +1060,7 @@ function App() {
       )}
 
       {/* Fleet Status Section */}
-      <Paper sx={{ p: 3, mb: 3 }}>
+      <Paper sx={{ p: 3, mb: 3, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
           {renderStatusIcon()}
           <Typography variant="h6">
@@ -1123,7 +1137,7 @@ function App() {
               <CircularProgress />
             </Box>
           ) : gitRepos.length === 0 ? (
-            <Paper sx={{ p: 3 }}>
+            <Paper sx={{ p: 3, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
               <Typography color="text.secondary" sx={{ textAlign: 'center' }}>
                 No repositories configured. Click "Add Repository" to get started.
               </Typography>
@@ -1138,6 +1152,7 @@ function App() {
           )}
         </>
       )}
+      </Box>
 
       {/* Add Repository Dialog */}
       <Dialog

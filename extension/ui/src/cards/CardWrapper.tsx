@@ -31,6 +31,9 @@ export const CardWrapper: React.FC<CardWrapperProps> = ({
       sx={{
         p: 2,
         mb: 2,
+        border: '1px solid',
+        borderColor: 'grey.300',
+        boxShadow: 2,
         opacity: isVisible ? 1 : 0.5,
         position: 'relative',
         ...(isEnabled ? {} : { pointerEvents: 'none', opacity: 0.7 }),
