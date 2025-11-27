@@ -463,6 +463,16 @@ cards:
 - Path discovery and selection
 - Status display (syncing, ready, error)
 
+**GitRepo Card UX Flow:**
+1. Card initially shows "Add Repository" button or empty state
+2. Clicking opens a **modal overlay** to enter/select the Git repo URL and branch
+3. After confirming, modal closes and returns to card view
+4. Card shows repo URL with **loading indicator** while discovering paths
+5. Available paths appear as checkboxes as they're discovered
+6. If no paths discovered after 30s, show a **retry button**
+7. User toggles paths on/off; changes auto-save to GitRepo CR
+8. Card displays sync status (Ready, Syncing, Error) with deployed resource count
+
 **markdown**:
 - Render Markdown content (superset of plain text and HTML)
 - Useful for instructions, welcome messages, links
