@@ -22,7 +22,11 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import SyncIcon from '@mui/icons-material/Sync';
+import EditIcon from '@mui/icons-material/Edit';
+import EditOffIcon from '@mui/icons-material/EditOff';
 import { ddClient } from './lib/ddClient';
+import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings } from './manifest';
+import { CardWrapper, getCardComponent } from './cards';
 
 type FleetStatus = 'checking' | 'not-installed' | 'running' | 'error';
 
@@ -280,6 +284,20 @@ function App() {
   // Track discovery start time for timeout handling (30s)
   const [discoveryStartTimes, setDiscoveryStartTimes] = useState<Record<string, number>>({});
   const [discoveryErrors, setDiscoveryErrors] = useState<Record<string, string>>({});
+
+  // Manifest and edit mode state
+  const [manifest, setManifest] = useState<Manifest>(DEFAULT_MANIFEST);
+  const [editMode, setEditMode] = useState(false);
+  const [manifestCards, setManifestCards] = useState<CardDefinition[]>(DEFAULT_MANIFEST.cards);
+
+  // Load manifest on startup
+  useEffect(() => {
+    loadManifest().then((m) => {
+      setManifest(m);
+      setManifestCards(m.cards);
+      console.log('[Manifest] Loaded:', m);
+    });
+  }, []);
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -890,11 +908,115 @@ function App() {
     );
   };
 
+  // Render a manifest card (markdown, image, etc.)
+  const renderManifestCard = (card: CardDefinition, index: number) => {
+    // Skip gitrepo and auth cards for now - they're handled separately
+    if (card.type === 'gitrepo' || card.type.startsWith('auth-')) {
+      return null;
+    }
+
+    const CardComponent = getCardComponent(card.type);
+    if (!CardComponent) {
+      console.warn(`[Cards] Unknown card type: ${card.type}`);
+      return null;
+    }
+
+    const handleSettingsChange = (newSettings: typeof card.settings) => {
+      setManifestCards((prev) => {
+        const next = [...prev];
+        next[index] = { ...card, settings: newSettings };
+        return next;
+      });
+    };
+
+    const handleDelete = () => {
+      if (confirm(`Delete this ${card.type} card?`)) {
+        setManifestCards((prev) => prev.filter((_, i) => i !== index));
+      }
+    };
+
+    const handleVisibilityToggle = () => {
+      setManifestCards((prev) => {
+        const next = [...prev];
+        next[index] = { ...card, visible: card.visible === false ? true : false };
+        return next;
+      });
+    };
+
+    return (
+      <CardWrapper
+        key={card.id}
+        definition={card}
+        editMode={editMode}
+        onDelete={handleDelete}
+        onVisibilityToggle={handleVisibilityToggle}
+      >
+        <CardComponent
+          definition={card}
+          settings={card.settings || {}}
+          editMode={editMode}
+          onSettingsChange={handleSettingsChange}
+        />
+      </CardWrapper>
+    );
+  };
+
+  // Check if edit mode is allowed
+  const editModeAllowed = manifest.layout?.edit_mode !== false;
+
   return (
     <Box sx={{ p: 3, maxWidth: 900, margin: '0 auto' }}>
-      <Typography variant="h4" gutterBottom>
-        Fleet GitOps
-      </Typography>
+      {/* Header with title and edit mode toggle */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+        <Typography variant="h4">
+          {manifest.app?.name || 'Fleet GitOps'}
+        </Typography>
+        {editModeAllowed && (
+          <IconButton
+            onClick={() => setEditMode(!editMode)}
+            title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
+            color={editMode ? 'primary' : 'default'}
+          >
+            {editMode ? <EditOffIcon /> : <EditIcon />}
+          </IconButton>
+        )}
+      </Box>
+
+      {/* Edit mode indicator */}
+      {editMode && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Edit mode is active. You can modify cards and their settings.
+          <Button size="small" sx={{ ml: 2 }} onClick={() => setEditMode(false)}>
+            Exit Edit Mode
+          </Button>
+        </Alert>
+      )}
+
+      {/* Render markdown/content cards from manifest (before Fleet status) */}
+      {manifestCards
+        .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video')
+        .filter((c) => c.visible !== false || editMode)
+        .map((card) => renderManifestCard(card, manifestCards.indexOf(card)))}
+
+      {/* Add Card button in edit mode */}
+      {editMode && (
+        <Paper sx={{ p: 2, mb: 2, border: '2px dashed', borderColor: 'divider', textAlign: 'center' }}>
+          <Button
+            startIcon={<AddIcon />}
+            onClick={() => {
+              const newCard: CardDefinition = {
+                id: `markdown-${Date.now()}`,
+                type: 'markdown',
+                title: 'New Content',
+                settings: { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings,
+              };
+              setManifestCards((prev) => [...prev, newCard]);
+            }}
+          >
+            Add Markdown Card
+          </Button>
+        </Paper>
+      )}
 
       {/* Fleet Status Section */}
       <Paper sx={{ p: 3, mb: 3 }}>
