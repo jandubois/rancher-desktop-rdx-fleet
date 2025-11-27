@@ -271,17 +271,15 @@ function App() {
   const [addingRepo, setAddingRepo] = useState(false);
   const [addRepoError, setAddRepoError] = useState<string | null>(null);
 
-  // Path discovery state (for add dialog and existing repos)
-  const [discoveredPaths, setDiscoveredPaths] = useState<PathInfo[]>([]);
-  const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
-  const [discoveringPaths, setDiscoveringPaths] = useState(false);
-  const [discoveryError, setDiscoveryError] = useState<string | null>(null);
-
   // Cache of available paths per repo URL (use state for re-render, ref for stable access)
   const [repoPathsCache, setRepoPathsCache] = useState<Record<string, PathInfo[]>>({});
   const repoPathsCacheRef = useRef<Record<string, PathInfo[]>>({});
   const loadingRepoPathsRef = useRef<Set<string>>(new Set());
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
+
+  // Track discovery start time for timeout handling (30s)
+  const [discoveryStartTimes, setDiscoveryStartTimes] = useState<Record<string, number>>({});
+  const [discoveryErrors, setDiscoveryErrors] = useState<Record<string, string>>({});
 
   // Keep ref in sync with state
   useEffect(() => {
@@ -366,25 +364,41 @@ function App() {
   }, []); // No dependencies - uses refs for mutable data
 
   // Discover paths for an existing repo and cache them
-  const discoverPathsForRepo = async (repoUrl: string, branch?: string) => {
-    // Check ref to prevent duplicate requests
-    if (repoPathsCacheRef.current[repoUrl] !== undefined || loadingRepoPathsRef.current.has(repoUrl)) return;
+  const discoverPathsForRepo = useCallback(async (repoUrl: string, branch?: string, isRetry = false) => {
+    // Check ref to prevent duplicate requests (unless retry)
+    if (!isRetry && (repoPathsCacheRef.current[repoUrl] !== undefined || loadingRepoPathsRef.current.has(repoUrl))) return;
 
     loadingRepoPathsRef.current.add(repoUrl);
+
+    // Track start time for timeout display
+    setDiscoveryStartTimes((prev) => ({ ...prev, [repoUrl]: Date.now() }));
+    // Clear any previous error
+    setDiscoveryErrors((prev) => {
+      const next = { ...prev };
+      delete next[repoUrl];
+      return next;
+    });
+
     try {
       const paths = await fetchGitHubPaths(repoUrl, branch);
       // Update both ref and state immediately
       repoPathsCacheRef.current[repoUrl] = paths;
       setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: paths }));
+      // Clear start time on success
+      setDiscoveryStartTimes((prev) => {
+        const next = { ...prev };
+        delete next[repoUrl];
+        return next;
+      });
     } catch (err) {
       console.error(`Failed to discover paths for ${repoUrl}:`, err);
-      // Cache empty array to prevent retrying - update both ref and state
-      repoPathsCacheRef.current[repoUrl] = [];
-      setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: [] }));
+      const errorMsg = getErrorMessage(err);
+      setDiscoveryErrors((prev) => ({ ...prev, [repoUrl]: errorMsg }));
+      // Don't cache empty array on error - allow retry
     } finally {
       loadingRepoPathsRef.current.delete(repoUrl);
     }
-  };
+  }, []);
 
   const checkFleetStatus = useCallback(async () => {
     setFleetState({ status: 'checking' });
@@ -535,8 +549,7 @@ function App() {
     setAddingRepo(true);
     setAddRepoError(null);
     try {
-      const paths = Array.from(selectedPaths);
-
+      // Create GitRepo with empty paths - user will select paths on the card
       const gitRepoYaml = {
         apiVersion: 'fleet.cattle.io/v1alpha1',
         kind: 'GitRepo',
@@ -547,7 +560,7 @@ function App() {
         spec: {
           repo: newRepoUrl,
           ...(newRepoBranch && { branch: newRepoBranch }),
-          ...(paths.length > 0 && { paths }),
+          // No paths initially - paths are selected on the card after discovery
         },
       };
 
@@ -562,9 +575,6 @@ function App() {
       setNewRepoName('fleet-examples');
       setNewRepoUrl('https://github.com/rancher/fleet-examples');
       setNewRepoBranch('');
-      setDiscoveredPaths([]);
-      setSelectedPaths(new Set());
-      setDiscoveryError(null);
       await fetchGitRepos();
     } catch (err) {
       console.error('Failed to add GitRepo:', err);
@@ -572,42 +582,6 @@ function App() {
     } finally {
       setAddingRepo(false);
     }
-  };
-
-  // Discover paths for add dialog
-  const discoverPaths = async () => {
-    if (!newRepoUrl) return;
-
-    setDiscoveringPaths(true);
-    setDiscoveryError(null);
-    setDiscoveredPaths([]);
-    setSelectedPaths(new Set());
-
-    try {
-      const paths = await fetchGitHubPaths(newRepoUrl, newRepoBranch || undefined);
-      if (paths.length === 0) {
-        setDiscoveryError('No fleet.yaml files found in this repository');
-      } else {
-        setDiscoveredPaths(paths);
-      }
-    } catch (err) {
-      console.error('Path discovery error:', err);
-      setDiscoveryError(getErrorMessage(err));
-    } finally {
-      setDiscoveringPaths(false);
-    }
-  };
-
-  const togglePathSelection = (path: string) => {
-    setSelectedPaths((prev) => {
-      const next = new Set(prev);
-      if (next.has(path)) {
-        next.delete(path);
-      } else {
-        next.add(path);
-      }
-      return next;
-    });
   };
 
   const deleteGitRepo = async (name: string) => {
@@ -654,6 +628,19 @@ function App() {
       }
     };
   }, [fetchGitRepos]);
+
+  // Force re-render every 5s when there are active discovery operations (for timeout check)
+  const [, forceUpdate] = useState(0);
+  useEffect(() => {
+    const hasActiveDiscovery = Object.keys(discoveryStartTimes).length > 0;
+    if (!hasActiveDiscovery) return;
+
+    const timer = setInterval(() => {
+      forceUpdate((n) => n + 1);
+    }, 5000);
+
+    return () => clearInterval(timer);
+  }, [discoveryStartTimes]);
 
   const renderStatusIcon = () => {
     switch (fleetState.status) {
@@ -717,9 +704,27 @@ function App() {
   // Render a single GitRepo card
   const renderRepoCard = (repo: GitRepo) => {
     const availablePaths = repoPathsCache[repo.repo] || [];
-    const isLoadingPaths = repoPathsCache[repo.repo] === undefined; // Still loading if not in cache
+    const isLoadingPaths = loadingRepoPathsRef.current.has(repo.repo);
+    const hasDiscoveredPaths = repoPathsCache[repo.repo] !== undefined;
     const enabledPaths = repo.paths || [];
     const isUpdating = updatingRepo === repo.name;
+
+    // Check for discovery error or timeout
+    const discoveryError = discoveryErrors[repo.repo];
+    const discoveryStartTime = discoveryStartTimes[repo.repo];
+    const isTimedOut = discoveryStartTime && (Date.now() - discoveryStartTime) > 30000;
+
+    // Retry handler
+    const handleRetryDiscovery = () => {
+      // Clear previous cache/error state for this repo
+      setRepoPathsCache((prev) => {
+        const next = { ...prev };
+        delete next[repo.repo];
+        return next;
+      });
+      delete repoPathsCacheRef.current[repo.repo];
+      discoverPathsForRepo(repo.repo, repo.branch, true);
+    };
 
     return (
       <Paper key={repo.name} sx={{ p: 2, mb: 2 }}>
@@ -760,9 +765,42 @@ function App() {
         <Divider sx={{ my: 1.5 }} />
 
         {/* Paths */}
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Paths {isLoadingPaths && <CircularProgress size={12} sx={{ ml: 1 }} />}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+          <Typography variant="subtitle2">
+            Paths
+          </Typography>
+          {isLoadingPaths && <CircularProgress size={12} />}
+        </Box>
+
+        {/* Discovery error with retry */}
+        {discoveryError && !isLoadingPaths && (
+          <Alert
+            severity="warning"
+            sx={{ mb: 1 }}
+            action={
+              <Button color="inherit" size="small" onClick={handleRetryDiscovery}>
+                Retry
+              </Button>
+            }
+          >
+            {discoveryError}
+          </Alert>
+        )}
+
+        {/* Timeout warning with retry */}
+        {isTimedOut && isLoadingPaths && (
+          <Alert
+            severity="info"
+            sx={{ mb: 1 }}
+            action={
+              <Button color="inherit" size="small" onClick={handleRetryDiscovery}>
+                Retry
+              </Button>
+            }
+          >
+            Path discovery is taking longer than expected...
+          </Alert>
+        )}
 
         {availablePaths.length > 0 ? (
           <FormGroup sx={{ pl: 1 }}>
@@ -801,21 +839,32 @@ function App() {
               );
             })}
           </FormGroup>
-        ) : isLoadingPaths ? (
+        ) : isLoadingPaths && !isTimedOut ? (
           <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
             Discovering available paths...
           </Typography>
-        ) : enabledPaths.length > 0 ? (
-          <Box sx={{ pl: 1 }}>
-            {enabledPaths.map((path) => (
-              <Chip key={path} label={path} size="small" sx={{ mr: 0.5, mb: 0.5, fontFamily: 'monospace' }} />
-            ))}
+        ) : !hasDiscoveredPaths && !discoveryError ? (
+          <Box sx={{ pl: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              Click to discover available paths
+            </Typography>
+            <Button size="small" onClick={() => discoverPathsForRepo(repo.repo, repo.branch, true)}>
+              Discover
+            </Button>
           </Box>
-        ) : (
-          <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
-            All paths (root)
-          </Typography>
-        )}
+        ) : hasDiscoveredPaths && availablePaths.length === 0 && !discoveryError ? (
+          enabledPaths.length > 0 ? (
+            <Box sx={{ pl: 1 }}>
+              {enabledPaths.map((path) => (
+                <Chip key={path} label={path} size="small" sx={{ mr: 0.5, mb: 0.5, fontFamily: 'monospace' }} />
+              ))}
+            </Box>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
+              No fleet.yaml files found. Deploying all paths (root).
+            </Typography>
+          )
+        ) : null}
 
         {/* Resources summary */}
         {repo.status?.resources && repo.status.resources.length > 0 && (
@@ -939,7 +988,7 @@ function App() {
       {/* Add Repository Dialog */}
       <Dialog
         open={addDialogOpen}
-        onClose={() => { setAddDialogOpen(false); setAddRepoError(null); setDiscoveredPaths([]); setSelectedPaths(new Set()); }}
+        onClose={() => { setAddDialogOpen(false); setAddRepoError(null); }}
         maxWidth="sm"
         fullWidth
       >
@@ -963,7 +1012,7 @@ function App() {
             <TextField
               label="Repository URL"
               value={newRepoUrl}
-              onChange={(e) => { setNewRepoUrl(e.target.value); setDiscoveredPaths([]); setSelectedPaths(new Set()); }}
+              onChange={(e) => setNewRepoUrl(e.target.value)}
               placeholder="https://github.com/rancher/fleet-examples"
               helperText="Git repository URL (HTTPS)"
               required
@@ -977,78 +1026,20 @@ function App() {
               helperText="Branch to track (leave empty for default)"
               fullWidth
             />
-
-            {/* Path Discovery Section */}
-            <Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                <Typography variant="subtitle2">Paths</Typography>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  onClick={discoverPaths}
-                  disabled={!newRepoUrl || discoveringPaths}
-                >
-                  {discoveringPaths ? 'Discovering...' : 'Discover Paths'}
-                </Button>
-              </Box>
-
-              {discoveryError && (
-                <Alert severity="warning" sx={{ mb: 1 }} onClose={() => setDiscoveryError(null)}>
-                  {discoveryError}
-                </Alert>
-              )}
-
-              {discoveredPaths.length > 0 && (
-                <Paper variant="outlined" sx={{ p: 1, maxHeight: 200, overflow: 'auto' }}>
-                  <FormGroup>
-                    {discoveredPaths.map((pathInfo) => {
-                      const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
-                      return (
-                        <FormControlLabel
-                          key={pathInfo.path}
-                          control={
-                            <Checkbox
-                              checked={selectedPaths.has(pathInfo.path)}
-                              onChange={() => togglePathSelection(pathInfo.path)}
-                              size="small"
-                              disabled={hasDeps}
-                            />
-                          }
-                          label={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontFamily: 'monospace',
-                                  color: hasDeps ? 'text.disabled' : 'text.primary',
-                                }}
-                              >
-                                {pathInfo.path}
-                              </Typography>
-                              {hasDeps && (
-                                <Typography variant="caption" color="text.disabled">
-                                  (depends on: {pathInfo.dependsOn!.join(', ')})
-                                </Typography>
-                              )}
-                            </Box>
-                          }
-                        />
-                      );
-                    })}
-                  </FormGroup>
-                </Paper>
-              )}
-            </Box>
+            <Typography variant="body2" color="text.secondary">
+              After adding the repository, available paths will be discovered automatically.
+              You can then select which paths to deploy from the repository card.
+            </Typography>
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setAddDialogOpen(false); setDiscoveredPaths([]); setSelectedPaths(new Set()); setDiscoveryError(null); }}>
+          <Button onClick={() => { setAddDialogOpen(false); setAddRepoError(null); }}>
             Cancel
           </Button>
           <Button
             onClick={addGitRepo}
             variant="contained"
-            disabled={!newRepoName || !newRepoUrl || addingRepo || selectedPaths.size === 0}
+            disabled={!newRepoName || !newRepoUrl || addingRepo}
           >
             {addingRepo ? 'Adding...' : 'Add'}
           </Button>
