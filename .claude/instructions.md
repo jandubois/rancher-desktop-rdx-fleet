@@ -1,92 +1,53 @@
-# Fleet GitOps Extension - AI Instructions
+# Fleet GitOps Extension
 
-## IMPORTANT: Do Not Explore Blindly
+## First Action
 
-**DO NOT start with Glob, Grep, or `ls` commands to explore the codebase.**
+When given a task, **read `docs/NEXT_STEPS.md` first**. It contains:
+- Current development priorities
+- Key file locations for each area
+- Technical decisions already made
 
-This project has comprehensive documentation. You MUST read it first:
+Do NOT run Glob or Grep to explore. The documentation tells you where files are.
 
-1. `docs/NEXT_STEPS.md` - Current priorities, key file locations, technical decisions
-2. This file - Architecture summary and file index
-3. `docs/reference/` - Detailed implementation guides for specific topics
+## File Locations
 
-Only use exploration tools (Glob, Grep) when:
-- Documentation doesn't answer your specific question
-- You need to find a specific symbol or implementation detail
-- You're verifying something documented is still accurate
+| Area | Files |
+|------|-------|
+| Main UI | `extension/ui/src/App.tsx` |
+| Types | `extension/ui/src/types.ts` |
+| Fleet logic | `extension/ui/src/hooks/useFleetStatus.ts` |
+| GitRepo logic | `extension/ui/src/hooks/useGitRepoManagement.ts` |
+| Path discovery | `extension/ui/src/hooks/usePathDiscovery.ts` |
+| Cards | `extension/ui/src/cards/` (registry.ts, CardWrapper.tsx, MarkdownCard.tsx) |
+| Components | `extension/ui/src/components/` (SortableCard.tsx, AddRepoDialog.tsx) |
+| Manifest | `extension/ui/src/manifest/` (types.ts, loader.ts) |
+| Utilities | `extension/ui/src/utils/` (errors.ts, github.ts, constants.ts) |
+| Docker | `extension/Dockerfile`, `extension/metadata.json` |
+| Host binaries | `extension/host/{darwin,linux,windows}/` |
 
-## Project Overview
+## Reference Docs
 
-This is a **Docker Desktop / Rancher Desktop extension** that enables GitOps-based developer environment provisioning using Rancher Fleet.
+| Topic | Document |
+|-------|----------|
+| Current priorities | `docs/NEXT_STEPS.md` |
+| Product requirements | `docs/PRD.md` |
+| UI card system | `docs/reference/ui-card-architecture.md` |
+| Fleet integration | `docs/reference/fleet-local-mode.md` |
+| Extension SDK | `docs/reference/extension-architecture.md` |
+| Helm controller | `docs/reference/helm-controller-integration.md` |
 
-**Key Technologies**: React, TypeScript, Material-UI, Docker Extension SDK, kubectl, helm, Kubernetes
+## Technical Facts
 
-## Quick Start for Development
+- Kubernetes context: `rancher-desktop`
+- Fleet namespace: `fleet-local`
+- No backend service - all via kubectl/helm CLI
+- Host binaries delegate to `~/.rd/bin/kubectl` and `~/.rd/bin/helm`
 
-1. **Read first**: [docs/NEXT_STEPS.md](../docs/NEXT_STEPS.md) - Current development plan and priorities
-2. **Requirements**: [docs/PRD.md](../docs/PRD.md) - Product requirements and UI mockups
-3. **Reference**: [docs/README.md](../docs/README.md) - Documentation index
+## Card Types
 
-## Key Files
-
-### Core
-| File | Purpose |
-|------|---------|
-| `extension/ui/src/App.tsx` | Main UI component (~790 lines) |
-| `extension/ui/src/types.ts` | Shared type definitions (FleetState, GitRepo) |
-
-### Hooks (Business Logic)
-| File | Purpose |
-|------|---------|
-| `extension/ui/src/hooks/useFleetStatus.ts` | Fleet detection, installation, status |
-| `extension/ui/src/hooks/useGitRepoManagement.ts` | GitRepo CRUD, path toggling, polling |
-| `extension/ui/src/hooks/usePathDiscovery.ts` | GitHub API path discovery & caching |
-
-### Components & Cards
-| File | Purpose |
-|------|---------|
-| `extension/ui/src/components/` | SortableCard, AddRepoDialog |
-| `extension/ui/src/cards/` | MarkdownCard, CardWrapper, registry |
-| `extension/ui/src/manifest/` | Manifest types and YAML loader |
-
-### Utilities
-| File | Purpose |
-|------|---------|
-| `extension/ui/src/utils/errors.ts` | Error message extraction |
-| `extension/ui/src/utils/github.ts` | GitHub API for path discovery |
-| `extension/ui/src/utils/constants.ts` | KUBE_CONTEXT, FLEET_NAMESPACE |
-
-### Docker
-| File | Purpose |
-|------|---------|
-| `extension/Dockerfile` | Multi-stage Docker build |
-| `extension/metadata.json` | Extension configuration |
-
-## Architecture Summary
-
-- **UI**: React + Material-UI, renders in Rancher Desktop sidebar
-- **Backend**: None - all operations via kubectl/helm CLI
-- **Host binaries**: Wrapper scripts in `extension/host/` delegate to `~/.rd/bin/`
-- **Kubernetes context**: Always `rancher-desktop`
-- **Fleet namespace**: `fleet-local`
-
-## Card System
-
-The UI uses a card-based architecture with drag-and-drop reordering:
-
-- `gitrepo` - Git repository configuration with path selection
-- `markdown` - Rich text content (implemented)
-- `placeholder` - Temporary card for type selection in edit mode
-- `auth-github`, `auth-git`, `auth-appco` - Authentication cards (not yet implemented)
-- `image`, `video` - Media cards (not yet implemented)
+Implemented: `gitrepo`, `markdown`, `placeholder`
+Not yet implemented: `auth-github`, `auth-git`, `auth-appco`, `image`, `video`
 
 ## Current Priority
 
-**Authentication cards** - See [docs/NEXT_STEPS.md](../docs/NEXT_STEPS.md) for details.
-
-## Technical Decisions
-
-- Credentials stored in Kubernetes Secrets (not extension storage)
-- Path discovery uses GitHub API (not Fleet bundle inspection)
-- Manifest parsing is permissive (ignores unknown fields)
-- All kubectl commands use `--context rancher-desktop`
+Authentication cards - see `docs/NEXT_STEPS.md` for implementation details.
