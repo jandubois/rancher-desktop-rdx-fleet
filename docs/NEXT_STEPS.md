@@ -9,8 +9,8 @@ This document tracks the current development plan and priorities. **Read this fi
 
 **Phase 4 (Multi-Card Architecture)**: Partially complete
 - Manifest system, card registry, drag-and-drop, edit mode
-- Card types implemented: `gitrepo`, `markdown`, `placeholder`
-- Card types defined but not implemented: `auth-github`, `auth-git`, `auth-appco`, `image`, `video`
+- Card types implemented: `gitrepo`, `markdown`, `image`, `video`, `link`, `divider`, `placeholder`
+- Card types defined but not implemented: `auth-github`, `auth-git`, `auth-appco`
 
 ---
 
