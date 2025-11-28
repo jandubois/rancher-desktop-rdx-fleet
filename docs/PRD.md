@@ -767,128 +767,32 @@ To edit a previously built extension:
 
 ## Implementation Plan
 
-### Phase 1: MVP (Core Functionality)
+> **Note**: For current development priorities and detailed task tracking, see [NEXT_STEPS.md](NEXT_STEPS.md).
 
-#### Milestone 1.1: Project Setup ✅ COMPLETE
-- [x] Initialize extension project structure
-- [x] Set up Dockerfile with multi-stage build
-- [x] Create metadata.json
-- [x] Set up React + Vite frontend
-- [x] Basic "Hello World" extension working in Rancher Desktop
+### Completed Phases
 
-#### Milestone 1.2: Fleet Management ✅ COMPLETE
-- [x] Implement Fleet detection (check for CRDs/controller)
-- [x] Implement Fleet installation via Helm
-- [x] Display Fleet status in UI (with version)
-- [x] Handle Fleet not installed state
+#### Phase 1: MVP (Core Functionality) ✅ COMPLETE
+- Project setup (Dockerfile, metadata.json, React+Vite frontend)
+- Fleet detection and one-click installation via Helm
+- GitRepo management (create, edit, delete) with path discovery
+- Status dashboard with sync status, deployed resources, auto-refresh
 
-#### Milestone 1.3: GitRepo Management ✅ COMPLETE
-- [x] Create GitRepo form component with path discovery
-- [x] Implement GitRepo CR creation via kubectl
-- [x] List existing GitRepos as cards
-- [x] Delete GitRepo functionality
-- [x] Edit GitRepo paths via toggle checkboxes (auto-update on change)
+#### Phase 4 (Partial): Multi-Card Architecture ✅ PARTIAL
+- Manifest system with YAML loader and fallback defaults
+- Card registry with pluggable card types
+- Drag-and-drop reordering via @dnd-kit
+- Edit mode with inline card creation
+- Card types: `gitrepo`, `markdown`, `placeholder`
 
-#### Milestone 1.4: Status Dashboard ✅ COMPLETE
-- [x] Display GitRepo sync status (Ready, Syncing, Error states)
-- [x] Show deployed resources per GitRepo
-- [x] Error display with full message
-- [x] Auto-refresh while syncing (5s interval)
-- [x] Manual refresh button
+### Remaining Work
 
-#### Milestone 1.5: Authentication
-- [ ] Secret creation for Git credentials
-- [ ] Username/token auth support
-- [ ] SSH key auth support
-- [ ] Secure credential handling
+See [NEXT_STEPS.md](NEXT_STEPS.md) for prioritized task list. Summary:
 
-### Phase 2: Enhanced Features
-
-#### Milestone 2.1: Dependency Awareness
-- [ ] Fetch and parse fleet.yaml for each discovered path
-- [ ] Extract `dependsOn` declarations from fleet.yaml
-- [ ] Show dependency info in UI (e.g., "depends on: monitoring-crds")
-- [ ] Grey out / disable paths with unresolved dependencies
-- [ ] Auto-select in-repo dependencies when enabling a path
-- [ ] Warn about external dependencies (CRDs from other charts)
-
-#### Milestone 2.2: AppCo Integration
-- [ ] AppCo catalog browsing
-- [ ] Chart installation via Fleet
-- [ ] Authentication integration
-
-#### Milestone 2.3: Advanced UI
-- [ ] Polling interval configuration
-- [ ] Pause/resume functionality
-- [ ] Resource details view
-- [ ] Improved error handling
-
-### Phase 3: Enterprise Features
-
-#### Milestone 3.1: Customization
-- [ ] Build-time configuration support
-- [ ] Locked repo configuration
-- [ ] Multi-repo support
-
-### Phase 4: Multi-Card Architecture
-
-#### Milestone 4.1: Manifest Foundation
-- [ ] Define manifest.yaml JSON schema with validation
-- [ ] Create manifest loader that reads `/ui/manifest.yaml`
-- [ ] Implement fallback to default manifest if none provided
-- [ ] Create card registry system for registering card types
-- [ ] Refactor App.tsx to render cards from manifest configuration
-- [ ] Apply branding settings (colors, logo) from manifest
-
-#### Milestone 4.2: Core Card Types
-- [ ] Implement card base component with common settings (visible, enabled, order)
-- [ ] Refactor existing GitRepo UI into `gitrepo` card type
-- [ ] Implement `markdown` card type (Markdown rendering)
-- [ ] Implement `image` card type
-- [ ] Implement card ordering from manifest
-
-#### Milestone 4.3: Auth Cards
-- [ ] Implement `auth-github` card (PAT entry, validation, status display)
-- [ ] Implement `auth-git` card (username/token and SSH key options)
-- [ ] Store credentials in Kubernetes Secrets
-- [ ] Implement credential availability detection for gitrepo cards
-
-#### Milestone 4.4: Card Behaviors
-- [ ] Implement card dependency system (blocked state when deps unmet)
-- [ ] Implement `duplicatable` setting with "Add Another" button
-- [ ] Implement field-level `locked` and `editable` settings
-- [ ] Implement `allowed` path whitelist for gitrepo cards
-- [ ] Implement `required` setting for auth cards (blocks downstream cards)
-
-#### Milestone 4.5: Edit Mode UI
-- [ ] Add edit mode toggle button in header (respect `layout.edit_mode`)
-- [ ] Implement Global Config card (app name, description, colors)
-- [ ] Add logo/icon upload with drag & drop
-- [ ] Add card controls: drag handle, settings button, delete, visibility
-- [ ] Implement card reordering via drag & drop
-- [ ] Implement Add Card button with card type picker
-- [ ] Implement card settings panel (slide-out or modal)
-
-#### Milestone 4.6: Extension Builder
-- [ ] Generate Dockerfile from current configuration
-- [ ] Generate manifest.yaml from current state
-- [ ] Bundle assets into ZIP for download
-- [ ] Implement "Download Build Files" action
-- [ ] Implement "Build Extension Now" using Docker API
-- [ ] Show build progress and handle errors
-- [ ] Offer to install built extension
-
-#### Milestone 4.7: Import Existing Extension
-- [ ] Extract manifest.yaml from Docker image
-- [ ] Extract assets folder from Docker image
-- [ ] Load extracted config into edit mode
-- [ ] Support importing from ZIP/files upload
-
-#### Milestone 4.8: Additional Card Types (Optional)
-- [ ] Implement `auth-appco` card type
-- [ ] Implement `appco-catalog` card (browse/install AppCo charts)
-- [ ] Implement `video` card type
-- [ ] Add variable substitution support (`{{username}}`) for markdown card
+1. **Authentication Cards** (Priority 1) - `auth-github`, `auth-git` cards with Kubernetes Secret storage
+2. **Dependency Awareness** (Priority 2) - Parse `dependsOn`, disable paths with unmet deps
+3. **Complete Card System** (Priority 3) - Remaining card types and behaviors
+4. **Edit Mode Enhancements** (Priority 4) - Global config card, settings panel
+5. **Extension Builder** (Priority 5) - Export/build custom extensions
 
 ---
 
@@ -1013,8 +917,16 @@ This repository contains various example configurations:
 
 ## References
 
-- [Extension Architecture](reference/extension-architecture.md)
-- [Fleet Local Mode](reference/fleet-local-mode.md)
-- [Helm Controller Integration](reference/helm-controller-integration.md)
+### Project Documentation
+- [NEXT_STEPS.md](NEXT_STEPS.md) - Current development plan and priorities
+- [Documentation Index](README.md) - Guide to all documentation
+
+### Technical Reference
+- [UI Card Architecture](reference/ui-card-architecture.md) - Card system, drag-and-drop, state management
+- [Extension Architecture](reference/extension-architecture.md) - Docker/Rancher Desktop extension SDK
+- [Fleet Local Mode](reference/fleet-local-mode.md) - Fleet installation, GitRepo CRD, authentication
+- [Helm Controller Integration](reference/helm-controller-integration.md) - Alternative to Fleet for simple cases
+
+### Background Materials
 - [AppCo Extension Wiki](background/wiki/rancherlabs/application-collection-extension/1-overview.md)
 - [Fleet Wiki](background/wiki/rancher/fleet/1-overview.md)
