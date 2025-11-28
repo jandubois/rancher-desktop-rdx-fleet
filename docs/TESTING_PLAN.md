@@ -96,22 +96,28 @@ This document tracks the testing implementation plan and progress.
 - [x] Test: checkFleetStatus can be called manually
 - [x] Test: handles CRD check with stderr error
 
-### Phase 5: useGitRepoManagement Hook Tests
-- [ ] Write `hooks/useGitRepoManagement.test.ts`
-- [ ] Test: fetches GitRepos via kubectl
-- [ ] Test: parses GitRepo status correctly
-- [ ] Test: only updates state when data changes
-- [ ] Test: calls onReposLoaded callback
-- [ ] Test: addGitRepo creates resource via kubectl
-- [ ] Test: addGitRepo rejects duplicate names
-- [ ] Test: addGitRepo returns false on error
-- [ ] Test: deleteGitRepo removes resource
-- [ ] Test: updateGitRepoPaths updates optimistically
-- [ ] Test: updateGitRepoPaths reverts on error
-- [ ] Test: toggleRepoPath adds path when missing
-- [ ] Test: toggleRepoPath removes path when present
-- [ ] Test: auto-refreshes when repos unready
-- [ ] Test: stops polling when all repos ready
+### Phase 5: useGitRepoManagement Hook Tests ✅ COMPLETE
+- [x] Write `hooks/useGitRepoManagement.test.ts` (20 tests)
+- [x] Test: initializes with empty repos and no error
+- [x] Test: fetches GitRepos via kubectl
+- [x] Test: parses GitRepo status correctly
+- [x] Test: only updates state when data changes
+- [x] Test: calls onReposLoaded callback when repos change
+- [x] Test: addGitRepo creates resource via kubectl
+- [x] Test: addGitRepo rejects duplicate names
+- [x] Test: addGitRepo returns false on error
+- [x] Test: addGitRepo returns false when name is empty
+- [x] Test: deleteGitRepo removes resource via kubectl
+- [x] Test: updateGitRepoPaths updates optimistically
+- [x] Test: updateGitRepoPaths sets error on failure
+- [x] Test: toggleRepoPath adds path when missing
+- [x] Test: toggleRepoPath removes path when present
+- [x] Test: clearRepoError clears the error
+- [x] Test: sets loadingRepos to true while fetching
+- [x] Test: handles "No resources found" error gracefully
+- [x] Test: handles fetch error and sets repoError
+- [x] Test: sets up refresh interval for unready repos
+- [x] Test: detects ready status correctly
 
 ### Phase 6: Component Tests
 - [ ] Write `components/AddRepoDialog.test.tsx`
