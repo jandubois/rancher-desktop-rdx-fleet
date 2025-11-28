@@ -4,5 +4,9 @@ export { registerCard, getCardComponent, isCardTypeRegistered, getRegisteredCard
 
 // Import card components to trigger registration
 import './MarkdownCard';
+import './ImageCard';
+import './VideoCard';
+import './LinkCard';
+import './DividerCard';
 // Future: import './GitRepoCard';
 // Future: import './AuthGitHubCard';
