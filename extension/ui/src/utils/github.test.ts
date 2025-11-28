@@ -185,7 +185,7 @@ describe('fetchGitHubPaths', () => {
   });
 
   it('tries master then main branch when no branch specified', async () => {
-    let branchesRequested: string[] = [];
+    const branchesRequested: string[] = [];
 
     server.use(
       http.get('https://api.github.com/repos/owner/repo/git/trees/:branch', ({ params }) => {
