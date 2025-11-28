@@ -69,11 +69,21 @@ For each changed test file:
 
 ## 3. Check Documentation
 Review if any documentation needs updates based on the changes:
+
+### Developer Documentation
 - `docs/PRD.md` - for feature changes
 - `docs/NEXT_STEPS.md` - for roadmap updates
 - `docs/TESTING_PLAN.md` - for testing changes
 - `docs/README.md` - for documentation index
+- `docs/reference/ui-card-architecture.md` - for card system changes
 - `.claude/instructions.md` - for AI context updates
+
+### User Documentation
+- `docs/user-guide/README.md` - for user-facing feature changes
+- `docs/user-guide/card-types.md` - for card type additions or setting changes
+
+**Important**: When adding or modifying card types, update BOTH the developer reference
+(`docs/reference/ui-card-architecture.md`) AND user guide (`docs/user-guide/card-types.md`).
 
 If docs need updates, make the changes and commit before proceeding.
 

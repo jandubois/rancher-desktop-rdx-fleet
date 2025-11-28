@@ -7,6 +7,15 @@
 | **[NEXT_STEPS.md](NEXT_STEPS.md)** | Current development plan and priorities - **read first** |
 | [PRD.md](PRD.md) | Product requirements, features, UI mockups |
 
+## User Guide
+
+End-user documentation for configuring and customizing the extension:
+
+| Document | Topics |
+|----------|--------|
+| [User Guide](user-guide/README.md) | Getting started, manifest config, edit mode |
+| [Card Types Reference](user-guide/card-types.md) | All card types with YAML configuration examples |
+
 ## Reference Documentation
 
 Technical documentation for implementation:
@@ -62,7 +71,13 @@ The main UI is composed of draggable, reorderable cards:
 - `fleet-status` - Fleet installation status
 - `gitrepo` - Git repository configuration with path selection
 - `markdown` - Rich text content
+- `image` - Static image display
+- `video` - Embedded video (YouTube, Vimeo, direct)
+- `link` - Collection of clickable links
+- `divider` - Visual separator with optional label
 - `placeholder` - Temporary card during type selection (edit mode)
+
+See the [Card Types Reference](user-guide/card-types.md) for configuration details.
 
 ### Manifest System
 
