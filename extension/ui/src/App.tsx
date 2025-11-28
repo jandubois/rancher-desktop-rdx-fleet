@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -130,25 +130,23 @@ function App() {
     }
   };
 
-  // Update card order when gitRepos change
-  useEffect(() => {
-    setCardOrder((prev) => {
-      const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
-      const manifestCardIds = manifestCards
-        .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'placeholder')
-        .map((c) => c.id);
-      const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
+  // Compute effective card order: filter deleted cards and add new ones
+  const effectiveCardOrder = useMemo(() => {
+    const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
+    const manifestCardIds = manifestCards
+      .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'placeholder')
+      .map((c) => c.id);
+    const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
 
-      // Filter out deleted cards
-      const filtered = prev.filter((id) => allValidIds.has(id));
+    // Filter out deleted cards from user's preferred order
+    const filtered = cardOrder.filter((id) => allValidIds.has(id));
 
-      // Add new cards that aren't in the order yet
-      const existingIds = new Set(filtered);
-      const newIds = [...allValidIds].filter((id) => !existingIds.has(id));
+    // Add new cards that aren't in the order yet
+    const existingIds = new Set(filtered);
+    const newIds = [...allValidIds].filter((id) => !existingIds.has(id));
 
-      return [...filtered, ...newIds];
-    });
-  }, [gitRepos, manifestCards]);
+    return [...filtered, ...newIds];
+  }, [cardOrder, gitRepos, manifestCards]);
 
   // Load manifest on startup
   useEffect(() => {
@@ -755,9 +753,9 @@ function App() {
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
           >
-            <SortableContext items={cardOrder} strategy={verticalListSortingStrategy}>
+            <SortableContext items={effectiveCardOrder} strategy={verticalListSortingStrategy}>
               {/* Render all cards in order */}
-              {cardOrder.map((cardId) => renderCardById(cardId))}
+              {effectiveCardOrder.map((cardId) => renderCardById(cardId))}
 
               {/* Show uninitialized card if no gitrepos and fleet is running */}
               {fleetState.status === 'running' && gitRepos.length === 0 && !loadingRepos && (
