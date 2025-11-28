@@ -78,18 +78,23 @@ This document tracks the testing implementation plan and progress.
 - [x] Test: clears previous error on retry
 - [x] Test: prevents concurrent duplicate requests while loading
 
-### Phase 4: useFleetStatus Hook Tests
-- [ ] Write `hooks/useFleetStatus.test.ts`
-- [ ] Test: starts with 'checking' status
-- [ ] Test: detects Fleet CRD exists
-- [ ] Test: detects Fleet controller running
-- [ ] Test: returns 'not-installed' when CRD missing
-- [ ] Test: returns 'not-installed' when pod not running
-- [ ] Test: extracts Fleet version from helm list
-- [ ] Test: calls onFleetReady callback when ready
-- [ ] Test: handles check errors gracefully
-- [ ] Test: installFleet calls helm commands in order
-- [ ] Test: installFleet calls checkFleetStatus after install
+### Phase 4: useFleetStatus Hook Tests ✅ COMPLETE
+- [x] Write `hooks/useFleetStatus.test.ts` (15 tests)
+- [x] Test: starts with 'checking' status
+- [x] Test: detects Fleet when CRD exists and controller is running
+- [x] Test: returns 'not-installed' when CRD does not exist
+- [x] Test: returns 'not-installed' when CRD check throws NotFound error
+- [x] Test: returns 'not-installed' when pod is not running
+- [x] Test: extracts Fleet version from helm list
+- [x] Test: uses chart name when app_version is missing
+- [x] Test: sets version to "unknown" when helm list fails to parse
+- [x] Test: calls onFleetReady callback when Fleet is running
+- [x] Test: returns error status when check throws unexpected error
+- [x] Test: installFleet calls helm commands in correct order
+- [x] Test: sets installing to true during installation
+- [x] Test: sets error status when installation fails
+- [x] Test: checkFleetStatus can be called manually
+- [x] Test: handles CRD check with stderr error
 
 ### Phase 5: useGitRepoManagement Hook Tests
 - [ ] Write `hooks/useGitRepoManagement.test.ts`
