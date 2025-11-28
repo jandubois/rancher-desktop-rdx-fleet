@@ -35,6 +35,8 @@ Do NOT run Glob or Grep to explore. The documentation tells you where files are.
 | Fleet integration | `docs/reference/fleet-local-mode.md` |
 | Extension SDK | `docs/reference/extension-architecture.md` |
 | Helm controller | `docs/reference/helm-controller-integration.md` |
+| User guide | `docs/user-guide/README.md` |
+| Card types reference | `docs/user-guide/card-types.md` |
 
 ## Technical Facts
 
@@ -45,8 +47,11 @@ Do NOT run Glob or Grep to explore. The documentation tells you where files are.
 
 ## Card Types
 
-Implemented: `gitrepo`, `markdown`, `placeholder`
-Not yet implemented: `auth-github`, `auth-git`, `auth-appco`, `image`, `video`
+Implemented: `gitrepo`, `markdown`, `image`, `video`, `link`, `divider`, `placeholder`
+Not yet implemented: `auth-github`, `auth-git`, `auth-appco`
+
+**When adding/modifying card types**: Update both `docs/user-guide/card-types.md` (user docs)
+and `docs/reference/ui-card-architecture.md` (developer docs).
 
 ## Current Priority
 

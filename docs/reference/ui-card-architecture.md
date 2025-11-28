@@ -38,11 +38,15 @@ extension/ui/src/
 | `gitrepo` | Git repository with path selection | `repo_url`, `branch`, `paths`, `max_visible_paths` |
 | `markdown` | Rich text content | `content` (markdown string) |
 | `image` | Static image display | `src`, `alt` |
-| `video` | Embedded video | `src`, `title` |
+| `video` | Embedded video (YouTube, Vimeo, direct) | `src`, `title` |
+| `link` | Collection of clickable links | `links` (array), `variant` |
+| `divider` | Visual separator with optional label | `label`, `style` |
 | `placeholder` | Temporary card during type selection | (none) |
 | `auth-github` | GitHub authentication | `required`, `show_status` |
 | `auth-git` | Git credentials | `required`, `show_status` |
 | `auth-appco` | AppCo authentication | `required`, `show_status` |
+
+For detailed configuration options and YAML examples, see the [Card Types Reference](../user-guide/card-types.md).
 
 ### Special Cards (Rendered in App.tsx)
 

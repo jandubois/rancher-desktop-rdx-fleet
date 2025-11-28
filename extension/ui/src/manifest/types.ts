@@ -53,12 +53,30 @@ export interface VideoCardSettings {
   title?: string;
 }
 
+export interface LinkItem {
+  label: string;
+  url: string;
+  icon?: string;  // MUI icon name (optional)
+}
+
+export interface LinkCardSettings {
+  links: LinkItem[];
+  variant?: 'buttons' | 'list';  // Display style
+}
+
+export interface DividerCardSettings {
+  label?: string;
+  style?: 'solid' | 'dashed' | 'dotted';
+}
+
 export type CardSettings =
   | GitRepoCardSettings
   | AuthCardSettings
   | MarkdownCardSettings
   | ImageCardSettings
-  | VideoCardSettings;
+  | VideoCardSettings
+  | LinkCardSettings
+  | DividerCardSettings;
 
 export type CardType =
   | 'gitrepo'
@@ -68,6 +86,8 @@ export type CardType =
   | 'markdown'
   | 'image'
   | 'video'
+  | 'link'
+  | 'divider'
   | 'placeholder';  // Temporary type for cards being configured
 
 export interface CardDefinition {
