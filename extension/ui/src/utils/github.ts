@@ -36,7 +36,8 @@ export async function fetchFleetYamlDeps(
 
       const content = await response.text();
       // Simple YAML parsing for dependsOn - look for "dependsOn:" section
-      const dependsOnMatch = content.match(/dependsOn:\s*\n((?:\s+-\s*(?:name:\s*)?\S+\s*\n?)+)/);
+      // Match all lines that are indented list items after "dependsOn:"
+      const dependsOnMatch = content.match(/dependsOn:\s*\n((?:[ \t]+-[^\n]*\n)+)/);
       if (!dependsOnMatch) return undefined;
 
       // Extract bundle names from dependsOn list

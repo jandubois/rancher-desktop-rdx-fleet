@@ -34,24 +34,33 @@ This document tracks the testing implementation plan and progress.
   - [x] Test: handles empty string
   - [x] Test: handles empty object
 
-### Phase 2: GitHub Utility Tests (github.ts)
-- [ ] Write `utils/github.test.ts`
-- [ ] `parseGitHubUrl()` tests:
-  - [ ] Test: parses https://github.com/owner/repo
-  - [ ] Test: parses https://github.com/owner/repo.git
-  - [ ] Test: returns null for non-GitHub URLs
-  - [ ] Test: handles URLs with extra paths
-- [ ] `fetchFleetYamlDeps()` tests:
-  - [ ] Test: parses dependsOn from fleet.yaml
-  - [ ] Test: handles missing dependsOn
-  - [ ] Test: tries fleet.yml fallback
-  - [ ] Test: handles fetch errors
-- [ ] `fetchGitHubPaths()` tests:
-  - [ ] Test: finds paths with fleet.yaml
-  - [ ] Test: tries main then master branch
-  - [ ] Test: handles rate limiting (403)
-  - [ ] Test: handles 404 errors
-  - [ ] Test: fetches dependencies for each path
+### Phase 2: GitHub Utility Tests (github.ts) ✅ COMPLETE
+- [x] Write `utils/github.test.ts` (22 tests)
+- [x] `parseGitHubUrl()` tests:
+  - [x] Test: parses https://github.com/owner/repo
+  - [x] Test: parses https://github.com/owner/repo.git
+  - [x] Test: returns null for non-GitHub URLs
+  - [x] Test: handles URLs with extra paths
+  - [x] Test: handles github.com without https prefix
+  - [x] Test: handles SSH-style URLs (returns null - not supported)
+- [x] `fetchFleetYamlDeps()` tests:
+  - [x] Test: parses dependsOn with "- name: bundlename" format
+  - [x] Test: parses dependsOn with "- bundlename" format
+  - [x] Test: handles missing dependsOn section
+  - [x] Test: tries fleet.yml when fleet.yaml not found
+  - [x] Test: returns undefined when both files not found
+  - [x] Test: handles empty path (root directory)
+- [x] `fetchGitHubPaths()` tests:
+  - [x] Test: finds paths containing fleet.yaml files
+  - [x] Test: also finds fleet.yml files
+  - [x] Test: tries master then main branch when no branch specified
+  - [x] Test: uses specified branch only
+  - [x] Test: throws error for rate limiting (403)
+  - [x] Test: throws error for non-GitHub URLs
+  - [x] Test: throws error when all branches return 404
+  - [x] Test: fetches dependencies for each path
+  - [x] Test: excludes root-level fleet.yaml (path = ".")
+  - [x] Test: handles invalid API response (no tree)
 
 ### Phase 3: usePathDiscovery Hook Tests
 - [ ] Write `hooks/usePathDiscovery.test.ts`
