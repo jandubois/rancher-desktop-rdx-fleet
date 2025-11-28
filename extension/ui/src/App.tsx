@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -159,18 +159,21 @@ function App() {
     });
   }, []);
 
-  // Force re-render every 5s when there are active discovery operations (for timeout check)
-  const [, forceUpdate] = useState(0);
+  // Track current time for timeout checks (updated every 5s when there are active discovery operations)
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   useEffect(() => {
     const hasActiveDiscovery = Object.keys(discoveryStartTimes).length > 0;
     if (!hasActiveDiscovery) return;
 
     const timer = setInterval(() => {
-      forceUpdate((n) => n + 1);
+      setCurrentTime(Date.now());
     }, 5000);
 
     return () => clearInterval(timer);
   }, [discoveryStartTimes]);
+
+  // Counter for generating unique placeholder IDs
+  const placeholderIdCounter = useRef(0);
 
   // Open add repo dialog
   const openAddRepoDialog = useCallback(() => {
@@ -284,7 +287,7 @@ function App() {
     // Check for discovery error or timeout
     const discoveryError = discoveryErrors[repo.repo];
     const discoveryStartTime = discoveryStartTimes[repo.repo];
-    const isTimedOut = discoveryStartTime && (Date.now() - discoveryStartTime) > 30000;
+    const isTimedOut = discoveryStartTime && (currentTime - discoveryStartTime) > 30000;
 
     // Retry handler
     const handleRetryDiscovery = () => {
@@ -547,8 +550,9 @@ function App() {
 
   // Insert a placeholder card after a given card ID
   const insertCardAfter = (afterCardId: string) => {
+    placeholderIdCounter.current += 1;
     const newCard: CardDefinition = {
-      id: `placeholder-${Date.now()}`,
+      id: `placeholder-${placeholderIdCounter.current}`,
       type: 'placeholder',
       title: 'New Card',
     };
