@@ -14,11 +14,36 @@ This is a **Docker Desktop / Rancher Desktop extension** that enables GitOps-bas
 
 ## Key Files
 
+### Core
 | File | Purpose |
 |------|---------|
-| `extension/ui/src/App.tsx` | Main UI component (~1500 lines) |
-| `extension/ui/src/manifest/types.ts` | Manifest and card type definitions |
-| `extension/ui/src/cards/` | Card components (MarkdownCard, CardWrapper, registry) |
+| `extension/ui/src/App.tsx` | Main UI component (~790 lines) |
+| `extension/ui/src/types.ts` | Shared type definitions (FleetState, GitRepo) |
+
+### Hooks (Business Logic)
+| File | Purpose |
+|------|---------|
+| `extension/ui/src/hooks/useFleetStatus.ts` | Fleet detection, installation, status |
+| `extension/ui/src/hooks/useGitRepoManagement.ts` | GitRepo CRUD, path toggling, polling |
+| `extension/ui/src/hooks/usePathDiscovery.ts` | GitHub API path discovery & caching |
+
+### Components & Cards
+| File | Purpose |
+|------|---------|
+| `extension/ui/src/components/` | SortableCard, AddRepoDialog |
+| `extension/ui/src/cards/` | MarkdownCard, CardWrapper, registry |
+| `extension/ui/src/manifest/` | Manifest types and YAML loader |
+
+### Utilities
+| File | Purpose |
+|------|---------|
+| `extension/ui/src/utils/errors.ts` | Error message extraction |
+| `extension/ui/src/utils/github.ts` | GitHub API for path discovery |
+| `extension/ui/src/utils/constants.ts` | KUBE_CONTEXT, FLEET_NAMESPACE |
+
+### Docker
+| File | Purpose |
+|------|---------|
 | `extension/Dockerfile` | Multi-stage Docker build |
 | `extension/metadata.json` | Extension configuration |
 

@@ -102,14 +102,44 @@ Smart path handling to prevent user errors.
 
 ## Key Files Reference
 
+### Core UI
 | Purpose | File |
 |---------|------|
-| Main UI component | `extension/ui/src/App.tsx` |
-| Manifest types | `extension/ui/src/manifest/types.ts` |
-| Manifest loader | `extension/ui/src/manifest/loader.ts` |
+| Main UI component | `extension/ui/src/App.tsx` (~790 lines) |
+| Shared types | `extension/ui/src/types.ts` |
+
+### Hooks (Business Logic)
+| Purpose | File |
+|---------|------|
+| Fleet status & install | `extension/ui/src/hooks/useFleetStatus.ts` |
+| GitRepo CRUD & polling | `extension/ui/src/hooks/useGitRepoManagement.ts` |
+| Path discovery & caching | `extension/ui/src/hooks/usePathDiscovery.ts` |
+
+### Components
+| Purpose | File |
+|---------|------|
+| Drag-and-drop wrapper | `extension/ui/src/components/SortableCard.tsx` |
+| Add repo dialog | `extension/ui/src/components/AddRepoDialog.tsx` |
+
+### Cards
+| Purpose | File |
+|---------|------|
 | Card registry | `extension/ui/src/cards/registry.ts` |
 | Card wrapper | `extension/ui/src/cards/CardWrapper.tsx` |
-| Markdown card (example) | `extension/ui/src/cards/MarkdownCard.tsx` |
+| Markdown card | `extension/ui/src/cards/MarkdownCard.tsx` |
+
+### Manifest
+| Purpose | File |
+|---------|------|
+| Manifest types | `extension/ui/src/manifest/types.ts` |
+| Manifest loader | `extension/ui/src/manifest/loader.ts` |
+
+### Utilities
+| Purpose | File |
+|---------|------|
+| Error handling | `extension/ui/src/utils/errors.ts` |
+| GitHub API | `extension/ui/src/utils/github.ts` |
+| Constants | `extension/ui/src/utils/constants.ts` |
 
 ---
 
