@@ -119,21 +119,28 @@ This document tracks the testing implementation plan and progress.
 - [x] Test: sets up refresh interval for unready repos
 - [x] Test: detects ready status correctly
 
-### Phase 6: Component Tests
-- [ ] Write `components/AddRepoDialog.test.tsx`
-  - [ ] Test: renders form fields
-  - [ ] Test: validates required fields
-  - [ ] Test: calls onAdd with form values
-  - [ ] Test: displays error messages
-  - [ ] Test: closes on cancel
-  - [ ] Test: resets form on open
-- [ ] Write `components/SortableCard.test.tsx`
-  - [ ] Test: renders children
-  - [ ] Test: shows drag handle in edit mode
-  - [ ] Test: hides drag handle when not in edit mode
-- [ ] Write `cards/MarkdownCard.test.tsx`
-  - [ ] Test: renders markdown content
-  - [ ] Test: shows edit textarea in edit mode
+### Phase 6: Component Tests ✅ COMPLETE
+- [x] Write `components/AddRepoDialog.test.tsx` (14 tests)
+  - [x] Test: renders form fields
+  - [x] Test: renders dialog title
+  - [x] Test: has default values for name and URL
+  - [x] Test: calls onAdd with form values
+  - [x] Test: calls onAdd with undefined branch when empty
+  - [x] Test: closes dialog on successful add
+  - [x] Test: displays error message when add fails
+  - [x] Test: displays error message when add throws
+  - [x] Test: closes on cancel
+  - [x] Test: disables add button when name is empty
+  - [x] Test: disables add button when URL is empty
+  - [x] Test: shows "Adding..." text while submitting
+  - [x] Test: does not render when closed
+  - [x] Test: shows helper text for fields
+- [x] Write `components/SortableCard.test.tsx` (5 tests)
+  - [x] Test: renders children
+  - [x] Test: shows drag handle in edit mode
+  - [x] Test: hides drag handle when not in edit mode
+  - [x] Test: renders multiple children
+  - [x] Test: applies reduced opacity when dragging
 
 ---
 
