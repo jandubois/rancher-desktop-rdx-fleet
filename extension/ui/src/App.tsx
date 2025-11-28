@@ -1,17 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Chip from '@mui/material/Chip';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogActions from '@mui/material/DialogActions';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import FormGroup from '@mui/material/FormGroup';
@@ -23,7 +18,6 @@ import AddIcon from '@mui/icons-material/Add';
 import SyncIcon from '@mui/icons-material/Sync';
 import EditIcon from '@mui/icons-material/Edit';
 import EditOffIcon from '@mui/icons-material/EditOff';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import {
   DndContext,
   closestCenter,
@@ -37,53 +31,16 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
-  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { ddClient } from './lib/ddClient';
+
+// Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings } from './manifest';
 import { CardWrapper, getCardComponent } from './cards';
-
-type FleetStatus = 'checking' | 'not-installed' | 'running' | 'error';
-
-interface FleetState {
-  status: FleetStatus;
-  version?: string;
-  error?: string;
-}
-
-interface GitRepo {
-  name: string;
-  repo: string;
-  branch?: string;
-  paths?: string[];
-  paused?: boolean;  // When true, Fleet clones repo but doesn't deploy bundles
-  status?: {
-    ready: boolean;
-    display?: {
-      state?: string;
-      message?: string;
-      error?: boolean;
-    };
-    desiredReadyClusters: number;
-    readyClusters: number;
-    resources?: Array<{
-      kind: string;
-      name: string;
-      state: string;
-    }>;
-    conditions?: Array<{
-      type: string;
-      status: string;
-      message?: string;
-    }>;
-  };
-}
-
-// Always target the Rancher Desktop cluster, regardless of user's current context
-const KUBE_CONTEXT = 'rancher-desktop';
-const FLEET_NAMESPACE = 'fleet-local';
+import { SortableCard, AddRepoDialog } from './components';
+import { useFleetStatus, useGitRepoManagement, usePathDiscovery } from './hooks';
+import { PathInfo } from './utils';
+import { GitRepo } from './types';
 
 // =============================================================================
 // PATH DISCOVERY DESIGN NOTES
@@ -93,279 +50,65 @@ const FLEET_NAMESPACE = 'fleet-local';
 // fleet.yaml or fleet.yml files) in a repository. This approach was chosen
 // after exploring Fleet-based alternatives that didn't work reliably.
 //
-// WHAT WE TRIED (Fleet-based discovery):
-// 1. Create a paused GitRepo and wait for Fleet to create Bundle resources
-// 2. Query Bundles to extract path information
-// 3. Also tried: temporary pods to clone repos, separate discovery namespaces
-//
-// WHY FLEET-BASED DISCOVERY DOESN'T WORK:
-// - Bundle names are hashed via names.HelmReleaseName() - the original path
-//   is transformed into a hash that can't be reversed
-// - Fleet does NOT set a 'fleet.cattle.io/bundle-path' label on Bundles
-// - The only way to get paths from Fleet would be to parse the Bundle's
-//   helm.chart field or inspect the actual cloned repo on disk
-// - Paused GitRepos still create Bundles, but we can't extract the original
-//   paths from them
-//
-// WHY GITHUB API WORKS WELL:
-// - Direct access to repository structure via git trees API
-// - Can find all fleet.yaml/fleet.yml files in a single API call
-// - Works for public repos without authentication
-// - Rate limits are generous (60 req/hour unauthenticated)
-// - Can also fetch fleet.yaml content to parse dependsOn relationships
-//
-// FLEET BUNDLE DETECTION LOGIC (for reference):
-// Fleet looks for these files to identify bundle boundaries:
-// - fleet.yaml / fleet.yml (primary - defines Fleet bundle)
-// - Chart.yaml (Helm chart - becomes a bundle if no fleet.yaml above it)
-// - kustomization.yaml (Kustomize - becomes a bundle if no fleet.yaml above it)
-// We only look for fleet.yaml/fleet.yml since those are explicit Fleet bundles.
+// See utils/github.ts for implementation details.
 // =============================================================================
 
-// Helper to extract error message from various error types
-function getErrorMessage(err: unknown): string {
-  if (err instanceof Error) {
-    return err.message;
-  }
-  if (typeof err === 'object' && err !== null) {
-    const errObj = err as Record<string, unknown>;
-    if (errObj.stderr) return String(errObj.stderr);
-    if (errObj.message) return String(errObj.message);
-    return JSON.stringify(err);
-  }
-  return String(err);
-}
-
-// Path info with dependency data
-interface PathInfo {
-  path: string;
-  dependsOn?: string[];  // Bundle names this path depends on
-}
-
-// Parse GitHub URL to get owner/repo
-function parseGitHubUrl(url: string): { owner: string; repo: string } | null {
-  const match = url.match(/github\.com\/([^/]+)\/([^/]+)/);
-  if (!match) return null;
-  return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
-}
-
-// Fetch fleet.yaml (or fleet.yml) content and parse dependsOn
-async function fetchFleetYamlDeps(owner: string, repo: string, branch: string, path: string): Promise<string[] | undefined> {
-  // Try fleet.yaml first, then fleet.yml
-  const filenames = ['fleet.yaml', 'fleet.yml'];
-
-  for (const filename of filenames) {
-    try {
-      const fleetYamlPath = path ? `${path}/${filename}` : filename;
-      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${fleetYamlPath}`;
-      const response = await fetch(rawUrl);
-      if (!response.ok) continue;  // Try next filename
-
-      const content = await response.text();
-      // Simple YAML parsing for dependsOn - look for "dependsOn:" section
-      const dependsOnMatch = content.match(/dependsOn:\s*\n((?:\s+-\s*(?:name:\s*)?\S+\s*\n?)+)/);
-      if (!dependsOnMatch) return undefined;
-
-      // Extract bundle names from dependsOn list
-      const deps: string[] = [];
-      const lines = dependsOnMatch[1].split('\n');
-      for (const line of lines) {
-        // Match "- name: bundlename" or "- bundlename"
-        const nameMatch = line.match(/^\s*-\s*(?:name:\s*)?(\S+)/);
-        if (nameMatch) {
-          deps.push(nameMatch[1]);
-        }
-      }
-      return deps.length > 0 ? deps : undefined;
-    } catch {
-      continue;  // Try next filename
-    }
-  }
-  return undefined;
-}
-
-// Fetch available paths from GitHub repo with dependency info
-async function fetchGitHubPaths(repoUrl: string, branch?: string): Promise<PathInfo[]> {
-  const parsed = parseGitHubUrl(repoUrl);
-  if (!parsed) {
-    throw new Error(`Only GitHub repositories are supported for path discovery. URL: ${repoUrl}`);
-  }
-
-  const branches = branch ? [branch] : ['master', 'main'];
-  let lastError = '';
-
-  for (const b of branches) {
-    const apiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/${b}?recursive=1`;
-    console.log(`[Path Discovery] Fetching: ${apiUrl}`);
-
-    try {
-      const response = await fetch(apiUrl);
-      console.log(`[Path Discovery] Response status: ${response.status}`);
-
-      // Check rate limit headers
-      const remaining = response.headers.get('X-RateLimit-Remaining');
-      const limit = response.headers.get('X-RateLimit-Limit');
-      console.log(`[Path Discovery] Rate limit: ${remaining}/${limit}`);
-
-      if (response.status === 403) {
-        // Rate limited
-        const resetHeader = response.headers.get('X-RateLimit-Reset');
-        const resetTime = resetHeader ? new Date(parseInt(resetHeader) * 1000).toLocaleTimeString() : 'unknown';
-        throw new Error(`GitHub API rate limit exceeded. Resets at ${resetTime}. Try again later or use a different network.`);
-      }
-
-      if (response.status === 404) {
-        lastError = `Branch '${b}' not found in ${parsed.owner}/${parsed.repo}`;
-        console.log(`[Path Discovery] ${lastError}`);
-        continue; // Try next branch
-      }
-
-      if (!response.ok) {
-        const text = await response.text();
-        lastError = `GitHub API error: ${response.status} ${response.statusText}. ${text}`;
-        console.error(`[Path Discovery] ${lastError}`);
-        continue;
-      }
-
-      const data = await response.json();
-
-      if (!data.tree || !Array.isArray(data.tree)) {
-        lastError = 'Invalid response from GitHub API (no tree data)';
-        console.error(`[Path Discovery] ${lastError}`, data);
-        continue;
-      }
-
-      // Find directories containing fleet.yaml or fleet.yml
-      const paths = data.tree
-        .filter((item: { path: string; type: string }) =>
-          item.type === 'blob' && (item.path.endsWith('fleet.yaml') || item.path.endsWith('fleet.yml')))
-        .map((item: { path: string }) => {
-          const parts = item.path.split('/');
-          parts.pop();
-          return parts.join('/') || '.';
-        })
-        .filter((path: string) => path !== '.')
-        .sort();
-
-      console.log(`[Path Discovery] Found ${paths.length} paths with fleet.yaml/fleet.yml`);
-
-      // Fetch dependency info for each path (in parallel)
-      const pathInfos: PathInfo[] = await Promise.all(
-        paths.map(async (path: string) => {
-          const deps = await fetchFleetYamlDeps(parsed.owner, parsed.repo, b, path);
-          return { path, dependsOn: deps };
-        })
-      );
-
-      return pathInfos;
-    } catch (err) {
-      if (err instanceof Error && err.message.includes('rate limit')) {
-        throw err; // Re-throw rate limit errors immediately
-      }
-      // Check for network errors
-      if (err instanceof TypeError && err.message.includes('fetch')) {
-        lastError = `Network error: Unable to reach GitHub API. Check your internet connection.`;
-      } else {
-        lastError = err instanceof Error ? err.message : String(err);
-      }
-      console.error(`[Path Discovery] Error fetching branch ${b}:`, lastError, err);
-    }
-  }
-
-  // Provide more helpful error message
-  const triedBranches = branches.join(', ');
-  throw new Error(lastError || `Could not access repository. Tried branches: ${triedBranches}`);
-}
-
-// Sortable card wrapper for drag-and-drop reordering
-interface SortableCardProps {
-  id: string;
-  editMode: boolean;
-  children: React.ReactNode;
-}
-
-function SortableCard({ id, editMode, children }: SortableCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <Box ref={setNodeRef} style={style}>
-      {editMode && (
-        <Box
-          {...attributes}
-          {...listeners}
-          sx={{
-            display: 'flex',
-            justifyContent: 'center',
-            cursor: 'grab',
-            py: 0.5,
-            mb: -1,
-            '&:hover': { bgcolor: 'action.hover' },
-            borderRadius: '4px 4px 0 0',
-          }}
-        >
-          <DragIndicatorIcon fontSize="small" color="action" />
-        </Box>
-      )}
-      {children}
-    </Box>
-  );
-}
-
 function App() {
-  const [fleetState, setFleetState] = useState<FleetState>({ status: 'checking' });
-  const [installing, setInstalling] = useState(false);
-  const [gitRepos, setGitRepos] = useState<GitRepo[]>([]);
-  const [loadingRepos, setLoadingRepos] = useState(false);
-  const [repoError, setRepoError] = useState<string | null>(null);
-
-  // Add repo dialog state
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [newRepoName, setNewRepoName] = useState('fleet-examples');
-  const [newRepoUrl, setNewRepoUrl] = useState('https://github.com/rancher/fleet-examples');
-  const [newRepoBranch, setNewRepoBranch] = useState('');
-  const [addingRepo, setAddingRepo] = useState(false);
-  const [addRepoError, setAddRepoError] = useState<string | null>(null);
-
-  // Open dialog with default values
-  const openAddRepoDialog = () => {
-    setNewRepoName('fleet-examples');
-    setNewRepoUrl('https://github.com/rancher/fleet-examples');
-    setNewRepoBranch('');
-    setAddRepoError(null);
-    setAddDialogOpen(true);
-  };
-
-  // Cache of available paths per repo URL (use state for re-render, ref for stable access)
-  const [repoPathsCache, setRepoPathsCache] = useState<Record<string, PathInfo[]>>({});
-  const repoPathsCacheRef = useRef<Record<string, PathInfo[]>>({});
-  const loadingRepoPathsRef = useRef<Set<string>>(new Set());
-  const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
-
-  // Track discovery start time for timeout handling (30s)
-  const [discoveryStartTimes, setDiscoveryStartTimes] = useState<Record<string, number>>({});
-  const [discoveryErrors, setDiscoveryErrors] = useState<Record<string, string>>({});
-
   // Manifest and edit mode state
   const [manifest, setManifest] = useState<Manifest>(DEFAULT_MANIFEST);
   const [editMode, setEditMode] = useState(false);
   const [manifestCards, setManifestCards] = useState<CardDefinition[]>(DEFAULT_MANIFEST.cards);
 
   // Card order for drag-and-drop (IDs of all cards in display order)
-  // Format: 'fleet-status', 'gitrepo-{name}', or manifest card IDs
   const [cardOrder, setCardOrder] = useState<string[]>(['fleet-status']);
+
+  // Add repo dialog state
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+  // Path discovery
+  const {
+    repoPathsCache,
+    discoveryErrors,
+    discoveryStartTimes,
+    isLoadingPaths,
+    discoverPathsForRepo,
+    clearDiscoveryCache,
+  } = usePathDiscovery();
+
+  // Fleet status hook
+  const {
+    fleetState,
+    installing,
+    installFleet,
+  } = useFleetStatus({
+    onFleetReady: () => {
+      // Fetch git repos when fleet becomes ready
+      fetchGitRepos();
+    },
+  });
+
+  // GitRepo management hook
+  const {
+    gitRepos,
+    loadingRepos,
+    repoError,
+    updatingRepo,
+    fetchGitRepos,
+    addGitRepo,
+    deleteGitRepo,
+    toggleRepoPath,
+    clearRepoError,
+  } = useGitRepoManagement({
+    fleetState,
+    onReposLoaded: (repos) => {
+      // Auto-discover paths for repos that don't have cached paths
+      repos.forEach((repo) => {
+        if (repoPathsCache[repo.repo] === undefined && !isLoadingPaths(repo.repo)) {
+          discoverPathsForRepo(repo.repo, repo.branch);
+        }
+      });
+    },
+  });
 
   // DnD sensors
   const sensors = useSensors(
@@ -390,7 +133,6 @@ function App() {
   // Update card order when gitRepos change
   useEffect(() => {
     setCardOrder((prev) => {
-      // Keep existing order, add new repos, remove deleted ones
       const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
       const manifestCardIds = manifestCards
         .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'placeholder')
@@ -417,372 +159,6 @@ function App() {
     });
   }, []);
 
-  // Keep ref in sync with state
-  useEffect(() => {
-    repoPathsCacheRef.current = repoPathsCache;
-  }, [repoPathsCache]);
-
-  const fetchGitRepos = useCallback(async () => {
-    setLoadingRepos(true);
-    setRepoError(null);
-    try {
-      const result = await ddClient.extension.host?.cli.exec('kubectl', [
-        '--context', KUBE_CONTEXT,
-        'get', 'gitrepos', '-n', FLEET_NAMESPACE,
-        '-o', 'json',
-      ]);
-
-      if (result?.stderr) {
-        throw new Error(result.stderr);
-      }
-
-      const data = JSON.parse(result?.stdout || '{"items":[]}');
-      const repos: GitRepo[] = data.items.map((item: Record<string, unknown>) => {
-        const spec = item.spec as Record<string, unknown> || {};
-        const status = item.status as Record<string, unknown> || {};
-        const metadata = item.metadata as Record<string, unknown> || {};
-        const conditions = (status.conditions as Array<Record<string, unknown>>) || [];
-        const display = status.display as Record<string, unknown> | undefined;
-        const resources = (status.resources as Array<Record<string, unknown>>) || [];
-
-        return {
-          name: metadata.name as string,
-          repo: spec.repo as string,
-          branch: spec.branch as string | undefined,
-          paths: spec.paths as string[] | undefined,
-          status: {
-            ready: conditions.some((c) => c.type === 'Ready' && c.status === 'True'),
-            display: display ? {
-              state: display.state as string | undefined,
-              message: display.message as string | undefined,
-              error: display.error as boolean | undefined,
-            } : undefined,
-            desiredReadyClusters: (status.desiredReadyClusters as number) || 0,
-            readyClusters: (status.readyClusters as number) || 0,
-            resources: resources.map((r) => ({
-              kind: r.kind as string,
-              name: r.name as string,
-              state: r.state as string,
-            })),
-            conditions: conditions.map((c) => ({
-              type: c.type as string,
-              status: c.status as string,
-              message: c.message as string | undefined,
-            })),
-          },
-        };
-      });
-
-      // Only update state if data actually changed (prevents scroll reset)
-      setGitRepos((prevRepos) => {
-        const prevJson = JSON.stringify(prevRepos);
-        const newJson = JSON.stringify(repos);
-        return prevJson === newJson ? prevRepos : repos;
-      });
-
-      // Auto-discover paths for new repos (using refs to avoid dependency issues)
-      repos.forEach((repo) => {
-        if (repoPathsCacheRef.current[repo.repo] === undefined && !loadingRepoPathsRef.current.has(repo.repo)) {
-          discoverPathsForRepo(repo.repo, repo.branch);
-        }
-      });
-    } catch (err) {
-      const errMsg = getErrorMessage(err);
-      if (errMsg.includes('No resources found')) {
-        setGitRepos([]);
-      } else {
-        console.error('Failed to fetch GitRepos:', err);
-        setRepoError(errMsg);
-      }
-    } finally {
-      setLoadingRepos(false);
-    }
-  }, []); // No dependencies - uses refs for mutable data
-
-  // Discover paths for an existing repo and cache them
-  const discoverPathsForRepo = useCallback(async (repoUrl: string, branch?: string, isRetry = false) => {
-    // Check ref to prevent duplicate requests (unless retry)
-    if (!isRetry && (repoPathsCacheRef.current[repoUrl] !== undefined || loadingRepoPathsRef.current.has(repoUrl))) return;
-
-    loadingRepoPathsRef.current.add(repoUrl);
-
-    // Track start time for timeout display
-    setDiscoveryStartTimes((prev) => ({ ...prev, [repoUrl]: Date.now() }));
-    // Clear any previous error
-    setDiscoveryErrors((prev) => {
-      const next = { ...prev };
-      delete next[repoUrl];
-      return next;
-    });
-
-    try {
-      const paths = await fetchGitHubPaths(repoUrl, branch);
-      // Update both ref and state immediately
-      repoPathsCacheRef.current[repoUrl] = paths;
-      setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: paths }));
-      // Clear start time on success
-      setDiscoveryStartTimes((prev) => {
-        const next = { ...prev };
-        delete next[repoUrl];
-        return next;
-      });
-    } catch (err) {
-      console.error(`Failed to discover paths for ${repoUrl}:`, err);
-      const errorMsg = getErrorMessage(err);
-      setDiscoveryErrors((prev) => ({ ...prev, [repoUrl]: errorMsg }));
-      // Don't cache empty array on error - allow retry
-    } finally {
-      loadingRepoPathsRef.current.delete(repoUrl);
-    }
-  }, []);
-
-  const checkFleetStatus = useCallback(async () => {
-    setFleetState({ status: 'checking' });
-    try {
-      let crdExists = false;
-      try {
-        const result = await ddClient.extension.host?.cli.exec('kubectl', [
-          '--context', KUBE_CONTEXT,
-          'get', 'crd', 'gitrepos.fleet.cattle.io',
-          '-o', 'jsonpath={.metadata.name}',
-        ]);
-        crdExists = !result?.stderr && (result?.stdout?.includes('gitrepos.fleet.cattle.io') ?? false);
-      } catch (crdErr) {
-        const errMsg = getErrorMessage(crdErr);
-        if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
-          setFleetState({ status: 'not-installed' });
-          return;
-        }
-        throw crdErr;
-      }
-
-      if (!crdExists) {
-        setFleetState({ status: 'not-installed' });
-        return;
-      }
-
-      const podResult = await ddClient.extension.host?.cli.exec('kubectl', [
-        '--context', KUBE_CONTEXT,
-        'get', 'pods', '-n', 'cattle-fleet-system',
-        '-l', 'app=fleet-controller',
-        '-o', 'jsonpath={.items[0].status.phase}',
-      ]);
-
-      if (podResult?.stdout === 'Running') {
-        const versionResult = await ddClient.extension.host?.cli.exec('helm', [
-          '--kube-context', KUBE_CONTEXT,
-          'list', '-n', 'cattle-fleet-system',
-          '-f', 'fleet',
-          '-o', 'json',
-        ]);
-        let version = 'unknown';
-        try {
-          const releases = JSON.parse(versionResult?.stdout || '[]');
-          if (releases.length > 0) {
-            version = releases[0].app_version || releases[0].chart;
-          }
-        } catch {
-          // Ignore parse errors
-        }
-        setFleetState({ status: 'running', version });
-        fetchGitRepos();
-      } else {
-        setFleetState({ status: 'not-installed' });
-      }
-    } catch (err) {
-      console.error('Fleet status check error:', err);
-      setFleetState({
-        status: 'error',
-        error: getErrorMessage(err),
-      });
-    }
-  }, [fetchGitRepos]);
-
-  const installFleet = async () => {
-    setInstalling(true);
-    try {
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'repo', 'add', 'fleet', 'https://rancher.github.io/fleet-helm-charts/',
-      ]);
-
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'repo', 'update',
-      ]);
-
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'install', '--create-namespace', '-n', 'cattle-fleet-system',
-        'fleet-crd', 'fleet/fleet-crd',
-        '--wait',
-      ]);
-
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'install', '--create-namespace', '-n', 'cattle-fleet-system',
-        'fleet', 'fleet/fleet',
-        '--wait',
-      ]);
-
-      await checkFleetStatus();
-    } catch (err) {
-      console.error('Fleet install error:', err);
-      setFleetState({
-        status: 'error',
-        error: getErrorMessage(err),
-      });
-    } finally {
-      setInstalling(false);
-    }
-  };
-
-  // Update GitRepo paths
-  const updateGitRepoPaths = async (repo: GitRepo, newPaths: string[]) => {
-    setUpdatingRepo(repo.name);
-
-    // Optimistic update - update local state immediately to prevent scroll jump
-    setGitRepos((prev) =>
-      prev.map((r) =>
-        r.name === repo.name ? { ...r, paths: newPaths } : r
-      )
-    );
-
-    try {
-      const gitRepoYaml = {
-        apiVersion: 'fleet.cattle.io/v1alpha1',
-        kind: 'GitRepo',
-        metadata: {
-          name: repo.name,
-          namespace: FLEET_NAMESPACE,
-        },
-        spec: {
-          repo: repo.repo,
-          ...(repo.branch && { branch: repo.branch }),
-          ...(newPaths.length > 0 && { paths: newPaths }),
-        },
-      };
-
-      const jsonStr = JSON.stringify(gitRepoYaml);
-      await ddClient.extension.host?.cli.exec('kubectl', [
-        '--apply-json', jsonStr,
-        '--context', KUBE_CONTEXT,
-      ]);
-
-      // Don't call fetchGitRepos() - optimistic update is sufficient
-      // The periodic refresh will sync any server-side changes
-    } catch (err) {
-      console.error('Failed to update GitRepo:', err);
-      setRepoError(getErrorMessage(err));
-      // Revert optimistic update on error
-      await fetchGitRepos();
-    } finally {
-      setUpdatingRepo(null);
-    }
-  };
-
-  // Toggle a path for an existing repo
-  const toggleRepoPath = (repo: GitRepo, path: string) => {
-    const currentPaths = repo.paths || [];
-    const newPaths = currentPaths.includes(path)
-      ? currentPaths.filter((p) => p !== path)
-      : [...currentPaths, path];
-    updateGitRepoPaths(repo, newPaths);
-  };
-
-  const addGitRepo = async () => {
-    if (!newRepoName || !newRepoUrl) return;
-
-    // Check if a repo with this name already exists
-    if (gitRepos.some((r) => r.name === newRepoName)) {
-      setAddRepoError(`A repository named "${newRepoName}" already exists. Please choose a different name.`);
-      return;
-    }
-
-    setAddingRepo(true);
-    setAddRepoError(null);
-    try {
-      // Create GitRepo with empty paths - user will select paths on the card
-      const gitRepoYaml = {
-        apiVersion: 'fleet.cattle.io/v1alpha1',
-        kind: 'GitRepo',
-        metadata: {
-          name: newRepoName,
-          namespace: FLEET_NAMESPACE,
-        },
-        spec: {
-          repo: newRepoUrl,
-          ...(newRepoBranch && { branch: newRepoBranch }),
-          // No paths initially - paths are selected on the card after discovery
-        },
-      };
-
-      const jsonStr = JSON.stringify(gitRepoYaml);
-      await ddClient.extension.host?.cli.exec('kubectl', [
-        '--apply-json', jsonStr,
-        '--context', KUBE_CONTEXT,
-      ]);
-
-      // Close dialog and refresh
-      setAddDialogOpen(false);
-      // Reset to defaults for next time
-      setNewRepoName('fleet-examples');
-      setNewRepoUrl('https://github.com/rancher/fleet-examples');
-      setNewRepoBranch('');
-      await fetchGitRepos();
-    } catch (err) {
-      console.error('Failed to add GitRepo:', err);
-      setAddRepoError(getErrorMessage(err));
-    } finally {
-      setAddingRepo(false);
-    }
-  };
-
-  const deleteGitRepo = async (name: string) => {
-    if (!confirm(`Delete GitRepo "${name}"?`)) return;
-
-    try {
-      await ddClient.extension.host?.cli.exec('kubectl', [
-        '--context', KUBE_CONTEXT,
-        'delete', 'gitrepo', name, '-n', FLEET_NAMESPACE,
-      ]);
-      await fetchGitRepos();
-    } catch (err) {
-      console.error('Failed to delete GitRepo:', err);
-      setRepoError(getErrorMessage(err));
-    }
-  };
-
-  useEffect(() => {
-    checkFleetStatus();
-  }, [checkFleetStatus]);
-
-  // Auto-refresh when there are repos that aren't ready yet
-  // Use refs to avoid re-creating interval on every gitRepos change
-  const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const shouldRefreshRef = useRef(false);
-
-  // Update the ref when conditions change
-  useEffect(() => {
-    const hasUnreadyRepos = gitRepos.some((repo) => !repo.status?.ready);
-    shouldRefreshRef.current = hasUnreadyRepos && fleetState.status === 'running';
-  }, [gitRepos, fleetState.status]);
-
-  // Set up polling interval once
-  useEffect(() => {
-    refreshIntervalRef.current = setInterval(() => {
-      if (shouldRefreshRef.current) {
-        fetchGitRepos();
-      }
-    }, 5000);
-
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
-    };
-  }, [fetchGitRepos]);
-
   // Force re-render every 5s when there are active discovery operations (for timeout check)
   const [, forceUpdate] = useState(0);
   useEffect(() => {
@@ -796,6 +172,23 @@ function App() {
     return () => clearInterval(timer);
   }, [discoveryStartTimes]);
 
+  // Open add repo dialog
+  const openAddRepoDialog = useCallback(() => {
+    setAddDialogOpen(true);
+  }, []);
+
+  // Handle add repo from dialog
+  const handleAddRepo = useCallback(async (name: string, url: string, branch?: string): Promise<boolean> => {
+    return addGitRepo(name, url, branch);
+  }, [addGitRepo]);
+
+  // Handle delete repo with confirmation
+  const handleDeleteRepo = useCallback(async (name: string) => {
+    if (!confirm(`Delete GitRepo "${name}"?`)) return;
+    await deleteGitRepo(name);
+  }, [deleteGitRepo]);
+
+  // Render status icon
   const renderStatusIcon = () => {
     switch (fleetState.status) {
       case 'checking':
@@ -809,6 +202,7 @@ function App() {
     }
   };
 
+  // Get repo status chip
   const getRepoStatusChip = (repo: GitRepo) => {
     if (!repo.status) {
       return <Chip label="Unknown" size="small" />;
@@ -880,8 +274,8 @@ function App() {
 
   // Render a single GitRepo card
   const renderRepoCard = (repo: GitRepo, _index: number, totalCount: number, maxVisiblePaths: number = 6) => {
-    const availablePaths = repoPathsCache[repo.repo] || [];
-    const isLoadingPaths = loadingRepoPathsRef.current.has(repo.repo);
+    const availablePaths: PathInfo[] = repoPathsCache[repo.repo] || [];
+    const loadingPaths = isLoadingPaths(repo.repo);
     const hasDiscoveredPaths = repoPathsCache[repo.repo] !== undefined;
     const enabledPaths = repo.paths || [];
     const isUpdating = updatingRepo === repo.name;
@@ -894,13 +288,7 @@ function App() {
 
     // Retry handler
     const handleRetryDiscovery = () => {
-      // Clear previous cache/error state for this repo
-      setRepoPathsCache((prev) => {
-        const next = { ...prev };
-        delete next[repo.repo];
-        return next;
-      });
-      delete repoPathsCacheRef.current[repo.repo];
+      clearDiscoveryCache(repo.repo);
       discoverPathsForRepo(repo.repo, repo.branch, true);
     };
 
@@ -934,7 +322,7 @@ function App() {
             {canDelete && (
               <IconButton
                 size="small"
-                onClick={() => deleteGitRepo(repo.name)}
+                onClick={() => handleDeleteRepo(repo.name)}
                 title="Delete repository"
                 disabled={isUpdating}
               >
@@ -958,11 +346,11 @@ function App() {
           <Typography variant="subtitle2">
             Paths{enabledPaths.length > 0 ? ` (${enabledPaths.length} deployed)` : ''}
           </Typography>
-          {isLoadingPaths && <CircularProgress size={12} />}
+          {loadingPaths && <CircularProgress size={12} />}
         </Box>
 
         {/* Discovery error with retry */}
-        {discoveryError && !isLoadingPaths && (
+        {discoveryError && !loadingPaths && (
           <Alert
             severity="warning"
             sx={{ mb: 1 }}
@@ -977,7 +365,7 @@ function App() {
         )}
 
         {/* Timeout warning with retry */}
-        {isTimedOut && isLoadingPaths && (
+        {isTimedOut && loadingPaths && (
           <Alert
             severity="info"
             sx={{ mb: 1 }}
@@ -996,7 +384,7 @@ function App() {
             sx={{
               pl: 1,
               ...(availablePaths.length > maxVisiblePaths && {
-                maxHeight: maxVisiblePaths * 24,  // ~24px per item (small checkbox + negative margin)
+                maxHeight: maxVisiblePaths * 24,
                 overflowY: 'auto',
                 border: '1px solid',
                 borderColor: 'divider',
@@ -1032,19 +420,19 @@ function App() {
                         >
                           {pathInfo.path}
                         </Typography>
-                      {hasDeps && (
-                        <Typography variant="caption" color="text.disabled">
-                          (depends on: {pathInfo.dependsOn!.join(', ')})
-                        </Typography>
-                      )}
-                    </Box>
-                  }
-                />
-              );
+                        {hasDeps && (
+                          <Typography variant="caption" color="text.disabled">
+                            (depends on: {pathInfo.dependsOn!.join(', ')})
+                          </Typography>
+                        )}
+                      </Box>
+                    }
+                  />
+                );
               })}
             </FormGroup>
           </Box>
-        ) : isLoadingPaths && !isTimedOut ? (
+        ) : loadingPaths && !isTimedOut ? (
           <Typography variant="body2" color="text.secondary" sx={{ pl: 1 }}>
             Discovering available paths...
           </Typography>
@@ -1153,7 +541,6 @@ function App() {
 
   // Handle exiting edit mode - remove placeholder cards
   const handleExitEditMode = () => {
-    // Remove any placeholder cards that haven't been configured
     setManifestCards((prev) => prev.filter((c) => c.type !== 'placeholder'));
     setEditMode(false);
   };
@@ -1166,7 +553,6 @@ function App() {
       title: 'New Card',
     };
     setManifestCards((prev) => [...prev, newCard]);
-    // Insert into card order after the specified card
     setCardOrder((prev) => {
       const index = prev.indexOf(afterCardId);
       if (index === -1) return [...prev, newCard.id];
@@ -1177,13 +563,10 @@ function App() {
   // Convert a placeholder card to a specific type
   const convertPlaceholderCard = (cardId: string, newType: 'markdown' | 'gitrepo') => {
     if (newType === 'gitrepo') {
-      // Open the add repo dialog instead
       openAddRepoDialog();
-      // Remove the placeholder
       setManifestCards((prev) => prev.filter((c) => c.id !== cardId));
       setCardOrder((prev) => prev.filter((id) => id !== cardId));
     } else {
-      // Convert to markdown card
       setManifestCards((prev) =>
         prev.map((c) =>
           c.id === cardId
@@ -1276,7 +659,7 @@ function App() {
             )}
 
             {repoError && (
-              <Alert severity="error" sx={{ mt: 1 }} onClose={() => setRepoError(null)}>
+              <Alert severity="error" sx={{ mt: 1 }} onClose={clearRepoError}>
                 {repoError}
               </Alert>
             )}
@@ -1392,65 +775,11 @@ function App() {
       </Box>
 
       {/* Add Repository Dialog */}
-      <Dialog
+      <AddRepoDialog
         open={addDialogOpen}
-        onClose={() => { setAddDialogOpen(false); setAddRepoError(null); }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Add Git Repository</DialogTitle>
-        <DialogContent>
-          {addRepoError && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setAddRepoError(null)}>
-              {addRepoError}
-            </Alert>
-          )}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <TextField
-              label="Name"
-              value={newRepoName}
-              onChange={(e) => setNewRepoName(e.target.value)}
-              placeholder="my-app"
-              helperText="Unique name for this GitRepo resource"
-              required
-              fullWidth
-            />
-            <TextField
-              label="Repository URL"
-              value={newRepoUrl}
-              onChange={(e) => setNewRepoUrl(e.target.value)}
-              placeholder="https://github.com/rancher/fleet-examples"
-              helperText="Git repository URL (HTTPS)"
-              required
-              fullWidth
-            />
-            <TextField
-              label="Branch"
-              value={newRepoBranch}
-              onChange={(e) => setNewRepoBranch(e.target.value)}
-              placeholder="main"
-              helperText="Branch to track (leave empty for default)"
-              fullWidth
-            />
-            <Typography variant="body2" color="text.secondary">
-              After adding the repository, available paths will be discovered automatically.
-              You can then select which paths to deploy from the repository card.
-            </Typography>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => { setAddDialogOpen(false); setAddRepoError(null); }}>
-            Cancel
-          </Button>
-          <Button
-            onClick={addGitRepo}
-            variant="contained"
-            disabled={!newRepoName || !newRepoUrl || addingRepo}
-          >
-            {addingRepo ? 'Adding...' : 'Add'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onClose={() => setAddDialogOpen(false)}
+        onAdd={handleAddRepo}
+      />
     </Box>
   );
 }
