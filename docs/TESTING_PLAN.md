@@ -62,15 +62,21 @@ This document tracks the testing implementation plan and progress.
   - [x] Test: excludes root-level fleet.yaml (path = ".")
   - [x] Test: handles invalid API response (no tree)
 
-### Phase 3: usePathDiscovery Hook Tests
-- [ ] Write `hooks/usePathDiscovery.test.ts`
-- [ ] Test: initializes with empty cache
-- [ ] Test: caches discovered paths
-- [ ] Test: prevents duplicate requests
-- [ ] Test: allows retry with isRetry flag
-- [ ] Test: tracks discovery errors
-- [ ] Test: tracks discovery start times
-- [ ] Test: clearDiscoveryCache removes cached data
+### Phase 3: usePathDiscovery Hook Tests ✅ COMPLETE
+- [x] Write `hooks/usePathDiscovery.test.ts` (13 tests)
+- [x] Test: initializes with empty cache and no errors
+- [x] Test: caches discovered paths after successful fetch
+- [x] Test: passes branch parameter to fetchGitHubPaths
+- [x] Test: prevents duplicate requests for the same repo
+- [x] Test: allows retry with isRetry flag even when cached
+- [x] Test: tracks discovery errors when fetch fails
+- [x] Test: tracks discovery start times during loading
+- [x] Test: clearDiscoveryCache removes cached data and errors
+- [x] Test: clearDiscoveryCache clears errors
+- [x] Test: isLoadingPaths returns true while loading
+- [x] Test: handles multiple repos independently
+- [x] Test: clears previous error on retry
+- [x] Test: prevents concurrent duplicate requests while loading
 
 ### Phase 4: useFleetStatus Hook Tests
 - [ ] Write `hooks/useFleetStatus.test.ts`
