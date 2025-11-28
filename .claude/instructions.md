@@ -1,5 +1,20 @@
 # Fleet GitOps Extension - AI Instructions
 
+## IMPORTANT: Do Not Explore Blindly
+
+**DO NOT start with Glob, Grep, or `ls` commands to explore the codebase.**
+
+This project has comprehensive documentation. You MUST read it first:
+
+1. `docs/NEXT_STEPS.md` - Current priorities, key file locations, technical decisions
+2. This file - Architecture summary and file index
+3. `docs/reference/` - Detailed implementation guides for specific topics
+
+Only use exploration tools (Glob, Grep) when:
+- Documentation doesn't answer your specific question
+- You need to find a specific symbol or implementation detail
+- You're verifying something documented is still accurate
+
 ## Project Overview
 
 This is a **Docker Desktop / Rancher Desktop extension** that enables GitOps-based developer environment provisioning using Rancher Fleet.
