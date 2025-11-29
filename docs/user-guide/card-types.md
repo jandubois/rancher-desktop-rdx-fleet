@@ -400,9 +400,68 @@ cards:
 
 ---
 
+## Branding and Color Palette
+
+Customize the extension's appearance using the `branding` section of the manifest.
+
+### Color Palette
+
+The `branding.palette` property allows you to customize UI colors:
+
+```yaml
+branding:
+  palette:
+    header:
+      background: "#2e7d32"    # Header background color
+      text: "#ffffff"          # Header text color
+    body:
+      background: "#f5f5f5"    # Page background color
+    card:
+      border: "#4caf50"        # Card border color
+      title: "#1b5e20"         # Card title color (reserved for future use)
+```
+
+### Palette Properties
+
+| Property | Description | Default |
+|----------|-------------|---------|
+| `header.background` | Header bar background color | `#1976d2` (MUI primary blue) |
+| `header.text` | Header text and icon color | `#ffffff` (white) |
+| `body.background` | Main content area background | `#fafafa` (light gray) |
+| `card.border` | Card border color | `#e0e0e0` (gray) |
+| `card.title` | Card title text color (reserved) | `inherit` |
+
+All colors are optional. Unspecified colors fall back to their defaults.
+
+### Example: Dark Header Theme
+
+```yaml
+branding:
+  palette:
+    header:
+      background: "#1a1a1a"
+      text: "#ffffff"
+    body:
+      background: "#f0f0f0"
+```
+
+### Example: Brand Colors
+
+```yaml
+branding:
+  palette:
+    header:
+      background: "#00695c"    # Teal header
+      text: "#ffffff"
+    card:
+      border: "#26a69a"        # Matching teal borders
+```
+
+---
+
 ## Complete Manifest Example
 
-Here's a complete example showing multiple card types:
+Here's a complete example showing multiple card types with custom branding:
 
 ```yaml
 version: "1.0"
@@ -410,6 +469,14 @@ version: "1.0"
 app:
   name: "Fleet GitOps"
   description: "Kubernetes GitOps with Fleet"
+
+branding:
+  palette:
+    header:
+      background: "#2e7d32"    # Custom green header
+      text: "#ffffff"
+    body:
+      background: "#fafafa"
 
 layout:
   show_fleet_status: true    # Show Fleet installation status
