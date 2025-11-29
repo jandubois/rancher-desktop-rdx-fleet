@@ -7,10 +7,11 @@ import { resolvePalette, defaultPalette } from '../theme';
  * Falls back to default palette values for any undefined colors.
  */
 export function usePalette(manifest: Manifest | null | undefined) {
+  const palette = manifest?.branding?.palette;
   return useMemo(() => {
-    if (!manifest?.branding?.palette) {
+    if (!palette) {
       return defaultPalette;
     }
-    return resolvePalette(manifest.branding.palette);
-  }, [manifest?.branding?.palette]);
+    return resolvePalette(palette);
+  }, [palette]);
 }
