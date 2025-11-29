@@ -218,72 +218,90 @@ function DdClientPanel() {
   );
 }
 
-// Panel for container environment
+// Panel for container/webview environment
 function ContainerEnvPanel() {
-  const [result, setResult] = useState<CommandResult | null>(null);
+  const [vmResult, setVmResult] = useState<CommandResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const runContainerInspection = useCallback(async () => {
+  // Collect browser/webview environment info (available immediately)
+  const webviewInfo = {
+    'window.location.href': window.location.href,
+    'window.location.origin': window.location.origin,
+    'window.location.protocol': window.location.protocol,
+    'window.location.hostname': window.location.hostname,
+    'window.location.port': window.location.port,
+    'window.location.pathname': window.location.pathname,
+    'navigator.userAgent': navigator.userAgent,
+    'navigator.platform': navigator.platform,
+    'navigator.language': navigator.language,
+    'navigator.languages': navigator.languages?.join(', '),
+    'navigator.onLine': navigator.onLine,
+    'navigator.hardwareConcurrency': navigator.hardwareConcurrency,
+    'screen.width': screen.width,
+    'screen.height': screen.height,
+    'screen.colorDepth': screen.colorDepth,
+    'window.devicePixelRatio': window.devicePixelRatio,
+    'document.referrer': document.referrer || '(empty)',
+    'document.title': document.title,
+  };
+
+  const runVmInspection = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    try {
-      // Get the extension image name to exec into
-      const imageName = (ddClient.extension as { image?: string })?.image;
-      if (!imageName) {
-        setError('Could not determine extension image name from ddClient.extension.image');
-        setLoading(false);
-        return;
-      }
+    const vm = ddClient.extension?.vm;
+    if (!vm) {
+      setError('ddClient.extension.vm is not available - cannot exec into extension backend');
+      setLoading(false);
+      return;
+    }
 
-      // Run a container from our extension image to inspect the environment
+    try {
       const inspectScript = `
-echo "=== CONTAINER ENVIRONMENT DEBUG ==="
+echo "=== EXTENSION VM/CONTAINER ENVIRONMENT ==="
 echo ""
 echo "--- Basic Info ---"
 echo "Hostname: $(hostname)"
-echo "Username: $(whoami)"
-echo "User ID: $(id)"
+echo "Username: $(whoami 2>/dev/null || echo unknown)"
+echo "User ID: $(id 2>/dev/null || echo unknown)"
 echo "PWD: $(pwd)"
 echo ""
 echo "--- System Info ---"
-echo "Uname: $(uname -a)"
+echo "Uname: $(uname -a 2>/dev/null || echo unknown)"
 cat /etc/os-release 2>/dev/null || echo "No /etc/os-release"
 echo ""
 echo "--- Filesystem Structure ---"
 echo "Root directory:"
-ls -la /
+ls -la / 2>/dev/null || echo "Cannot list /"
 echo ""
 echo "UI directory:"
 ls -la /ui 2>/dev/null || echo "/ui not found"
 echo ""
 echo "Host binaries directory:"
 ls -la /host 2>/dev/null || echo "/host not found"
-ls -la /host/linux 2>/dev/null || echo "/host/linux not found"
+ls -la /host/linux 2>/dev/null || ls -la /host/darwin 2>/dev/null || echo "No host binaries found"
 echo ""
 echo "--- Environment Variables ---"
 env | sort
 echo ""
-echo "=== END CONTAINER DEBUG ==="
+echo "=== END VM DEBUG ==="
 `;
 
-      const execResult = await ddClient.docker.cli.exec('run', [
-        '--rm',
-        imageName,
-        '/bin/sh',
-        '-c',
-        inspectScript,
-      ]);
-
-      setResult({
-        stdout: execResult.stdout,
-        stderr: execResult.stderr,
-      });
+      // Try using vm.cli.exec if available
+      if (vm.cli?.exec) {
+        const execResult = await vm.cli.exec('/bin/sh', ['-c', inspectScript]);
+        setVmResult({
+          stdout: execResult.stdout,
+          stderr: execResult.stderr,
+        });
+      } else {
+        setError('ddClient.extension.vm.cli.exec is not available');
+      }
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : String(e);
       setError(errorMsg);
-      setResult({ stdout: '', stderr: '', error: errorMsg });
+      setVmResult({ stdout: '', stderr: '', error: errorMsg });
     }
 
     setLoading(false);
@@ -292,29 +310,67 @@ echo "=== END CONTAINER DEBUG ==="
   return (
     <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Environment inside the extension container image.
-        This runs a fresh container from the extension image to inspect its internals.
+        Environment of the running extension. The webview info is from JavaScript,
+        while the VM info comes from ddClient.extension.vm.cli.exec().
       </Typography>
 
-      <Button
-        variant="contained"
-        startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
-        onClick={runContainerInspection}
-        disabled={loading}
-        sx={{ mb: 2 }}
-      >
-        {loading ? 'Inspecting...' : 'Run Container Inspection'}
-      </Button>
+      <Accordion defaultExpanded>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography fontWeight="bold">Webview Environment (JavaScript)</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <TableContainer component={Paper} sx={{ bgcolor: '#1a1a1a' }}>
+            <Table size="small">
+              <TableBody>
+                {Object.entries(webviewInfo).map(([key, value]) => (
+                  <TableRow key={key}>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem', color: '#90caf9' }}>
+                      {key}
+                    </TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                      {String(value)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </AccordionDetails>
+      </Accordion>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-        </Alert>
-      )}
+      <Accordion defaultExpanded>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography fontWeight="bold">Extension VM/Backend (ddClient.extension.vm)</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <Button
+            variant="contained"
+            startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+            onClick={runVmInspection}
+            disabled={loading}
+            sx={{ mb: 2 }}
+          >
+            {loading ? 'Inspecting...' : 'Run VM Inspection'}
+          </Button>
 
-      {result && (
-        <CodeBlock content={result.stdout || result.stderr || result.error || 'No output'} maxHeight={600} />
-      )}
+          {error && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {vmResult && (
+            <CodeBlock content={vmResult.stdout || vmResult.stderr || vmResult.error || 'No output'} maxHeight={400} />
+          )}
+
+          {!vmResult && !error && (
+            <Typography variant="body2" color="text.secondary">
+              Click the button to inspect the extension VM environment.
+              This uses ddClient.extension.vm.cli.exec() to run commands in the extension backend.
+            </Typography>
+          )}
+        </AccordionDetails>
+      </Accordion>
     </Box>
   );
 }
