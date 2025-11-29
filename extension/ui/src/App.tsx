@@ -178,6 +178,23 @@ function App() {
   // Counter for generating unique placeholder IDs
   const placeholderIdCounter = useRef(0);
 
+  // Handle config loaded from external source (image or ZIP)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleConfigLoaded = useCallback((loadedManifest: Manifest, _sourceName: string) => {
+    // Update manifest state
+    setManifest(loadedManifest);
+    setManifestCards(loadedManifest.cards);
+
+    // Reset card order to include new cards from loaded manifest
+    const newManifestCardIds = loadedManifest.cards
+      .filter((c) => c.type !== 'gitrepo') // gitrepo cards are dynamic, not from manifest
+      .map((c) => c.id);
+    const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
+
+    // Build new card order: fleet-status first, then loaded manifest cards, then gitrepo cards
+    setCardOrder(['fleet-status', ...newManifestCardIds, ...gitRepoIds]);
+  }, [gitRepos]);
+
   // Open add repo dialog
   const openAddRepoDialog = useCallback(() => {
     setAddDialogOpen(true);
@@ -881,6 +898,7 @@ function App() {
               manifest={manifest}
               cards={manifestCards}
               cardOrder={effectiveCardOrder}
+              onConfigLoaded={handleConfigLoaded}
             />
           )}
 

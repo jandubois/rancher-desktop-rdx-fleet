@@ -107,7 +107,7 @@ See [docs/reference/ui-card-architecture.md](../docs/reference/ui-card-architect
 
 ## Creating Custom Extensions
 
-For enterprise or team deployments, you can create a **subclassed extension** that inherits from this base image and overlays your own configuration:
+For enterprise or team deployments, you can create a **custom extension** that inherits from this base image and overlays your own configuration:
 
 ```dockerfile
 FROM ghcr.io/rancher-sandbox/fleet-gitops:latest
@@ -121,4 +121,4 @@ COPY icons/ /icons/
 
 See:
 - [User Guide: Creating Custom Extensions](../docs/user-guide/README.md#creating-custom-extensions)
-- [Example Subclassed Extension](../examples/subclassed-extension/)
+- [Example Custom Extension](../examples/custom-extension/)

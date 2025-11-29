@@ -228,7 +228,7 @@ cards:
 
 ## Creating Custom Extensions
 
-For enterprise or team deployments, you can create a **subclassed extension** that inherits from the base Fleet GitOps extension and adds your own customizations. This allows you to:
+For enterprise or team deployments, you can create a **custom extension** that inherits from the base Fleet GitOps extension and adds your own customizations. This allows you to:
 
 - Pre-configure repositories and settings for your organization
 - Lock certain fields to prevent modification
@@ -236,9 +236,9 @@ For enterprise or team deployments, you can create a **subclassed extension** th
 - Include custom documentation and links
 - Distribute as a single Docker image
 
-### How Subclassed Extensions Work
+### How Custom Extensions Work
 
-A subclassed extension uses Docker's `FROM` instruction to inherit all functionality from the base extension image, then overlays your customizations:
+A custom extension uses Docker's `FROM` instruction to inherit all functionality from the base extension image, then overlays your customizations:
 
 ```dockerfile
 ARG BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops:latest
@@ -255,7 +255,7 @@ COPY icons/ /icons/
 
 ### Required Files
 
-Your subclassed extension needs these files:
+Your custom extension needs these files:
 
 | File | Purpose |
 |------|---------|
@@ -345,7 +345,7 @@ layout:
 
 ### Complete Example
 
-See the [examples/subclassed-extension](../../examples/subclassed-extension/) directory for a complete working example with all files.
+See the [examples/custom-extension](../../examples/custom-extension/) directory for a complete working example with all files.
 
 ---
 

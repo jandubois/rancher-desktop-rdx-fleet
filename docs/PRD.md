@@ -135,7 +135,7 @@ Fleet provides a **pull-based GitOps model** that solves these problems:
 - **F11.3**: Visual indication of what's blocking a card
 - **F11.4**: Required auth cards that block downstream cards
 
-#### F12: Enterprise Subclassing
+#### F12: Enterprise Customization
 - **F12.1**: Simple Dockerfile FROM pattern for customization
 - **F12.2**: Manifest replacement via COPY
 - **F12.3**: Branding asset override (/ui/assets/)
@@ -262,7 +262,7 @@ All K8s operations via Rancher Desktop's bundled CLI tools:
 The extension should evolve to support multiple card types with a manifest-driven configuration system. This enables:
 - **Flexible UI composition** - Mix and match card types for different use cases
 - **Enterprise customization** - Organizations can rebrand and restrict functionality
-- **Simple "subclassing"** - Custom extensions via Dockerfile `FROM` + manifest replacement
+- **Simple customization** - Custom extensions via Dockerfile `FROM` + manifest replacement
 
 ### Card Type System
 
@@ -365,7 +365,7 @@ cards:
 
 #### Enterprise Customization Example
 
-An enterprise can "subclass" the extension by providing their own manifest:
+An enterprise can customize the extension by providing their own manifest:
 
 ```dockerfile
 # Acme Corp custom Fleet extension
