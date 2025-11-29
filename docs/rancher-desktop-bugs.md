@@ -54,25 +54,31 @@ Error invoking remote method 'extensions/spawn/blocking': Error: spawn /Users/..
 
 ---
 
-## 4. Extension uninstall fails without compose.yaml
+## 4. Extension GUI uninstall fails silently
 
-**Expected:** Extensions without a `vm` section (no backend services) should uninstall cleanly from the GUI.
+**Expected:** Extensions should uninstall cleanly from the GUI.
 
-**Actual:** Uninstall from GUI fails silently. The log shows:
+**Actual:** Clicking uninstall/remove in the GUI does nothing. The `rdctl extension uninstall` CLI command works fine.
+
+The log shows a warning about a missing compose.yaml:
 ```
 Ignoring error stopping fleet-gitops-extension containers on uninstall: Error: ENOENT: no such file or directory, open '.../extensions/.../compose/compose.yaml'
 ```
 
-Despite the error being "ignored", the uninstall does not complete. The `rdctl extension uninstall` CLI command works fine.
+However, this warning is likely not the root cause since:
+1. The message says "Ignoring error" suggesting it's non-fatal
+2. Adding `vm.composefile` to metadata.json doesn't cause the compose directory to be extracted
+3. The CLI uninstall works despite the same warning
 
-**Root cause:** Rancher Desktop looks for a `compose/compose.yaml` file to stop backend containers during uninstall, even when the extension has no `vm` section in `metadata.json`. The ENOENT error appears to abort the uninstall process despite the "ignoring" message.
+**Investigation notes:**
+- Attempted workaround: add empty `compose/compose.yaml` to extension image
+- The compose directory is not extracted even when `vm.composefile` is declared in metadata.json
+- This may indicate a bug in how RD extracts extension contents
+- The actual GUI uninstall failure appears to be a different, unrelated issue
 
-**Workaround:** Add an empty `compose/compose.yaml` file to the extension:
-```yaml
-services: {}
-```
+**Workaround:** Use `rdctl extension uninstall <image>` from the command line.
 
-**Status:** Workaround applied. Should be fixed in Rancher Desktop to not require compose.yaml when no vm section exists.
+**Status:** Needs investigation in Rancher Desktop source code.
 
 ---
 
