@@ -62,6 +62,9 @@ function App() {
   // Card order for drag-and-drop (IDs of all cards in display order)
   const [cardOrder, setCardOrder] = useState<string[]>(['fleet-status']);
 
+  // Titles for dynamic cards (fleet-status, gitrepo-*) that aren't in manifestCards
+  const [dynamicCardTitles, setDynamicCardTitles] = useState<Record<string, string>>({});
+
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
@@ -301,12 +304,12 @@ function App() {
     };
 
     return (
-      <Paper key={repo.name} sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
+      <>
         {/* Header */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
           <Box sx={{ flex: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-              <Typography variant="h6">{repo.name}</Typography>
+              <Typography variant="h6">{getDynamicCardTitle(`gitrepo-${repo.name}`, repo.name)}</Typography>
               {getRepoStatusChip(repo)}
               {isUpdating && <CircularProgress size={16} />}
             </Box>
@@ -488,7 +491,7 @@ function App() {
             </Box>
           </>
         )}
-      </Paper>
+      </>
     );
   };
 
@@ -665,17 +668,39 @@ function App() {
     );
   };
 
+  // Helper to get/set dynamic card title
+  const getDynamicCardTitle = (cardId: string, defaultTitle: string) => {
+    return dynamicCardTitles[cardId] ?? defaultTitle;
+  };
+
+  const handleDynamicTitleChange = (cardId: string) => (title: string) => {
+    setDynamicCardTitles((prev) => ({
+      ...prev,
+      [cardId]: title,
+    }));
+  };
+
   // Render a card by ID
   const renderCardById = (cardId: string) => {
     // Fleet Status card
     if (cardId === 'fleet-status') {
+      const fleetStatusDef: CardDefinition = {
+        id: 'fleet-status',
+        type: 'gitrepo', // Using gitrepo type for display purposes
+        title: getDynamicCardTitle('fleet-status', 'Fleet Status'),
+      };
+
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
-          <Paper sx={{ p: 2, mb: 2, border: '1px solid', borderColor: 'grey.300', boxShadow: 2 }}>
+          <CardWrapper
+            definition={fleetStatusDef}
+            editMode={editMode}
+            onTitleChange={handleDynamicTitleChange('fleet-status')}
+          >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: fleetState.status === 'running' ? 0 : 1 }}>
               {renderStatusIcon()}
               <Typography variant="h6">
-                Fleet Status
+                {getDynamicCardTitle('fleet-status', 'Fleet Status')}
                 {fleetState.status === 'running' && `: Running (${fleetState.version})`}
                 {fleetState.status === 'checking' && ': Checking...'}
                 {fleetState.status === 'initializing' && ': Initializing...'}
@@ -714,7 +739,7 @@ function App() {
                 {repoError}
               </Alert>
             )}
-          </Paper>
+          </CardWrapper>
           {renderAddCardButton(cardId)}
         </SortableCard>
       );
@@ -753,9 +778,21 @@ function App() {
       const maxVisiblePaths = (gitRepoCardDef?.settings as GitRepoCardSettings | undefined)?.max_visible_paths ?? 6;
       const repoIndex = gitRepos.findIndex((r) => r.name === repoName);
 
+      const gitRepoDef: CardDefinition = {
+        id: cardId,
+        type: 'gitrepo',
+        title: getDynamicCardTitle(cardId, repo.name),
+      };
+
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
-          {renderRepoCard(repo, repoIndex, gitRepos.length, maxVisiblePaths)}
+          <CardWrapper
+            definition={gitRepoDef}
+            editMode={editMode}
+            onTitleChange={handleDynamicTitleChange(cardId)}
+          >
+            {renderRepoCard(repo, repoIndex, gitRepos.length, maxVisiblePaths)}
+          </CardWrapper>
           {renderAddCardButton(cardId)}
         </SortableCard>
       );
