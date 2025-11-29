@@ -14,6 +14,7 @@ export const CardWrapper: React.FC<CardWrapperProps> = ({
   editMode = false,
   onDelete,
   onVisibilityToggle,
+  paletteColors,
   children,
 }) => {
   const isVisible = definition.visible !== false;
@@ -30,7 +31,7 @@ export const CardWrapper: React.FC<CardWrapperProps> = ({
         p: 2,
         mb: 2,
         border: '1px solid',
-        borderColor: 'grey.300',
+        borderColor: paletteColors?.border ?? 'grey.300',
         boxShadow: 2,
         opacity: isVisible ? 1 : 0.5,
         position: 'relative',

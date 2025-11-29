@@ -38,7 +38,7 @@ import {
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
 import { CardWrapper, getCardComponent } from './cards';
 import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel } from './components';
-import { useFleetStatus, useGitRepoManagement, usePathDiscovery } from './hooks';
+import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery } from './hooks';
 import { PathInfo } from './utils';
 import { GitRepo } from './types';
 
@@ -58,6 +58,9 @@ function App() {
   const [manifest, setManifest] = useState<Manifest>(DEFAULT_MANIFEST);
   const [editMode, setEditMode] = useState(false);
   const [manifestCards, setManifestCards] = useState<CardDefinition[]>(DEFAULT_MANIFEST.cards);
+
+  // Color palette from manifest
+  const palette = usePalette(manifest);
 
   // Card order for drag-and-drop (IDs of all cards in display order)
   const [cardOrder, setCardOrder] = useState<string[]>(['fleet-status']);
@@ -552,6 +555,7 @@ function App() {
         onDelete={handleDelete}
         onVisibilityToggle={handleVisibilityToggle}
         onTitleChange={handleTitleChange}
+        paletteColors={palette.card}
       >
         <CardComponent
           definition={card}
@@ -708,6 +712,7 @@ function App() {
           <CardWrapper
             definition={fleetStatusDef}
             editMode={editMode}
+            paletteColors={palette.card}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: fleetState.status === 'running' ? 0 : 1 }}>
               {renderStatusIcon()}
@@ -802,6 +807,7 @@ function App() {
           <CardWrapper
             definition={gitRepoDef}
             editMode={editMode}
+            paletteColors={palette.card}
           >
             {renderRepoCard(repo, repoIndex, gitRepos.length, maxVisiblePaths, cardId)}
           </CardWrapper>
@@ -827,12 +833,12 @@ function App() {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.50', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: palette.body.background, display: 'flex', flexDirection: 'column' }}>
       {/* Fixed Header */}
       <Box
         sx={{
-          bgcolor: 'primary.main',
-          color: 'primary.contrastText',
+          bgcolor: palette.header.background,
+          color: palette.header.text,
           py: 2,
           px: 3,
           boxShadow: 1,
@@ -858,7 +864,7 @@ function App() {
             <IconButton
               onClick={() => editMode ? handleExitEditMode() : setEditMode(true)}
               title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
-              sx={{ color: editMode ? 'warning.light' : 'primary.contrastText' }}
+              sx={{ color: editMode ? 'warning.light' : palette.header.text }}
             >
               {editMode ? <EditOffIcon /> : <EditIcon />}
             </IconButton>

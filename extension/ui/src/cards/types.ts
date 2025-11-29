@@ -12,6 +12,12 @@ export interface CardProps<T extends CardSettings = CardSettings> {
 // Card component type
 export type CardComponent<T extends CardSettings = CardSettings> = React.FC<CardProps<T>>;
 
+// Palette colors for card styling
+export interface CardPaletteColors {
+  border?: string;
+  title?: string;
+}
+
 // Card wrapper props
 export interface CardWrapperProps {
   definition: CardDefinition;
@@ -21,5 +27,6 @@ export interface CardWrapperProps {
   onSettingsClick?: () => void;
   onVisibilityToggle?: () => void;
   onTitleChange?: (title: string) => void;
+  paletteColors?: CardPaletteColors;
   children: ReactNode;
 }
