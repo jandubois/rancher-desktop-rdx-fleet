@@ -711,10 +711,21 @@ function App() {
       );
     }
 
-    // Placeholder cards (for type selection)
+    // Placeholder cards (for type selection) - only if still a placeholder type
     if (cardId.startsWith('placeholder-')) {
       const card = manifestCards.find((c) => c.id === cardId);
       if (!card) return null;
+      // If the card has been converted to another type, render it as a manifest card
+      if (card.type !== 'placeholder') {
+        if (card.visible === false && !editMode) return null;
+        const index = manifestCards.indexOf(card);
+        return (
+          <SortableCard key={cardId} id={cardId} editMode={editMode}>
+            {renderManifestCard(card, index)}
+            {renderAddCardButton(cardId)}
+          </SortableCard>
+        );
+      }
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
           {renderPlaceholderCard(card)}
