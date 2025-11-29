@@ -40,7 +40,7 @@ describe('AddRepoDialog', () => {
 
   it('calls onAdd with form values', async () => {
     const user = userEvent.setup();
-    const onAdd = vi.fn().mockResolvedValue(true);
+    const onAdd = vi.fn().mockResolvedValue({ success: true });
 
     render(<AddRepoDialog {...defaultProps} onAdd={onAdd} />);
 
@@ -64,7 +64,7 @@ describe('AddRepoDialog', () => {
 
   it('calls onAdd with undefined branch when branch is empty', async () => {
     const user = userEvent.setup();
-    const onAdd = vi.fn().mockResolvedValue(true);
+    const onAdd = vi.fn().mockResolvedValue({ success: true });
 
     render(<AddRepoDialog {...defaultProps} onAdd={onAdd} />);
 
@@ -77,7 +77,7 @@ describe('AddRepoDialog', () => {
 
   it('closes dialog on successful add', async () => {
     const user = userEvent.setup();
-    const onAdd = vi.fn().mockResolvedValue(true);
+    const onAdd = vi.fn().mockResolvedValue({ success: true });
     const onClose = vi.fn();
 
     render(<AddRepoDialog {...defaultProps} onAdd={onAdd} onClose={onClose} />);
@@ -91,7 +91,20 @@ describe('AddRepoDialog', () => {
 
   it('displays error message when add fails', async () => {
     const user = userEvent.setup();
-    const onAdd = vi.fn().mockResolvedValue(false);
+    const onAdd = vi.fn().mockResolvedValue({ success: false, error: 'Repository already exists' });
+
+    render(<AddRepoDialog {...defaultProps} onAdd={onAdd} />);
+
+    await user.click(screen.getByRole('button', { name: /^add$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText('Repository already exists')).toBeInTheDocument();
+    });
+  });
+
+  it('displays fallback error when add fails without error message', async () => {
+    const user = userEvent.setup();
+    const onAdd = vi.fn().mockResolvedValue({ success: false });
 
     render(<AddRepoDialog {...defaultProps} onAdd={onAdd} />);
 
@@ -150,8 +163,8 @@ describe('AddRepoDialog', () => {
 
   it('shows "Adding..." text while submitting', async () => {
     const user = userEvent.setup();
-    let resolveAdd: (value: boolean) => void;
-    const addPromise = new Promise<boolean>((resolve) => {
+    let resolveAdd: (value: { success: boolean }) => void;
+    const addPromise = new Promise<{ success: boolean }>((resolve) => {
       resolveAdd = resolve;
     });
     const onAdd = vi.fn().mockReturnValue(addPromise);
@@ -164,7 +177,7 @@ describe('AddRepoDialog', () => {
     expect(screen.getByRole('button', { name: /adding/i })).toBeDisabled();
 
     // Complete the add
-    resolveAdd!(true);
+    resolveAdd!({ success: true });
     await waitFor(() => {
       expect(defaultProps.onClose).toHaveBeenCalled();
     });

@@ -174,12 +174,12 @@ describe('useGitRepoManagement', () => {
       await result.current.fetchGitRepos();
     });
 
-    let success: boolean;
+    let addResult: { success: boolean; error?: string };
     await act(async () => {
-      success = await result.current.addGitRepo('my-repo', 'https://github.com/owner/repo', 'main');
+      addResult = await result.current.addGitRepo('my-repo', 'https://github.com/owner/repo', 'main');
     });
 
-    expect(success!).toBe(true);
+    expect(addResult!.success).toBe(true);
     expect(mockExec).toHaveBeenCalledWith('kubectl', expect.arrayContaining([
       '--apply-json',
     ]));
@@ -199,16 +199,17 @@ describe('useGitRepoManagement', () => {
       await result.current.fetchGitRepos();
     });
 
-    let success: boolean;
+    let addResult: { success: boolean; error?: string };
     await act(async () => {
-      success = await result.current.addGitRepo('my-repo', 'https://github.com/owner/other', 'main');
+      addResult = await result.current.addGitRepo('my-repo', 'https://github.com/owner/other', 'main');
     });
 
-    expect(success!).toBe(false);
+    expect(addResult!.success).toBe(false);
+    expect(addResult!.error).toContain('already exists');
     expect(result.current.repoError).toContain('already exists');
   });
 
-  it('addGitRepo returns false on error', async () => {
+  it('addGitRepo returns error result on kubectl failure', async () => {
     mockExec
       .mockResolvedValueOnce({ stdout: '{"items":[]}', stderr: '' })
       .mockRejectedValueOnce(new Error('kubectl apply failed'));
@@ -221,26 +222,28 @@ describe('useGitRepoManagement', () => {
       await result.current.fetchGitRepos();
     });
 
-    let success: boolean;
+    let addResult: { success: boolean; error?: string };
     await act(async () => {
-      success = await result.current.addGitRepo('new-repo', 'https://github.com/owner/repo');
+      addResult = await result.current.addGitRepo('new-repo', 'https://github.com/owner/repo');
     });
 
-    expect(success!).toBe(false);
+    expect(addResult!.success).toBe(false);
+    expect(addResult!.error).toBe('kubectl apply failed');
     expect(result.current.repoError).toBe('kubectl apply failed');
   });
 
-  it('addGitRepo returns false when name is empty', async () => {
+  it('addGitRepo returns error result when name is empty', async () => {
     const { result } = renderHook(() =>
       useGitRepoManagement({ fleetState: defaultFleetState })
     );
 
-    let success: boolean;
+    let addResult: { success: boolean; error?: string };
     await act(async () => {
-      success = await result.current.addGitRepo('', 'https://github.com/owner/repo');
+      addResult = await result.current.addGitRepo('', 'https://github.com/owner/repo');
     });
 
-    expect(success!).toBe(false);
+    expect(addResult!.success).toBe(false);
+    expect(addResult!.error).toBe('Name and URL are required');
   });
 
   it('deleteGitRepo removes resource via kubectl', async () => {

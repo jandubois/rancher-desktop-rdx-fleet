@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ddClient } from '../lib/ddClient';
-import { getErrorMessage, KUBE_CONTEXT } from '../utils';
+import { getErrorMessage, KUBE_CONTEXT, FLEET_NAMESPACE } from '../utils';
 import { FleetState } from '../types';
 
 interface UseFleetStatusOptions {
@@ -58,6 +58,50 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
       ]);
 
       if (podResult?.stdout === 'Running') {
+        // Check if fleet-local namespace exists (created by Fleet controller)
+        let namespaceExists = false;
+        try {
+          const nsResult = await ddClient.extension.host?.cli.exec('kubectl', [
+            '--context', KUBE_CONTEXT,
+            'get', 'namespace', FLEET_NAMESPACE,
+            '-o', 'jsonpath={.metadata.name}',
+          ]);
+          namespaceExists = !nsResult?.stderr && nsResult?.stdout === FLEET_NAMESPACE;
+        } catch (nsErr) {
+          // Namespace doesn't exist yet - this is expected during initialization
+          const errMsg = getErrorMessage(nsErr);
+          if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
+            namespaceExists = false;
+          } else {
+            throw nsErr; // Re-throw unexpected errors
+          }
+        }
+
+        if (!namespaceExists) {
+          // Fleet controller is running but hasn't created fleet-local namespace yet
+          // Create it ourselves since Fleet doesn't seem to do it reliably
+          setFleetState({
+            status: 'initializing',
+            message: `Creating the "${FLEET_NAMESPACE}" namespace...`,
+          });
+          try {
+            await ddClient.extension.host?.cli.exec('kubectl', [
+              '--context', KUBE_CONTEXT,
+              'create', 'namespace', FLEET_NAMESPACE,
+            ]);
+          } catch (createErr) {
+            // Ignore "already exists" error (race condition)
+            const errMsg = getErrorMessage(createErr);
+            if (!errMsg.includes('already exists')) {
+              throw createErr;
+            }
+          }
+          // Re-check status now that namespace should exist
+          // Use setTimeout to avoid immediate recursion
+          setTimeout(() => checkFleetStatus(), 500);
+          return;
+        }
+
         const versionResult = await ddClient.extension.host?.cli.exec('helm', [
           '--kube-context', KUBE_CONTEXT,
           'list', '-n', 'cattle-fleet-system',
@@ -114,6 +158,21 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
         '--wait',
       ]);
 
+      // Create fleet-local namespace for GitRepo resources
+      // Fleet should create this automatically, but we ensure it exists
+      try {
+        await ddClient.extension.host?.cli.exec('kubectl', [
+          '--context', KUBE_CONTEXT,
+          'create', 'namespace', FLEET_NAMESPACE,
+        ]);
+      } catch (nsErr) {
+        // Ignore "already exists" error
+        const errMsg = getErrorMessage(nsErr);
+        if (!errMsg.includes('already exists')) {
+          throw nsErr;
+        }
+      }
+
       await checkFleetStatus();
     } catch (err) {
       console.error('Fleet install error:', err);
@@ -130,6 +189,17 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
   useEffect(() => {
     checkFleetStatus();
   }, [checkFleetStatus]);
+
+  // Auto-poll when initializing to detect when Fleet is ready
+  useEffect(() => {
+    if (fleetState.status !== 'initializing') return;
+
+    const interval = setInterval(() => {
+      checkFleetStatus();
+    }, 2000); // Poll every 2 seconds while initializing
+
+    return () => clearInterval(interval);
+  }, [fleetState.status, checkFleetStatus]);
 
   return {
     fleetState,
