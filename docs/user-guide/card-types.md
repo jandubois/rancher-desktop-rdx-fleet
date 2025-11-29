@@ -24,6 +24,8 @@ cards:
       # ... settings vary by card type
 ```
 
+> **Note**: In edit mode, card titles can be edited inline by clicking on the title text. For dynamic cards like Fleet Status and GitRepo cards, the title defaults to a sensible value (e.g., the repository name) but can be customized.
+
 ---
 
 ## Markdown Card
