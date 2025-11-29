@@ -387,48 +387,42 @@ echo "Build complete: $IMAGE_NAME"
 // List local Docker images that are Fleet extensions (have the fleet label)
 export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]> {
   try {
-    // Use docker images with filter and format to get Fleet extension images
-    const result = await ddClient.docker.cli.exec('images', [
+    // First, get image IDs that have the fleet label
+    const listResult = await ddClient.docker.cli.exec('images', [
       '--filter', 'label=io.rancher-desktop.fleet.type',
-      '--format', '{{.ID}}|{{.Repository}}|{{.Tag}}|{{json .Labels}}',
+      '--format', '{{.ID}}',
     ]);
 
-    const output = result.stdout || '';
+    const imageIds = (listResult.stdout || '').split('\n').filter(id => id.trim());
+    if (imageIds.length === 0) {
+      return [];
+    }
+
+    // Then inspect those images to get full details including labels
+    const inspectResult = await ddClient.docker.cli.exec('inspect', imageIds);
+    const inspectData = JSON.parse(inspectResult.stdout || '[]');
+
     const images: FleetExtensionImage[] = [];
 
-    for (const line of output.split('\n')) {
-      if (!line.trim()) continue;
+    for (const img of inspectData) {
+      const labels = img.Config?.Labels || {};
+      const fleetType = labels['io.rancher-desktop.fleet.type'];
 
-      const parts = line.split('|');
-      if (parts.length < 4) continue;
+      if (fleetType === 'base' || fleetType === 'custom') {
+        // Get repository and tag from RepoTags
+        const repoTag = img.RepoTags?.[0] || '';
+        const [repository, tag] = repoTag.includes(':')
+          ? [repoTag.substring(0, repoTag.lastIndexOf(':')), repoTag.substring(repoTag.lastIndexOf(':') + 1)]
+          : [repoTag, 'latest'];
 
-      const [id, repository, tag, labelsJson] = parts;
-
-      try {
-        // Parse the labels JSON - Docker outputs it as a JSON object
-        // Handle the case where it might be escaped or have issues
-        let labels: Record<string, string> = {};
-        try {
-          labels = JSON.parse(labelsJson);
-        } catch {
-          // If JSON parsing fails, try to extract just what we need
-          continue;
-        }
-
-        const fleetType = labels['io.rancher-desktop.fleet.type'];
-        if (fleetType === 'base' || fleetType === 'custom') {
-          images.push({
-            id,
-            repository,
-            tag,
-            type: fleetType,
-            title: labels['org.opencontainers.image.title'],
-            baseImage: labels['io.rancher-desktop.fleet.base-image'],
-          });
-        }
-      } catch {
-        // Skip images with unparseable labels
-        continue;
+        images.push({
+          id: img.Id?.substring(7, 19) || '', // Short ID (remove sha256: prefix)
+          repository,
+          tag,
+          type: fleetType,
+          title: labels['org.opencontainers.image.title'],
+          baseImage: labels['io.rancher-desktop.fleet.base-image'],
+        });
       }
     }
 
