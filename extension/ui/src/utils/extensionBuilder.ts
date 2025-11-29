@@ -325,6 +325,8 @@ FROM \${BASE_IMAGE}
 ARG EXT_TITLE
 LABEL org.opencontainers.image.title="\${EXT_TITLE}"
 LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
+LABEL io.rancher-desktop.fleet.type="custom"
+LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"
 COPY manifest.yaml /ui/manifest.yaml
 COPY metadata.json /metadata.json
 DOCKERFILE
