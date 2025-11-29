@@ -1,5 +1,11 @@
 # Custom Manifest for Subclassed Extension
-# Simplified version that works with the basic YAML parser
+#
+# This manifest customizes the Fleet GitOps extension for enterprise use.
+# It demonstrates how to:
+#   - Pre-configure Git repositories
+#   - Lock certain fields to prevent user modification
+#   - Add custom branding
+#   - Include informational cards
 
 version: "1.0"
 
@@ -13,29 +19,67 @@ branding:
 layout:
   show_fleet_status: true
   show_activity_log: true
-  edit_mode: false
+  edit_mode: false  # Disable edit mode for enterprise deployment
 
 cards:
+  # Informational header card
   - id: welcome-header
     type: markdown
     title: Welcome
     settings:
-      content: "Welcome to **My Company Fleet**! This extension helps you set up your development environment."
+      content: |
+        Welcome to **My Company Fleet**!
 
+        This extension helps you set up your development environment
+        using our pre-configured GitOps repositories.
+
+  # Pre-configured company repository with locked settings
   - id: company-repo
     type: gitrepo
     title: Company Platform
     settings:
       duplicatable: false
+      repo_url:
+        editable: false
+        default: "https://github.com/my-company/platform-configs"
+        locked: true
+      branch:
+        editable: true
+        default: "main"
+      paths:
+        editable: true
+        default:
+          - dev-environment
+          - shared-services
+        allowed:
+          - dev-environment
+          - shared-services
+          - monitoring
+          - logging
+        max_visible_paths: 4
 
+  # Additional editable repository for user projects
   - id: user-repo
     type: gitrepo
     title: Your Project Repository
     settings:
       duplicatable: true
+      repo_url:
+        editable: true
+      branch:
+        editable: true
+        default: "main"
+      paths:
+        editable: true
 
+  # Helpful links card
   - id: help-links
     type: link
     title: Resources
     settings:
       variant: buttons
+      links:
+        - label: Documentation
+          url: "https://docs.my-company.com/fleet"
+        - label: Support
+          url: "https://support.my-company.com"
