@@ -22,6 +22,7 @@ import {
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import BugReportIcon from '@mui/icons-material/BugReport';
+import DownloadIcon from '@mui/icons-material/Download';
 import { createDockerDesktopClient } from '@docker/extension-api-client';
 
 // Initialize the Docker Desktop client
@@ -715,18 +716,206 @@ function KubernetesPanel() {
 // Main App component
 export default function App() {
   const [expanded, setExpanded] = useState<string | false>('ddClient');
+  const [exporting, setExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState('');
 
   const handleChange = (panel: string) => (_: React.SyntheticEvent, isExpanded: boolean) => {
     setExpanded(isExpanded ? panel : false);
   };
 
+  // Export all diagnostic results to a text file
+  const handleExport = useCallback(async () => {
+    setExporting(true);
+    const lines: string[] = [];
+    const timestamp = new Date().toISOString();
+
+    lines.push('='.repeat(80));
+    lines.push('RANCHER DESKTOP EXTENSION DEBUGGER - DIAGNOSTIC REPORT');
+    lines.push('='.repeat(80));
+    lines.push(`Generated: ${timestamp}`);
+    lines.push('');
+
+    // 1. ddClient Object Inspection
+    setExportProgress('Inspecting ddClient...');
+    lines.push('-'.repeat(80));
+    lines.push('1. ddClient OBJECT INSPECTION');
+    lines.push('-'.repeat(80));
+    try {
+      const ext = ddClient.extension as unknown as Record<string, unknown>;
+      lines.push(`ddClient.extension.image: ${ext?.image ?? 'undefined'}`);
+      lines.push(`typeof ddClient.extension: ${typeof ddClient.extension}`);
+      lines.push(`typeof ddClient.docker: ${typeof ddClient.docker}`);
+      lines.push(`typeof ddClient.desktopUI: ${typeof ddClient.desktopUI}`);
+      lines.push(`typeof ddClient.extension.host: ${typeof ddClient.extension?.host}`);
+      lines.push(`typeof ddClient.extension.vm: ${typeof ddClient.extension?.vm}`);
+
+      // List available methods on host
+      const host = ddClient.extension?.host;
+      if (host) {
+        lines.push(`ddClient.extension.host available: yes`);
+        lines.push(`ddClient.extension.host.cli available: ${host.cli ? 'yes' : 'no'}`);
+      } else {
+        lines.push(`ddClient.extension.host available: no`);
+      }
+    } catch (e) {
+      lines.push(`Error inspecting ddClient: ${e instanceof Error ? e.message : e}`);
+    }
+    lines.push('');
+
+    // 2. Webview Environment
+    setExportProgress('Collecting webview environment...');
+    lines.push('-'.repeat(80));
+    lines.push('2. WEBVIEW ENVIRONMENT (JavaScript)');
+    lines.push('-'.repeat(80));
+    lines.push(`window.location.href: ${window.location.href}`);
+    lines.push(`window.location.origin: ${window.location.origin}`);
+    lines.push(`window.location.protocol: ${window.location.protocol}`);
+    lines.push(`window.location.hostname: ${window.location.hostname}`);
+    lines.push(`window.location.port: ${window.location.port}`);
+    lines.push(`window.location.pathname: ${window.location.pathname}`);
+    lines.push(`navigator.userAgent: ${navigator.userAgent}`);
+    lines.push(`navigator.platform: ${navigator.platform}`);
+    lines.push(`navigator.language: ${navigator.language}`);
+    lines.push(`navigator.languages: ${navigator.languages?.join(', ')}`);
+    lines.push(`navigator.onLine: ${navigator.onLine}`);
+    lines.push(`navigator.hardwareConcurrency: ${navigator.hardwareConcurrency}`);
+    lines.push(`screen.width: ${screen.width}`);
+    lines.push(`screen.height: ${screen.height}`);
+    lines.push(`screen.colorDepth: ${screen.colorDepth}`);
+    lines.push(`window.devicePixelRatio: ${window.devicePixelRatio}`);
+    lines.push(`document.referrer: ${document.referrer || '(empty)'}`);
+    lines.push(`document.title: ${document.title}`);
+    lines.push('');
+
+    // 3. Extension VM
+    setExportProgress('Testing extension VM...');
+    lines.push('-'.repeat(80));
+    lines.push('3. EXTENSION VM/BACKEND');
+    lines.push('-'.repeat(80));
+    const vm = ddClient.extension?.vm;
+    if (!vm) {
+      lines.push('ddClient.extension.vm: not available');
+    } else if (!vm.cli?.exec) {
+      lines.push('ddClient.extension.vm.cli.exec: not available');
+    } else {
+      try {
+        const vmResult = await vm.cli.exec('/bin/sh', ['-c', 'echo "VM exec works"; hostname; whoami; pwd']);
+        lines.push('VM exec result:');
+        lines.push(vmResult.stdout || '(no stdout)');
+        if (vmResult.stderr) lines.push(`stderr: ${vmResult.stderr}`);
+      } catch (e) {
+        lines.push(`VM exec error: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    lines.push('');
+
+    // 4. Host Binary Environment
+    setExportProgress('Running host binary inspection...');
+    lines.push('-'.repeat(80));
+    lines.push('4. HOST BINARY ENVIRONMENT');
+    lines.push('-'.repeat(80));
+    const host = ddClient.extension?.host;
+    if (!host) {
+      lines.push('ddClient.extension.host: not available');
+    } else {
+      try {
+        const debugResult = await host.cli.exec('debug-env', []);
+        lines.push(debugResult.stdout || '(no output)');
+        if (debugResult.stderr) lines.push(`stderr: ${debugResult.stderr}`);
+      } catch (e) {
+        lines.push(`debug-env error: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    lines.push('');
+
+    // 5. Host Binary Stress Test
+    setExportProgress('Running host binary stress test...');
+    lines.push('-'.repeat(80));
+    lines.push('5. HOST BINARY STRESS TEST');
+    lines.push('-'.repeat(80));
+    const binaries = ['kubectl', 'helm', 'rdctl', 'docker', 'debug-env'];
+    if (!host) {
+      lines.push('ddClient.extension.host: not available');
+    } else {
+      for (const binary of binaries) {
+        try {
+          const args = binary === 'debug-env' ? [] : ['version', '--client'];
+          const result = await host.cli.exec(binary, args);
+          const output = (result.stdout || result.stderr || '').trim().split('\n')[0];
+          lines.push(`${binary}: OK - ${output.substring(0, 100)}`);
+        } catch (e) {
+          lines.push(`${binary}: FAILED - ${e instanceof Error ? e.message : e}`);
+        }
+      }
+    }
+    lines.push('');
+
+    // 6. Kubernetes Context
+    setExportProgress('Checking Kubernetes context...');
+    lines.push('-'.repeat(80));
+    lines.push('6. KUBERNETES CONTEXT');
+    lines.push('-'.repeat(80));
+    if (!host) {
+      lines.push('ddClient.extension.host: not available');
+    } else {
+      try {
+        const ctx = await host.cli.exec('kubectl', ['config', 'current-context']);
+        lines.push(`Current Context: ${ctx.stdout.trim()}`);
+      } catch (e) {
+        lines.push(`Current Context: Error - ${e instanceof Error ? e.message : e}`);
+      }
+
+      try {
+        const contexts = await host.cli.exec('kubectl', ['config', 'get-contexts']);
+        lines.push('');
+        lines.push('All Contexts:');
+        lines.push(contexts.stdout);
+      } catch (e) {
+        lines.push(`All Contexts: Error - ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    lines.push('');
+
+    // Footer
+    lines.push('='.repeat(80));
+    lines.push('END OF DIAGNOSTIC REPORT');
+    lines.push('='.repeat(80));
+
+    // Generate and download file
+    setExportProgress('Generating file...');
+    const content = lines.join('\n');
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rd-extension-debug-${timestamp.replace(/[:.]/g, '-')}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    setExporting(false);
+    setExportProgress('');
+  }, []);
+
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
       <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <BugReportIcon fontSize="large" />
-          RD Extension Debugger
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="h4" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <BugReportIcon fontSize="large" />
+            RD Extension Debugger
+          </Typography>
+          <Button
+            variant="contained"
+            color="secondary"
+            startIcon={exporting ? <CircularProgress size={20} color="inherit" /> : <DownloadIcon />}
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            {exporting ? exportProgress || 'Exporting...' : 'Export All Results'}
+          </Button>
+        </Box>
         <Typography variant="body1" color="text.secondary">
           A diagnostic tool for investigating Rancher Desktop's extension mechanism.
           Use this to understand the runtime environment and identify bugs.
