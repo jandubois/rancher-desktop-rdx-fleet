@@ -20,5 +20,6 @@ export interface CardWrapperProps {
   onDelete?: () => void;
   onSettingsClick?: () => void;
   onVisibilityToggle?: () => void;
+  onTitleChange?: (title: string) => void;
   children: ReactNode;
 }

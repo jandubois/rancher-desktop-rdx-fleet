@@ -2,9 +2,9 @@ import React from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import TextField from '@mui/material/TextField';
 import IconButton from '@mui/material/IconButton';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import SettingsIcon from '@mui/icons-material/Settings';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
@@ -14,8 +14,8 @@ export const CardWrapper: React.FC<CardWrapperProps> = ({
   definition,
   editMode = false,
   onDelete,
-  onSettingsClick,
   onVisibilityToggle,
+  onTitleChange,
   children,
 }) => {
   const isVisible = definition.visible !== false;
@@ -55,12 +55,23 @@ export const CardWrapper: React.FC<CardWrapperProps> = ({
           <IconButton size="small" sx={{ cursor: 'grab' }} title="Drag to reorder">
             <DragIndicatorIcon fontSize="small" />
           </IconButton>
-          <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ minWidth: 60 }}>
             {definition.type}
           </Typography>
-          <IconButton size="small" onClick={onSettingsClick} title="Card settings">
-            <SettingsIcon fontSize="small" />
-          </IconButton>
+          <TextField
+            size="small"
+            variant="outlined"
+            placeholder="Card title (optional)"
+            value={definition.title || ''}
+            onChange={(e) => onTitleChange?.(e.target.value)}
+            sx={{
+              flexGrow: 1,
+              '& .MuiInputBase-input': {
+                py: 0.5,
+                fontSize: '0.875rem',
+              },
+            }}
+          />
           <IconButton size="small" onClick={onVisibilityToggle} title={isVisible ? 'Hide card' : 'Show card'}>
             {isVisible ? <VisibilityIcon fontSize="small" /> : <VisibilityOffIcon fontSize="small" />}
           </IconButton>

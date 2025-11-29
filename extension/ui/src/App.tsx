@@ -513,6 +513,14 @@ function App() {
       });
     };
 
+    const handleTitleChange = (title: string) => {
+      setManifestCards((prev) => {
+        const next = [...prev];
+        next[index] = { ...card, title: title || undefined };
+        return next;
+      });
+    };
+
     const handleDelete = () => {
       if (confirm(`Delete this ${card.type} card?`)) {
         setManifestCards((prev) => prev.filter((_, i) => i !== index));
@@ -534,6 +542,7 @@ function App() {
         editMode={editMode}
         onDelete={handleDelete}
         onVisibilityToggle={handleVisibilityToggle}
+        onTitleChange={handleTitleChange}
       >
         <CardComponent
           definition={card}
