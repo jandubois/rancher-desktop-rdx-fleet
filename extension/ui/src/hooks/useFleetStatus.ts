@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { ddClient } from '../lib/ddClient';
-import { getErrorMessage, KUBE_CONTEXT } from '../utils';
+import { getErrorMessage, KUBE_CONTEXT, FLEET_NAMESPACE } from '../utils';
 import { FleetState } from '../types';
 
 interface UseFleetStatusOptions {
@@ -58,6 +58,23 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
       ]);
 
       if (podResult?.stdout === 'Running') {
+        // Check if fleet-local namespace exists (created by Fleet controller)
+        const nsResult = await ddClient.extension.host?.cli.exec('kubectl', [
+          '--context', KUBE_CONTEXT,
+          'get', 'namespace', FLEET_NAMESPACE,
+          '-o', 'jsonpath={.metadata.name}',
+        ]);
+        const namespaceExists = !nsResult?.stderr && nsResult?.stdout === FLEET_NAMESPACE;
+
+        if (!namespaceExists) {
+          // Fleet controller is running but hasn't created fleet-local namespace yet
+          setFleetState({
+            status: 'error',
+            error: `Fleet controller is running but the "${FLEET_NAMESPACE}" namespace has not been created yet. This may indicate Fleet is still initializing. Please wait a moment and try again.`,
+          });
+          return;
+        }
+
         const versionResult = await ddClient.extension.host?.cli.exec('helm', [
           '--kube-context', KUBE_CONTEXT,
           'list', '-n', 'cattle-fleet-system',
