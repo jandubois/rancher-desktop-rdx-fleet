@@ -1,10 +1,11 @@
 import { Manifest, DEFAULT_MANIFEST } from './types';
 
-// Load manifest from /ui/manifest.yaml or use default
+// Load manifest from manifest.yaml or use default
 export async function loadManifest(): Promise<Manifest> {
   try {
     // Try to fetch manifest.yaml from the extension's static files
-    const response = await fetch('/manifest.yaml');
+    // Use relative path to work with vite's base: './' configuration
+    const response = await fetch('./manifest.yaml');
     if (!response.ok) {
       console.log('[Manifest] No custom manifest found, using default');
       return DEFAULT_MANIFEST;
