@@ -461,7 +461,14 @@ function HostBinaryStressTestPanel() {
   const [results, setResults] = useState<Record<string, CommandResult>>({});
   const [loading, setLoading] = useState(false);
 
-  const binaries = ['kubectl', 'helm', 'rdctl', 'docker', 'debug-env'];
+  // Binary configs with appropriate version check arguments
+  const binaryConfigs: Array<{ name: string; args: string[] }> = [
+    { name: 'kubectl', args: ['version', '--client', '-o', 'json'] },
+    { name: 'helm', args: ['version', '--short'] },
+    { name: 'rdctl', args: ['version'] },
+    { name: 'docker', args: ['version', '--format', '{{.Client.Version}}'] },
+    { name: 'debug-env', args: [] },
+  ];
 
   const runStressTest = useCallback(async () => {
     setLoading(true);
@@ -469,25 +476,32 @@ function HostBinaryStressTestPanel() {
 
     const host = ddClient.extension?.host;
     if (!host) {
-      binaries.forEach(bin => {
-        newResults[bin] = { stdout: '', stderr: '', error: 'ddClient.extension.host not available' };
+      binaryConfigs.forEach(({ name }) => {
+        newResults[name] = { stdout: '', stderr: '', error: 'ddClient.extension.host not available' };
       });
       setResults(newResults);
       setLoading(false);
       return;
     }
 
-    for (const binary of binaries) {
+    for (const { name, args } of binaryConfigs) {
       try {
-        const args = binary === 'debug-env' ? [] : ['version', '--client'];
-        const execResult = await host.cli.exec(binary, args);
-        newResults[binary] = {
+        const execResult = await host.cli.exec(name, args);
+        newResults[name] = {
           stdout: execResult.stdout,
           stderr: execResult.stderr,
         };
       } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : String(e);
-        newResults[binary] = {
+        // Handle various error formats - RD may throw non-Error objects
+        let errorMsg: string;
+        if (e instanceof Error) {
+          errorMsg = e.message;
+        } else if (typeof e === 'object' && e !== null) {
+          errorMsg = JSON.stringify(e);
+        } else {
+          errorMsg = String(e);
+        }
+        newResults[name] = {
           stdout: '',
           stderr: '',
           error: errorMsg,
@@ -504,7 +518,7 @@ function HostBinaryStressTestPanel() {
   return (
     <Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Tests all {binaries.length} host binaries defined in metadata.json.
+        Tests all {binaryConfigs.length} host binaries defined in metadata.json.
         This helps identify the binary limit bug (typically fails after 2-3 binaries).
       </Typography>
 
@@ -516,12 +530,12 @@ function HostBinaryStressTestPanel() {
         disabled={loading}
         sx={{ mb: 2 }}
       >
-        {loading ? 'Testing...' : `Test All ${binaries.length} Binaries`}
+        {loading ? 'Testing...' : `Test All ${binaryConfigs.length} Binaries`}
       </Button>
 
       {failedCount > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          {failedCount} of {binaries.length} binaries failed. This may indicate the host binary limit bug.
+          {failedCount} of {binaryConfigs.length} binaries failed. This may indicate the host binary limit bug.
         </Alert>
       )}
 
@@ -535,13 +549,13 @@ function HostBinaryStressTestPanel() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {binaries.map((binary) => {
-              const result = results[binary];
+            {binaryConfigs.map(({ name }) => {
+              const result = results[name];
               const hasError = result?.error;
 
               return (
-                <TableRow key={binary}>
-                  <TableCell sx={{ fontFamily: 'monospace' }}>{binary}</TableCell>
+                <TableRow key={name}>
+                  <TableCell sx={{ fontFamily: 'monospace' }}>{name}</TableCell>
                   <TableCell>
                     {!result ? (
                       <Chip label="Not tested" size="small" />
@@ -833,18 +847,31 @@ export default function App() {
     lines.push('-'.repeat(80));
     lines.push('5. HOST BINARY STRESS TEST');
     lines.push('-'.repeat(80));
-    const binaries = ['kubectl', 'helm', 'rdctl', 'docker', 'debug-env'];
+    const exportBinaryConfigs = [
+      { name: 'kubectl', args: ['version', '--client', '-o', 'json'] },
+      { name: 'helm', args: ['version', '--short'] },
+      { name: 'rdctl', args: ['version'] },
+      { name: 'docker', args: ['version', '--format', '{{.Client.Version}}'] },
+      { name: 'debug-env', args: [] },
+    ];
     if (!host) {
       lines.push('ddClient.extension.host: not available');
     } else {
-      for (const binary of binaries) {
+      for (const { name, args } of exportBinaryConfigs) {
         try {
-          const args = binary === 'debug-env' ? [] : ['version', '--client'];
-          const result = await host.cli.exec(binary, args);
+          const result = await host.cli.exec(name, args);
           const output = (result.stdout || result.stderr || '').trim().split('\n')[0];
-          lines.push(`${binary}: OK - ${output.substring(0, 100)}`);
+          lines.push(`${name}: OK - ${output.substring(0, 100)}`);
         } catch (e) {
-          lines.push(`${binary}: FAILED - ${e instanceof Error ? e.message : e}`);
+          let errorMsg: string;
+          if (e instanceof Error) {
+            errorMsg = e.message;
+          } else if (typeof e === 'object' && e !== null) {
+            errorMsg = JSON.stringify(e);
+          } else {
+            errorMsg = String(e);
+          }
+          lines.push(`${name}: FAILED - ${errorMsg}`);
         }
       }
     }
