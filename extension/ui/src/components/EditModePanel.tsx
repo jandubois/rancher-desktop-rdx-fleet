@@ -19,7 +19,8 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import { Manifest, CardDefinition } from '../manifest';
+import RestoreIcon from '@mui/icons-material/Restore';
+import { Manifest, CardDefinition, DEFAULT_MANIFEST } from '../manifest';
 import {
   downloadExtensionZip,
   buildExtension,
@@ -208,10 +209,18 @@ export function EditModePanel({ manifest, cards, cardOrder, onConfigLoaded }: Ed
     }
   };
 
+  const handleResetToDefaults = () => {
+    setImportError(null);
+    setImportSuccess('Configuration reset to defaults');
+    setExtensionName(DEFAULT_MANIFEST.app?.name || 'Fleet GitOps');
+    if (onConfigLoaded) {
+      onConfigLoaded(DEFAULT_MANIFEST, 'defaults');
+    }
+  };
+
   const getImageDisplayName = (img: FleetExtensionImage): string => {
     const name = img.title || `${img.repository}:${img.tag}`;
-    const typeLabel = img.type === 'base' ? ' (base)' : ' (custom)';
-    return name + typeLabel;
+    return name;
   };
 
   return (
@@ -299,7 +308,7 @@ export function EditModePanel({ manifest, cards, cardOrder, onConfigLoaded }: Ed
             </Button>
           </Box>
 
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
             <Typography variant="body2" color="text.secondary">
               Or upload a ZIP file:
             </Typography>
@@ -317,6 +326,16 @@ export function EditModePanel({ manifest, cards, cardOrder, onConfigLoaded }: Ed
               disabled={importing}
             >
               Browse...
+            </Button>
+            <Box sx={{ flex: 1 }} />
+            <Button
+              variant="text"
+              color="secondary"
+              startIcon={<RestoreIcon />}
+              onClick={handleResetToDefaults}
+              disabled={importing}
+            >
+              Reset to Defaults
             </Button>
           </Box>
 

@@ -408,7 +408,7 @@ export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]>
       const labels = img.Config?.Labels || {};
       const fleetType = labels['io.rancher-desktop.fleet.type'];
 
-      if (fleetType === 'base' || fleetType === 'custom') {
+      if (fleetType === 'custom') {
         // Get repository and tag from RepoTags
         const repoTag = img.RepoTags?.[0] || '';
         const [repository, tag] = repoTag.includes(':')
