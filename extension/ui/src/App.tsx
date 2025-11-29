@@ -135,7 +135,7 @@ function App() {
   const effectiveCardOrder = useMemo(() => {
     const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
     const manifestCardIds = manifestCards
-      .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'placeholder')
+      .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'link' || c.type === 'divider' || c.type === 'placeholder')
       .map((c) => c.id);
     const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
 
@@ -707,9 +707,9 @@ function App() {
       );
     }
 
-    // Manifest cards (markdown, image, video)
+    // Manifest cards (markdown, image, video, link, divider)
     const card = manifestCards.find((c) => c.id === cardId);
-    if (card && (card.type === 'markdown' || card.type === 'image' || card.type === 'video')) {
+    if (card && (card.type === 'markdown' || card.type === 'image' || card.type === 'video' || card.type === 'link' || card.type === 'divider')) {
       if (card.visible === false && !editMode) return null;
       const index = manifestCards.indexOf(card);
       return (
