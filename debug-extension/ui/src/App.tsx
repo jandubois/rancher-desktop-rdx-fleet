@@ -357,7 +357,7 @@ echo "=== END VM DEBUG ==="
             <Alert severity="info" sx={{ mb: 2 }}>
               <Typography variant="subtitle2" gutterBottom>
                 {error.includes('does not have containers')
-                  ? 'RD vs DD Implementation Difference Detected!'
+                  ? 'No Backend Container'
                   : 'VM Inspection Result'}
               </Typography>
               <Typography variant="body2">
@@ -365,9 +365,10 @@ echo "=== END VM DEBUG ==="
               </Typography>
               {error.includes('does not have containers') && (
                 <Typography variant="body2" sx={{ mt: 1 }}>
-                  Unlike Docker Desktop, Rancher Desktop extensions do not run in persistent backend containers.
-                  The ddClient.extension.vm API exists but has no container to exec into.
-                  This means extensions can only interact with the host via host binaries.
+                  This extension does not define a backend service (no compose.yaml).
+                  Extensions can optionally include a backend container for server-side logic,
+                  but this debug extension only uses the UI (webview) and host binaries.
+                  The ddClient.extension.vm API is only available when a backend service is defined.
                 </Typography>
               )}
             </Alert>
