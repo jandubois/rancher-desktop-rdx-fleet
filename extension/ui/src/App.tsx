@@ -35,7 +35,7 @@ import {
 } from '@dnd-kit/sortable';
 
 // Local imports
-import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings } from './manifest';
+import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
 import { CardWrapper, getCardComponent } from './cards';
 import { SortableCard, AddRepoDialog } from './components';
 import { useFleetStatus, useGitRepoManagement, usePathDiscovery } from './hooks';
@@ -570,8 +570,26 @@ function App() {
     });
   };
 
+  // Get default settings for a card type
+  const getDefaultSettingsForCardType = (cardType: CardType): CardDefinition['settings'] => {
+    switch (cardType) {
+      case 'markdown':
+        return { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings;
+      case 'image':
+        return { src: '', alt: '' } as ImageCardSettings;
+      case 'video':
+        return { src: '', title: '' } as VideoCardSettings;
+      case 'link':
+        return { links: [{ label: 'Example Link', url: 'https://example.com' }], variant: 'buttons' } as LinkCardSettings;
+      case 'divider':
+        return { label: '', style: 'solid' } as DividerCardSettings;
+      default:
+        return {};
+    }
+  };
+
   // Convert a placeholder card to a specific type
-  const convertPlaceholderCard = (cardId: string, newType: 'markdown' | 'gitrepo') => {
+  const convertPlaceholderCard = (cardId: string, newType: CardType) => {
     if (newType === 'gitrepo') {
       openAddRepoDialog();
       setManifestCards((prev) => prev.filter((c) => c.id !== cardId));
@@ -580,7 +598,7 @@ function App() {
       setManifestCards((prev) =>
         prev.map((c) =>
           c.id === cardId
-            ? { ...c, type: 'markdown', settings: { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings }
+            ? { ...c, type: newType, settings: getDefaultSettingsForCardType(newType) }
             : c
         )
       );
@@ -589,25 +607,32 @@ function App() {
 
   // Render a placeholder card with type selector
   const renderPlaceholderCard = (card: CardDefinition) => {
+    const cardTypes: { type: CardType; label: string }[] = [
+      { type: 'markdown', label: 'Markdown' },
+      { type: 'image', label: 'Image' },
+      { type: 'video', label: 'Video' },
+      { type: 'link', label: 'Links' },
+      { type: 'divider', label: 'Divider' },
+      { type: 'gitrepo', label: 'Git Repository' },
+    ];
+
     return (
       <Paper sx={{ p: 2, mb: 2, border: '2px dashed', borderColor: 'primary.main', boxShadow: 2 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', py: 2, gap: 2 }}>
           <Typography variant="subtitle1" color="text.secondary">
             Select card type:
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2 }}>
-            <Button
-              variant="outlined"
-              onClick={() => convertPlaceholderCard(card.id, 'markdown')}
-            >
-              Markdown
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => convertPlaceholderCard(card.id, 'gitrepo')}
-            >
-              Git Repository
-            </Button>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 1 }}>
+            {cardTypes.map(({ type, label }) => (
+              <Button
+                key={type}
+                variant="outlined"
+                size="small"
+                onClick={() => convertPlaceholderCard(card.id, type)}
+              >
+                {label}
+              </Button>
+            ))}
           </Box>
         </Box>
       </Paper>
@@ -686,10 +711,21 @@ function App() {
       );
     }
 
-    // Placeholder cards (for type selection)
+    // Placeholder cards (for type selection) - only if still a placeholder type
     if (cardId.startsWith('placeholder-')) {
       const card = manifestCards.find((c) => c.id === cardId);
       if (!card) return null;
+      // If the card has been converted to another type, render it as a manifest card
+      if (card.type !== 'placeholder') {
+        if (card.visible === false && !editMode) return null;
+        const index = manifestCards.indexOf(card);
+        return (
+          <SortableCard key={cardId} id={cardId} editMode={editMode}>
+            {renderManifestCard(card, index)}
+            {renderAddCardButton(cardId)}
+          </SortableCard>
+        );
+      }
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
           {renderPlaceholderCard(card)}
