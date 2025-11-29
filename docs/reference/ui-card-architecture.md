@@ -25,6 +25,10 @@ extension/ui/src/
 │   ├── types.ts               # Card component prop types
 │   ├── CardWrapper.tsx        # Common card wrapper with edit controls
 │   └── MarkdownCard.tsx       # Markdown content card
+├── components/
+│   ├── EditableTitle.tsx      # Inline-editable title component
+│   ├── SortableCard.tsx       # Drag-and-drop wrapper
+│   └── AddRepoDialog.tsx      # Dialog for adding repositories
 └── lib/
     └── ddClient.ts            # Docker Desktop SDK client
 ```
@@ -142,8 +146,28 @@ When edit mode is enabled (`layout.edit_mode: true` in manifest):
 
 1. **Drag handles** appear above each card
 2. **"Add card" buttons** appear between cards
-3. **Card controls** show visibility toggle, settings, delete
+3. **Card controls** show visibility toggle and delete
 4. **Placeholder cards** can be inserted and converted to real types
+5. **Inline title editing** - card titles become editable text fields
+
+### Inline Title Editing
+
+The `EditableTitle` component provides inline edit-in-place functionality for card titles:
+
+```typescript
+// components/EditableTitle.tsx
+<EditableTitle
+  value={title}
+  editMode={editMode}
+  onChange={(newTitle) => updateTitle(newTitle)}
+  placeholder="Enter title..."
+/>
+```
+
+- In **display mode**: renders as `Typography` (h6 by default)
+- In **edit mode**: renders as `InputBase` for inline editing
+- Supports custom variants: `h6`, `subtitle1`, `subtitle2`
+- Can append children after the title text (e.g., status suffixes)
 
 ### Placeholder Card Flow
 
