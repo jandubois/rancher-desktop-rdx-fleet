@@ -193,6 +193,8 @@ function App() {
     switch (fleetState.status) {
       case 'checking':
         return <CircularProgress size={24} />;
+      case 'initializing':
+        return <SyncIcon color="info" sx={{ animation: 'spin 2s linear infinite', '@keyframes spin': { '0%': { transform: 'rotate(0deg)' }, '100%': { transform: 'rotate(360deg)' } } }} />;
       case 'running':
         return <CheckCircleIcon color="success" />;
       case 'error':
@@ -264,9 +266,15 @@ function App() {
             variant="contained"
             onClick={openAddRepoDialog}
             startIcon={<AddIcon />}
+            disabled={fleetState.status !== 'running'}
           >
             Configure Repository
           </Button>
+          {fleetState.status !== 'running' && (
+            <Typography variant="caption" color="text.secondary">
+              Fleet must be running to configure repositories
+            </Typography>
+          )}
         </Box>
       </Paper>
     );
@@ -316,6 +324,7 @@ function App() {
               size="small"
               onClick={openAddRepoDialog}
               title="Add another repository"
+              disabled={fleetState.status !== 'running'}
             >
               <AddIcon />
             </IconButton>
@@ -635,10 +644,17 @@ function App() {
                 Fleet Status
                 {fleetState.status === 'running' && `: Running (${fleetState.version})`}
                 {fleetState.status === 'checking' && ': Checking...'}
+                {fleetState.status === 'initializing' && ': Initializing...'}
                 {fleetState.status === 'not-installed' && ': Not Installed'}
                 {fleetState.status === 'error' && ': Error'}
               </Typography>
             </Box>
+
+            {fleetState.status === 'initializing' && fleetState.message && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                {fleetState.message}
+              </Alert>
+            )}
 
             {fleetState.status === 'error' && fleetState.error && (
               <Alert severity="error" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>

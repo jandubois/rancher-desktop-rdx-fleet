@@ -1,11 +1,12 @@
 // Shared type definitions
 
-export type FleetStatus = 'checking' | 'not-installed' | 'running' | 'error';
+export type FleetStatus = 'checking' | 'not-installed' | 'initializing' | 'running' | 'error';
 
 export interface FleetState {
   status: FleetStatus;
   version?: string;
   error?: string;
+  message?: string;  // Status message for initializing state
 }
 
 export interface GitRepo {

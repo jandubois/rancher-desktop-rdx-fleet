@@ -59,18 +59,29 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
 
       if (podResult?.stdout === 'Running') {
         // Check if fleet-local namespace exists (created by Fleet controller)
-        const nsResult = await ddClient.extension.host?.cli.exec('kubectl', [
-          '--context', KUBE_CONTEXT,
-          'get', 'namespace', FLEET_NAMESPACE,
-          '-o', 'jsonpath={.metadata.name}',
-        ]);
-        const namespaceExists = !nsResult?.stderr && nsResult?.stdout === FLEET_NAMESPACE;
+        let namespaceExists = false;
+        try {
+          const nsResult = await ddClient.extension.host?.cli.exec('kubectl', [
+            '--context', KUBE_CONTEXT,
+            'get', 'namespace', FLEET_NAMESPACE,
+            '-o', 'jsonpath={.metadata.name}',
+          ]);
+          namespaceExists = !nsResult?.stderr && nsResult?.stdout === FLEET_NAMESPACE;
+        } catch (nsErr) {
+          // Namespace doesn't exist yet - this is expected during initialization
+          const errMsg = getErrorMessage(nsErr);
+          if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
+            namespaceExists = false;
+          } else {
+            throw nsErr; // Re-throw unexpected errors
+          }
+        }
 
         if (!namespaceExists) {
           // Fleet controller is running but hasn't created fleet-local namespace yet
           setFleetState({
-            status: 'error',
-            error: `Fleet controller is running but the "${FLEET_NAMESPACE}" namespace has not been created yet. This may indicate Fleet is still initializing. Please wait a moment and try again.`,
+            status: 'initializing',
+            message: `Waiting for Fleet to create the "${FLEET_NAMESPACE}" namespace...`,
           });
           return;
         }
@@ -147,6 +158,17 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
   useEffect(() => {
     checkFleetStatus();
   }, [checkFleetStatus]);
+
+  // Auto-poll when initializing to detect when Fleet is ready
+  useEffect(() => {
+    if (fleetState.status !== 'initializing') return;
+
+    const interval = setInterval(() => {
+      checkFleetStatus();
+    }, 2000); // Poll every 2 seconds while initializing
+
+    return () => clearInterval(interval);
+  }, [fleetState.status, checkFleetStatus]);
 
   return {
     fleetState,
