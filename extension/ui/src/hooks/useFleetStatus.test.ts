@@ -41,7 +41,7 @@ describe('useFleetStatus', () => {
     expect(result.current.fleetState.status).toBe('checking');
   });
 
-  it('detects Fleet when CRD exists and controller is running', async () => {
+  it('detects Fleet when CRD exists, controller is running, and namespace exists', async () => {
     mockExec
       // CRD check
       .mockResolvedValueOnce({
@@ -51,6 +51,11 @@ describe('useFleetStatus', () => {
       // Pod check
       .mockResolvedValueOnce({
         stdout: 'Running',
+        stderr: '',
+      } as never)
+      // Namespace check
+      .mockResolvedValueOnce({
+        stdout: 'fleet-local',
         stderr: '',
       } as never)
       // Helm list for version
@@ -126,6 +131,10 @@ describe('useFleetStatus', () => {
         stderr: '',
       } as never)
       .mockResolvedValueOnce({
+        stdout: 'fleet-local',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
         stdout: JSON.stringify([{ app_version: '0.9.1', chart: 'fleet-0.9.1' }]),
         stderr: '',
       } as never);
@@ -145,6 +154,10 @@ describe('useFleetStatus', () => {
       } as never)
       .mockResolvedValueOnce({
         stdout: 'Running',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        stdout: 'fleet-local',
         stderr: '',
       } as never)
       .mockResolvedValueOnce({
@@ -170,6 +183,10 @@ describe('useFleetStatus', () => {
         stderr: '',
       } as never)
       .mockResolvedValueOnce({
+        stdout: 'fleet-local',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
         stdout: 'invalid json',
         stderr: '',
       } as never);
@@ -191,6 +208,10 @@ describe('useFleetStatus', () => {
       } as never)
       .mockResolvedValueOnce({
         stdout: 'Running',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
+        stdout: 'fleet-local',
         stderr: '',
       } as never)
       .mockResolvedValueOnce({
@@ -222,7 +243,7 @@ describe('useFleetStatus', () => {
     });
   });
 
-  it('installFleet calls helm commands in correct order', async () => {
+  it('installFleet calls helm commands in correct order and creates namespace', async () => {
     // Initial check - not installed
     mockExec.mockResolvedValueOnce({
       stdout: '',
@@ -245,6 +266,8 @@ describe('useFleetStatus', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
       // helm install fleet
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
+      // kubectl create namespace fleet-local
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
       // checkFleetStatus after install - CRD check
       .mockResolvedValueOnce({
         stdout: 'gitrepos.fleet.cattle.io',
@@ -253,6 +276,11 @@ describe('useFleetStatus', () => {
       // Pod check
       .mockResolvedValueOnce({
         stdout: 'Running',
+        stderr: '',
+      } as never)
+      // Namespace check
+      .mockResolvedValueOnce({
+        stdout: 'fleet-local',
         stderr: '',
       } as never)
       // Helm list for version
@@ -284,6 +312,13 @@ describe('useFleetStatus', () => {
     expect(helmCalls[3][1]).toContain('install');
     expect(helmCalls[3][1]).toContain('fleet');
     expect(helmCalls[3][1]).not.toContain('fleet-crd');
+
+    // Verify namespace creation was called
+    const kubectlCalls = calls.filter(call => call[0] === 'kubectl');
+    const createNsCalls = kubectlCalls.filter(call =>
+      call[1]?.includes('create') && call[1]?.includes('namespace')
+    );
+    expect(createNsCalls.length).toBeGreaterThan(0);
   });
 
   it('sets installing to true during installation', async () => {
@@ -379,6 +414,10 @@ describe('useFleetStatus', () => {
         stderr: '',
       } as never)
       .mockResolvedValueOnce({
+        stdout: 'fleet-local',
+        stderr: '',
+      } as never)
+      .mockResolvedValueOnce({
         stdout: JSON.stringify([{ app_version: '0.10.0' }]),
         stderr: '',
       } as never);
@@ -400,6 +439,63 @@ describe('useFleetStatus', () => {
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('not-installed');
+    });
+  });
+
+  it('returns initializing status and creates namespace when namespace does not exist', async () => {
+    mockExec
+      // CRD check
+      .mockResolvedValueOnce({
+        stdout: 'gitrepos.fleet.cattle.io',
+        stderr: '',
+      } as never)
+      // Pod check
+      .mockResolvedValueOnce({
+        stdout: 'Running',
+        stderr: '',
+      } as never)
+      // Namespace check - throws NotFound
+      .mockRejectedValueOnce(new Error('Error from server (NotFound): namespaces "fleet-local" not found'))
+      // Create namespace
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never);
+
+    const { result } = renderHook(() => useFleetStatus());
+
+    await waitFor(() => {
+      expect(result.current.fleetState.status).toBe('initializing');
+      expect(result.current.fleetState.message).toContain('fleet-local');
+    });
+
+    // Verify namespace creation was attempted
+    const calls = mockExec.mock.calls;
+    const createNsCalls = calls.filter(call =>
+      call[0] === 'kubectl' && call[1]?.includes('create') && call[1]?.includes('namespace')
+    );
+    expect(createNsCalls.length).toBe(1);
+  });
+
+  it('ignores already exists error when creating namespace', async () => {
+    mockExec
+      // CRD check
+      .mockResolvedValueOnce({
+        stdout: 'gitrepos.fleet.cattle.io',
+        stderr: '',
+      } as never)
+      // Pod check
+      .mockResolvedValueOnce({
+        stdout: 'Running',
+        stderr: '',
+      } as never)
+      // Namespace check - throws NotFound
+      .mockRejectedValueOnce(new Error('Error from server (NotFound): namespaces "fleet-local" not found'))
+      // Create namespace - throws already exists (race condition)
+      .mockRejectedValueOnce(new Error('namespaces "fleet-local" already exists'));
+
+    const { result } = renderHook(() => useFleetStatus());
+
+    // Should still show initializing (will re-check after setTimeout)
+    await waitFor(() => {
+      expect(result.current.fleetState.status).toBe('initializing');
     });
   });
 });
