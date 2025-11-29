@@ -58,7 +58,6 @@ function App() {
   const [manifest, setManifest] = useState<Manifest>(DEFAULT_MANIFEST);
   const [editMode, setEditMode] = useState(false);
   const [manifestCards, setManifestCards] = useState<CardDefinition[]>(DEFAULT_MANIFEST.cards);
-  const [manifestDebug, setManifestDebug] = useState<string>('loading...');
 
   // Card order for drag-and-drop (IDs of all cards in display order)
   const [cardOrder, setCardOrder] = useState<string[]>(['fleet-status']);
@@ -151,17 +150,10 @@ function App() {
 
   // Load manifest on startup
   useEffect(() => {
-    loadManifest()
-      .then((m) => {
-        setManifest(m);
-        setManifestCards(m.cards);
-        const cardTypes = m.cards.map((c) => c.type).join(', ');
-        setManifestDebug(`${m.app?.name} | ${m.cards.length} cards: ${cardTypes}`);
-        console.log('[Manifest] Loaded:', m);
-      })
-      .catch((err) => {
-        setManifestDebug(`Error: ${err.message}`);
-      });
+    loadManifest().then((m) => {
+      setManifest(m);
+      setManifestCards(m.cards);
+    });
   }, []);
 
   // Track current time for timeout checks (updated every 5s when there are active discovery operations)
@@ -737,14 +729,9 @@ function App() {
         }}
       >
         <Box sx={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h5" sx={{ fontWeight: 500 }}>
-              {manifest.app?.name || 'Fleet GitOps'}
-            </Typography>
-            <Typography variant="caption" sx={{ opacity: 0.7 }}>
-              [Debug: {manifestDebug}]
-            </Typography>
-          </Box>
+          <Typography variant="h5" sx={{ fontWeight: 500 }}>
+            {manifest.app?.name || 'Fleet GitOps'}
+          </Typography>
           {editModeAllowed && (
             <IconButton
               onClick={() => editMode ? handleExitEditMode() : setEditMode(true)}

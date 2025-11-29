@@ -6,19 +6,13 @@ export async function loadManifest(): Promise<Manifest> {
   try {
     // Try to fetch manifest.yaml from the extension's static files
     // Use relative path to work with vite's base: './' configuration
-    const url = new URL('./manifest.yaml', window.location.href).href;
-    console.log('[Manifest] Fetching from:', url);
     const response = await fetch('./manifest.yaml');
-    console.log('[Manifest] Response status:', response.status, response.statusText);
     if (!response.ok) {
-      console.log('[Manifest] No custom manifest found, using default');
       return DEFAULT_MANIFEST;
     }
 
     const text = await response.text();
-    console.log('[Manifest] Raw YAML text:', text.substring(0, 200) + '...');
     const manifest = yaml.load(text) as Partial<Manifest>;
-    console.log('[Manifest] Parsed manifest:', JSON.stringify(manifest, null, 2));
 
     // Validate and merge with defaults
     return mergeWithDefaults(manifest);
@@ -46,14 +40,6 @@ function mergeWithDefaults(loaded: Partial<Manifest>): Manifest {
     },
     cards: loaded.cards && loaded.cards.length > 0 ? loaded.cards : DEFAULT_MANIFEST.cards,
   };
-
-  // Log warnings for unknown fields
-  const knownTopLevel = ['version', 'app', 'branding', 'layout', 'cards'];
-  for (const key of Object.keys(loaded)) {
-    if (!knownTopLevel.includes(key)) {
-      console.warn(`[Manifest] Unknown field ignored: ${key}`);
-    }
-  }
 
   return manifest;
 }
