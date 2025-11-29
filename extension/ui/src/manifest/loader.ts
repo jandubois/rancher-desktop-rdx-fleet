@@ -5,14 +5,19 @@ export async function loadManifest(): Promise<Manifest> {
   try {
     // Try to fetch manifest.yaml from the extension's static files
     // Use relative path to work with vite's base: './' configuration
+    const url = new URL('./manifest.yaml', window.location.href).href;
+    console.log('[Manifest] Fetching from:', url);
     const response = await fetch('./manifest.yaml');
+    console.log('[Manifest] Response status:', response.status, response.statusText);
     if (!response.ok) {
       console.log('[Manifest] No custom manifest found, using default');
       return DEFAULT_MANIFEST;
     }
 
     const text = await response.text();
+    console.log('[Manifest] Raw YAML text:', text.substring(0, 200) + '...');
     const manifest = parseYaml(text);
+    console.log('[Manifest] Parsed manifest:', JSON.stringify(manifest, null, 2));
 
     // Validate and merge with defaults
     return mergeWithDefaults(manifest);
