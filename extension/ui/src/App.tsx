@@ -839,9 +839,16 @@ function App() {
         }}
       >
         <Box sx={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h5" sx={{ fontWeight: 500 }}>
-            {manifest.app?.name || 'Fleet GitOps'}
-          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <img
+              src="/fleet-icon.svg"
+              alt="Fleet Logo"
+              style={{ height: 40, width: 'auto' }}
+            />
+            <Typography variant="h5" sx={{ fontWeight: 500 }}>
+              {manifest.app?.name || 'Fleet GitOps'}
+            </Typography>
+          </Box>
           {editModeAllowed && (
             <IconButton
               onClick={() => editMode ? handleExitEditMode() : setEditMode(true)}
