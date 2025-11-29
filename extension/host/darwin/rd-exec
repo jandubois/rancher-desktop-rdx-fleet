@@ -1,0 +1,4 @@
+#!/bin/sh
+# Generic forwarder that adds Rancher Desktop bin to PATH and executes the command
+export PATH="$HOME/.rd/bin:$PATH"
+exec "$@"

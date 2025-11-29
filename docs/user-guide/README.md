@@ -8,6 +8,7 @@ This guide explains how to use and customize the Fleet GitOps extension for Ranc
 2. [The Manifest File](#the-manifest-file)
 3. [Card Types](card-types.md) - Detailed reference for all card types
 4. [Edit Mode](#edit-mode)
+5. [Creating Custom Extensions](#creating-custom-extensions)
 
 ---
 
@@ -222,6 +223,129 @@ cards:
       repo_url:
         editable: true
 ```
+
+---
+
+## Creating Custom Extensions
+
+For enterprise or team deployments, you can create a **subclassed extension** that inherits from the base Fleet GitOps extension and adds your own customizations. This allows you to:
+
+- Pre-configure repositories and settings for your organization
+- Lock certain fields to prevent modification
+- Add company branding (logo, colors)
+- Include custom documentation and links
+- Distribute as a single Docker image
+
+### How Subclassed Extensions Work
+
+A subclassed extension uses Docker's `FROM` instruction to inherit all functionality from the base extension image, then overlays your customizations:
+
+```dockerfile
+ARG BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops:latest
+FROM ${BASE_IMAGE}
+
+# Change the extension title
+LABEL org.opencontainers.image.title="My Company Fleet"
+
+# Override with your custom configuration
+COPY metadata.json /metadata.json
+COPY manifest.yaml /ui/manifest.yaml
+COPY icons/ /icons/
+```
+
+### Required Files
+
+Your subclassed extension needs these files:
+
+| File | Purpose |
+|------|---------|
+| `Dockerfile` | Inherits from base image, copies overrides |
+| `manifest.yaml` | Your custom card configuration |
+| `metadata.json` | Extension title and icon path |
+| `icons/` | Your custom icon(s) |
+
+### Step-by-Step Guide
+
+1. **Create your extension directory:**
+
+   ```bash
+   mkdir my-fleet-extension
+   cd my-fleet-extension
+   ```
+
+2. **Create `metadata.json`:**
+
+   ```json
+   {
+     "icon": "/icons/my-icon.svg",
+     "ui": {
+       "dashboard-tab": {
+         "title": "My Fleet Dashboard",
+         "root": "/ui",
+         "src": "index.html"
+       }
+     }
+   }
+   ```
+
+3. **Create `manifest.yaml`** with your configuration (see examples above)
+
+4. **Add your icon** to `icons/my-icon.svg`
+
+5. **Create `Dockerfile`:**
+
+   ```dockerfile
+   ARG BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops:latest
+   FROM ${BASE_IMAGE}
+
+   LABEL org.opencontainers.image.title="My Fleet Dashboard"
+
+   COPY metadata.json /metadata.json
+   COPY manifest.yaml /ui/manifest.yaml
+   COPY icons/ /icons/
+   ```
+
+6. **Build and install:**
+
+   ```bash
+   docker build -t my-fleet-extension:dev .
+   docker extension install my-fleet-extension:dev
+   ```
+
+### Locking Fields for Enterprise
+
+For managed deployments, you can lock fields to prevent modification:
+
+```yaml
+cards:
+  - id: company-repo
+    type: gitrepo
+    title: "Company Configuration"
+    settings:
+      # Lock the repository URL
+      repo_url:
+        default: "https://github.com/mycompany/k8s-configs"
+        editable: false
+        locked: true
+      # Restrict path selection to approved paths only
+      paths:
+        allowed:
+          - production/
+          - staging/
+```
+
+### Disabling Edit Mode
+
+To create a read-only extension where users cannot modify the layout:
+
+```yaml
+layout:
+  edit_mode: false
+```
+
+### Complete Example
+
+See the [examples/subclassed-extension](../../examples/subclassed-extension/) directory for a complete working example with all files.
 
 ---
 

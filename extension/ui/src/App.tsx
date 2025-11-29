@@ -37,7 +37,7 @@ import {
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
 import { CardWrapper, getCardComponent } from './cards';
-import { SortableCard, AddRepoDialog, EditableTitle } from './components';
+import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel } from './components';
 import { useFleetStatus, useGitRepoManagement, usePathDiscovery } from './hooks';
 import { PathInfo } from './utils';
 import { GitRepo } from './types';
@@ -857,6 +857,15 @@ function App() {
       {/* Scrollable Card Area */}
       <Box sx={{ flex: 1, overflow: 'auto', py: 3 }}>
         <Box sx={{ px: 3, maxWidth: 900, margin: '0 auto' }}>
+          {/* Edit Mode Panel - shown when in edit mode */}
+          {editMode && (
+            <EditModePanel
+              manifest={manifest}
+              cards={manifestCards}
+              cardOrder={effectiveCardOrder}
+            />
+          )}
+
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}

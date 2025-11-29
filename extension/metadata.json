@@ -23,6 +23,11 @@
         "darwin": [{ "path": "/host/darwin/kubectl-apply-json" }],
         "linux": [{ "path": "/host/linux/kubectl-apply-json" }],
         "windows": [{ "path": "/host/windows/kubectl-apply-json.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/rd-exec" }],
+        "linux": [{ "path": "/host/linux/rd-exec" }],
+        "windows": [{ "path": "/host/windows/rd-exec.cmd" }]
       }
     ]
   }

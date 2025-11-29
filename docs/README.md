@@ -13,8 +13,9 @@ End-user documentation for configuring and customizing the extension:
 
 | Document | Topics |
 |----------|--------|
-| [User Guide](user-guide/README.md) | Getting started, manifest config, edit mode |
+| [User Guide](user-guide/README.md) | Getting started, manifest config, edit mode, custom extensions |
 | [Card Types Reference](user-guide/card-types.md) | All card types with YAML configuration examples |
+| [Subclassed Extension Example](../examples/subclassed-extension/) | Complete working example of a custom extension |
 
 ## Reference Documentation
 
@@ -47,11 +48,13 @@ rancher-desktop-rdx-fleet/
 │   │   ├── darwin/, linux/, windows/
 │   └── ui/                  # React frontend
 │       ├── src/
-│       │   ├── App.tsx      # Main component (~1500 lines)
+│       │   ├── App.tsx      # Main component
 │       │   ├── manifest/    # Manifest types and loader
 │       │   ├── cards/       # Card components
 │       │   └── lib/         # Utilities (ddClient)
 │       └── package.json
+├── examples/
+│   └── subclassed-extension/  # Example custom extension
 ├── docs/                    # You are here
 └── scripts/                 # Build/dev scripts
 ```
@@ -87,7 +90,7 @@ Configuration via `/ui/manifest.yaml`:
 - Layout options (edit_mode, show_fleet_status)
 - Card definitions (type, settings)
 
-Enterprise customization: `FROM` the official image + replace manifest.
+For enterprise customization, create a subclassed extension that inherits from the official image. See [Creating Custom Extensions](user-guide/README.md#creating-custom-extensions) and the [example](../examples/subclassed-extension/).
 
 ### Fleet Integration
 
