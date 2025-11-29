@@ -29,6 +29,11 @@ extension/ui/src/
 │   ├── EditableTitle.tsx      # Inline-editable title component
 │   ├── SortableCard.tsx       # Drag-and-drop wrapper
 │   └── AddRepoDialog.tsx      # Dialog for adding repositories
+├── theme/
+│   ├── index.ts               # Theme exports
+│   └── palette.ts             # Color palette types and defaults
+├── hooks/
+│   └── usePalette.ts          # Hook for consuming manifest palette
 └── lib/
     └── ddClient.ts            # Docker Desktop SDK client
 ```

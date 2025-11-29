@@ -1,5 +1,7 @@
 // Manifest types for the Fleet extension card system
 
+import { ColorPalette } from '../theme';
+
 export interface ManifestApp {
   name: string;
   icon?: string;  // Extension icon (shown in RD sidebar)
@@ -9,6 +11,7 @@ export interface ManifestApp {
 export interface ManifestBranding {
   primary_color?: string;
   logo?: string;  // Header logo (within extension UI)
+  palette?: ColorPalette;  // Custom color palette
 }
 
 export interface ManifestLayout {
