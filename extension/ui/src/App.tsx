@@ -155,7 +155,8 @@ function App() {
       .then((m) => {
         setManifest(m);
         setManifestCards(m.cards);
-        setManifestDebug(`Loaded: ${m.app?.name}, cards: ${m.cards.length}`);
+        const cardTypes = m.cards.map((c) => c.type).join(', ');
+        setManifestDebug(`${m.app?.name} | ${m.cards.length} cards: ${cardTypes}`);
         console.log('[Manifest] Loaded:', m);
       })
       .catch((err) => {
