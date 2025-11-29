@@ -8,13 +8,18 @@ interface UseGitRepoManagementOptions {
   onReposLoaded?: (repos: GitRepo[]) => void;
 }
 
+interface AddGitRepoResult {
+  success: boolean;
+  error?: string;
+}
+
 interface UseGitRepoManagementResult {
   gitRepos: GitRepo[];
   loadingRepos: boolean;
   repoError: string | null;
   updatingRepo: string | null;
   fetchGitRepos: () => Promise<void>;
-  addGitRepo: (name: string, repoUrl: string, branch?: string) => Promise<boolean>;
+  addGitRepo: (name: string, repoUrl: string, branch?: string) => Promise<AddGitRepoResult>;
   deleteGitRepo: (name: string) => Promise<void>;
   updateGitRepoPaths: (repo: GitRepo, newPaths: string[]) => Promise<void>;
   toggleRepoPath: (repo: GitRepo, path: string) => void;
@@ -161,13 +166,14 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
   }, [updateGitRepoPaths]);
 
   // Add a new GitRepo
-  const addGitRepo = useCallback(async (name: string, repoUrl: string, branch?: string): Promise<boolean> => {
-    if (!name || !repoUrl) return false;
+  const addGitRepo = useCallback(async (name: string, repoUrl: string, branch?: string): Promise<AddGitRepoResult> => {
+    if (!name || !repoUrl) return { success: false, error: 'Name and URL are required' };
 
     // Check if a repo with this name already exists
     if (gitRepos.some((r) => r.name === name)) {
-      setRepoError(`A repository named "${name}" already exists. Please choose a different name.`);
-      return false;
+      const error = `A repository named "${name}" already exists. Please choose a different name.`;
+      setRepoError(error);
+      return { success: false, error };
     }
 
     try {
@@ -193,11 +199,12 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
       ]);
 
       await fetchGitRepos();
-      return true;
+      return { success: true };
     } catch (err) {
       console.error('Failed to add GitRepo:', err);
-      setRepoError(getErrorMessage(err));
-      return false;
+      const error = getErrorMessage(err);
+      setRepoError(error);
+      return { success: false, error };
     }
   }, [gitRepos, fetchGitRepos]);
 

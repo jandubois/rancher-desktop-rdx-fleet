@@ -178,7 +178,7 @@ function App() {
   }, []);
 
   // Handle add repo from dialog
-  const handleAddRepo = useCallback(async (name: string, url: string, branch?: string): Promise<boolean> => {
+  const handleAddRepo = useCallback(async (name: string, url: string, branch?: string) => {
     return addGitRepo(name, url, branch);
   }, [addGitRepo]);
 

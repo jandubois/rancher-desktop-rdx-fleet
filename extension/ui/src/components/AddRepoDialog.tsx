@@ -9,10 +9,15 @@ import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
 
+interface AddGitRepoResult {
+  success: boolean;
+  error?: string;
+}
+
 interface AddRepoDialogProps {
   open: boolean;
   onClose: () => void;
-  onAdd: (name: string, url: string, branch?: string) => Promise<boolean>;
+  onAdd: (name: string, url: string, branch?: string) => Promise<AddGitRepoResult>;
 }
 
 export function AddRepoDialog({ open, onClose, onAdd }: AddRepoDialogProps) {
@@ -42,12 +47,11 @@ export function AddRepoDialog({ open, onClose, onAdd }: AddRepoDialogProps) {
     setError(null);
 
     try {
-      const success = await onAdd(name, url, branch || undefined);
-      if (success) {
+      const result = await onAdd(name, url, branch || undefined);
+      if (result.success) {
         handleClose();
       } else {
-        // Error is set by the parent via repoError
-        setError('Failed to add repository. Please check the details and try again.');
+        setError(result.error || 'Failed to add repository. Please check the details and try again.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -67,7 +71,7 @@ export function AddRepoDialog({ open, onClose, onAdd }: AddRepoDialogProps) {
       <DialogTitle>Add Git Repository</DialogTitle>
       <DialogContent>
         {error && (
-          <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
+          <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }} onClose={() => setError(null)}>
             {error}
           </Alert>
         )}
