@@ -1,0 +1,29 @@
+{
+  "icon": "/icons/company-icon.svg",
+  "ui": {
+    "dashboard-tab": {
+      "title": "My Company Fleet",
+      "root": "/ui",
+      "src": "index.html"
+    }
+  },
+  "host": {
+    "binaries": [
+      {
+        "darwin": [{ "path": "/host/darwin/kubectl" }],
+        "linux": [{ "path": "/host/linux/kubectl" }],
+        "windows": [{ "path": "/host/windows/kubectl.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/helm" }],
+        "linux": [{ "path": "/host/linux/helm" }],
+        "windows": [{ "path": "/host/windows/helm.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/kubectl-apply-json" }],
+        "linux": [{ "path": "/host/linux/kubectl-apply-json" }],
+        "windows": [{ "path": "/host/windows/kubectl-apply-json.cmd" }]
+      }
+    ]
+  }
+}
