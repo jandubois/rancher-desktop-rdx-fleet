@@ -42,6 +42,18 @@ Error invoking remote method 'extensions/spawn/blocking': Error: spawn /Users/..
 
 ---
 
+## 3. Extension sidebar icon not updated until restart
+
+**Expected:** When rebuilding an extension with a new icon, the sidebar icon should update after reinstalling the extension.
+
+**Actual:** The sidebar icon remains cached even after rebuilding and reinstalling the extension. A full Rancher Desktop restart is required to see the updated icon.
+
+**Workaround:** Restart Rancher Desktop after updating extension icons.
+
+**Status:** Needs investigation - likely an icon caching issue in the Electron app
+
+---
+
 ## Notes
 
 - Rancher Desktop source: https://github.com/rancher-sandbox/rancher-desktop
