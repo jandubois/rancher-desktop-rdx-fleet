@@ -19,9 +19,10 @@ LABEL com.docker.desktop.extension.icon="/icons/fleet-icon.svg"
 # Copy UI build
 COPY --from=ui-builder /app/build /ui
 
-# Copy metadata and icons
+# Copy metadata, icons, and compose file
 COPY metadata.json /
 COPY icons/ /icons/
+COPY compose/ /compose/
 
 # Copy host binary wrapper scripts
 COPY host/ /host/

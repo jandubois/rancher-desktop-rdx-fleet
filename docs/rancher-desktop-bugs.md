@@ -54,6 +54,28 @@ Error invoking remote method 'extensions/spawn/blocking': Error: spawn /Users/..
 
 ---
 
+## 4. Extension uninstall fails without compose.yaml
+
+**Expected:** Extensions without a `vm` section (no backend services) should uninstall cleanly from the GUI.
+
+**Actual:** Uninstall from GUI fails silently. The log shows:
+```
+Ignoring error stopping fleet-gitops-extension containers on uninstall: Error: ENOENT: no such file or directory, open '.../extensions/.../compose/compose.yaml'
+```
+
+Despite the error being "ignored", the uninstall does not complete. The `rdctl extension uninstall` CLI command works fine.
+
+**Root cause:** Rancher Desktop looks for a `compose/compose.yaml` file to stop backend containers during uninstall, even when the extension has no `vm` section in `metadata.json`. The ENOENT error appears to abort the uninstall process despite the "ignoring" message.
+
+**Workaround:** Add an empty `compose/compose.yaml` file to the extension:
+```yaml
+services: {}
+```
+
+**Status:** Workaround applied. Should be fixed in Rancher Desktop to not require compose.yaml when no vm section exists.
+
+---
+
 ## Notes
 
 - Rancher Desktop source: https://github.com/rancher-sandbox/rancher-desktop
