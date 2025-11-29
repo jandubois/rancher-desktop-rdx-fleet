@@ -53,6 +53,26 @@ Not yet implemented: `auth-github`, `auth-git`, `auth-appco`
 **When adding/modifying card types**: Update both `docs/user-guide/card-types.md` (user docs)
 and `docs/reference/ui-card-architecture.md` (developer docs).
 
+## Development Guidelines
+
+### Do Not Reimplement Standard Libraries
+
+**Never reimplement functionality that is available in popular, well-maintained npm packages.**
+
+When you need functionality like YAML parsing, date handling, validation, etc.:
+1. **Check if a popular package exists** - Look for packages with high weekly downloads and active maintenance
+2. **Use the existing package** - Install it as a dependency rather than writing custom code
+3. **Avoid obscure packages** - Stick to well-known, widely-used libraries in the ecosystem
+
+Examples of packages to use instead of reimplementing:
+- **YAML parsing**: `js-yaml` (not custom regex-based parsing)
+- **Date handling**: `date-fns` or `dayjs` (not custom date utilities)
+- **Deep cloning**: `lodash` or `structuredClone` (not custom recursive clone)
+- **URL parsing**: Built-in `URL` API (not custom string splitting)
+- **Schema validation**: `zod` or `yup` (not custom validators)
+
+**Rationale**: Custom implementations are harder to maintain, often miss edge cases, and lack the battle-testing of popular libraries. The small bundle size savings rarely justify the maintenance burden and potential bugs.
+
 ## Current Priority
 
 Authentication cards - see `docs/NEXT_STEPS.md` for implementation details.

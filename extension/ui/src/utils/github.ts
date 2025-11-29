@@ -1,4 +1,5 @@
 // GitHub API utilities for path discovery
+import yaml from 'js-yaml';
 
 // Path info with dependency data
 export interface PathInfo {
@@ -35,19 +36,24 @@ export async function fetchFleetYamlDeps(
       if (!response.ok) continue;  // Try next filename
 
       const content = await response.text();
-      // Simple YAML parsing for dependsOn - look for "dependsOn:" section
-      // Match all lines that are indented list items after "dependsOn:"
-      const dependsOnMatch = content.match(/dependsOn:\s*\n((?:[ \t]+-[^\n]*\n)+)/);
-      if (!dependsOnMatch) return undefined;
+      // Use js-yaml for proper YAML parsing
+      const parsed = yaml.load(content) as Record<string, unknown> | null;
+      if (!parsed || typeof parsed !== 'object') return undefined;
+
+      const dependsOn = parsed.dependsOn;
+      if (!Array.isArray(dependsOn)) return undefined;
 
       // Extract bundle names from dependsOn list
+      // Supports both "- bundlename" and "- name: bundlename" formats
       const deps: string[] = [];
-      const lines = dependsOnMatch[1].split('\n');
-      for (const line of lines) {
-        // Match "- name: bundlename" or "- bundlename"
-        const nameMatch = line.match(/^\s*-\s*(?:name:\s*)?(\S+)/);
-        if (nameMatch) {
-          deps.push(nameMatch[1]);
+      for (const item of dependsOn) {
+        if (typeof item === 'string') {
+          deps.push(item);
+        } else if (typeof item === 'object' && item !== null && 'name' in item) {
+          const name = (item as { name: unknown }).name;
+          if (typeof name === 'string') {
+            deps.push(name);
+          }
         }
       }
       return deps.length > 0 ? deps : undefined;

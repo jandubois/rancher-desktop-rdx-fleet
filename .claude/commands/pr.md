@@ -6,11 +6,12 @@ Before starting, create a todo list with ALL of the following items:
 1. Gather information (fetch, status, log, diff)
 2. Check test coverage for code changes
 3. Verify test comment headers are up-to-date
-4. Check if documentation needs updates
-5. Run tests, lint, and build
-6. Rebase on main branch
-7. Push changes
-8. Generate `gh pr create` command for user
+4. Check for library reimplementations
+5. Check if documentation needs updates
+6. Run tests, lint, and build
+7. Rebase on main branch
+8. Push changes
+9. Generate `gh pr create` command for user
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
@@ -67,7 +68,32 @@ For each changed test file:
 - Verify `it()` descriptions match the actual test behavior
 - Update descriptions if tests were added, removed, or significantly changed
 
-## 3. Check Documentation
+## 3. Check for Library Reimplementations
+
+**IMPORTANT: Verify that no functionality has been reimplemented that is already available in popular npm packages.**
+
+Review the changed files for any custom implementations that should use existing libraries instead:
+
+```bash
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | grep -v '\.test\.'
+```
+
+For each changed code file, check for patterns that suggest reimplementation:
+- **Custom parsing logic** (YAML, JSON, CSV, URL, date strings) → Use `js-yaml`, `papaparse`, `URL` API, `date-fns`
+- **Custom validation schemas** → Use `zod`, `yup`, or `joi`
+- **Custom deep clone/merge** → Use `lodash` or `structuredClone`
+- **Custom utility functions** for common operations → Check if `lodash` or similar has them
+- **Custom HTTP client wrappers** → Use `axios` or built-in `fetch`
+
+If you find reimplementations:
+1. Replace them with the appropriate library
+2. Add the library as a dependency if not already present
+3. Update tests accordingly
+4. Commit the fix before proceeding
+
+**Rationale**: See `.claude/instructions.md` Development Guidelines for more details.
+
+## 4. Check Documentation
 Review if any documentation needs updates based on the changes:
 
 ### Developer Documentation
@@ -87,7 +113,7 @@ Review if any documentation needs updates based on the changes:
 
 If docs need updates, make the changes and commit before proceeding.
 
-## 4. Run Tests, Linting, and Build
+## 5. Run Tests, Linting, and Build
 Run the checks from the extension/ui directory:
 
 ```bash
@@ -101,7 +127,7 @@ This will:
 
 If any step fails, fix the issues and commit before proceeding.
 
-## 5. Rebase on Main
+## 6. Rebase on Main
 Rebase your branch on the latest main:
 
 ```bash
@@ -113,14 +139,14 @@ If conflicts occur, resolve them, then:
 git add . && git rebase --continue
 ```
 
-## 6. Push Changes
+## 7. Push Changes
 Push your rebased branch:
 
 ```bash
 git push -f
 ```
 
-## 7. Create PR Command
+## 8. Create PR Command
 Provide a copyable `gh pr create` command using HEREDOC format:
 
 ```bash
