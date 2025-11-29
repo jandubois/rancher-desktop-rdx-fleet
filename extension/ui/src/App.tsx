@@ -37,7 +37,7 @@ import {
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
 import { CardWrapper, getCardComponent } from './cards';
-import { SortableCard, AddRepoDialog } from './components';
+import { SortableCard, AddRepoDialog, EditableTitle } from './components';
 import { useFleetStatus, useGitRepoManagement, usePathDiscovery } from './hooks';
 import { PathInfo } from './utils';
 import { GitRepo } from './types';
@@ -284,13 +284,14 @@ function App() {
   };
 
   // Render a single GitRepo card
-  const renderRepoCard = (repo: GitRepo, _index: number, totalCount: number, maxVisiblePaths: number = 6) => {
+  const renderRepoCard = (repo: GitRepo, _index: number, totalCount: number, maxVisiblePaths: number = 6, cardId?: string) => {
     const availablePaths: PathInfo[] = repoPathsCache[repo.repo] || [];
     const loadingPaths = isLoadingPaths(repo.repo);
     const hasDiscoveredPaths = repoPathsCache[repo.repo] !== undefined;
     const enabledPaths = repo.paths || [];
     const isUpdating = updatingRepo === repo.name;
     const canDelete = totalCount > 1;
+    const effectiveCardId = cardId || `gitrepo-${repo.name}`;
 
     // Check for discovery error or timeout
     const discoveryError = discoveryErrors[repo.repo];
@@ -309,7 +310,12 @@ function App() {
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1 }}>
           <Box sx={{ flex: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-              <Typography variant="h6">{getDynamicCardTitle(`gitrepo-${repo.name}`, repo.name)}</Typography>
+              <EditableTitle
+                value={getDynamicCardTitle(effectiveCardId, repo.name)}
+                editMode={editMode}
+                onChange={handleDynamicTitleChange(effectiveCardId)}
+                placeholder={repo.name}
+              />
               {getRepoStatusChip(repo)}
               {isUpdating && <CircularProgress size={16} />}
             </Box>
@@ -686,27 +692,34 @@ function App() {
     if (cardId === 'fleet-status') {
       const fleetStatusDef: CardDefinition = {
         id: 'fleet-status',
-        type: 'gitrepo', // Using gitrepo type for display purposes
+        type: 'status' as CardDefinition['type'],
         title: getDynamicCardTitle('fleet-status', 'Fleet Status'),
       };
+
+      const statusSuffix =
+        fleetState.status === 'running' ? `: Running (${fleetState.version})` :
+        fleetState.status === 'checking' ? ': Checking...' :
+        fleetState.status === 'initializing' ? ': Initializing...' :
+        fleetState.status === 'not-installed' ? ': Not Installed' :
+        fleetState.status === 'error' ? ': Error' : '';
 
       return (
         <SortableCard key={cardId} id={cardId} editMode={editMode}>
           <CardWrapper
             definition={fleetStatusDef}
             editMode={editMode}
-            onTitleChange={handleDynamicTitleChange('fleet-status')}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: fleetState.status === 'running' ? 0 : 1 }}>
               {renderStatusIcon()}
-              <Typography variant="h6">
-                {getDynamicCardTitle('fleet-status', 'Fleet Status')}
-                {fleetState.status === 'running' && `: Running (${fleetState.version})`}
-                {fleetState.status === 'checking' && ': Checking...'}
-                {fleetState.status === 'initializing' && ': Initializing...'}
-                {fleetState.status === 'not-installed' && ': Not Installed'}
-                {fleetState.status === 'error' && ': Error'}
-              </Typography>
+              <EditableTitle
+                value={getDynamicCardTitle('fleet-status', 'Fleet Status')}
+                editMode={editMode}
+                onChange={handleDynamicTitleChange('fleet-status')}
+                placeholder="Fleet Status"
+              >
+                {!editMode && statusSuffix}
+              </EditableTitle>
+              {editMode && <Typography variant="h6">{statusSuffix}</Typography>}
             </Box>
 
             {fleetState.status === 'initializing' && fleetState.message && (
@@ -789,9 +802,8 @@ function App() {
           <CardWrapper
             definition={gitRepoDef}
             editMode={editMode}
-            onTitleChange={handleDynamicTitleChange(cardId)}
           >
-            {renderRepoCard(repo, repoIndex, gitRepos.length, maxVisiblePaths)}
+            {renderRepoCard(repo, repoIndex, gitRepos.length, maxVisiblePaths, cardId)}
           </CardWrapper>
           {renderAddCardButton(cardId)}
         </SortableCard>
