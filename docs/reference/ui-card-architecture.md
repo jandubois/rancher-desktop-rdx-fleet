@@ -149,8 +149,8 @@ When edit mode is enabled (`layout.edit_mode: true` in manifest):
 
 1. User clicks "Add card" button below a card
 2. A placeholder card is inserted at that position
-3. Placeholder shows type selector (Markdown or Git Repository)
-4. Selecting Markdown converts the placeholder in-place
+3. Placeholder shows type selector with all available card types (Markdown, Image, Video, Links, Divider, Git Repository)
+4. Selecting a content card type (Markdown, Image, Video, Links, Divider) converts the placeholder in-place with default settings
 5. Selecting Git Repository opens the add dialog and removes placeholder
 6. Exiting edit mode removes unconverted placeholders
 
