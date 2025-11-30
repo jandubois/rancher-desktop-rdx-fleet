@@ -32,6 +32,12 @@ func main() {
 		FullTimestamp: true,
 	})
 
+	// Ensure the socket directory exists
+	socketDir := socketPath[:strings.LastIndex(socketPath, "/")]
+	if err := os.MkdirAll(socketDir, 0755); err != nil {
+		logger.Fatalf("Failed to create socket directory %s: %v", socketDir, err)
+	}
+
 	// Remove existing socket file if it exists
 	os.RemoveAll(socketPath)
 
