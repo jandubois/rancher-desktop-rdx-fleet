@@ -727,6 +727,190 @@ function KubernetesPanel() {
   );
 }
 
+// Panel for testing additional SDK methods
+function SdkMethodsPanel() {
+  const [results, setResults] = useState<Record<string, { status: string; output: string }>>({});
+  const [loading, setLoading] = useState(false);
+
+  const runSdkTests = useCallback(async () => {
+    setLoading(true);
+    const newResults: Record<string, { status: string; output: string }> = {};
+
+    // Test ddClient.docker.listContainers
+    try {
+      const containers = await ddClient.docker.listContainers() as Array<{ Names?: string[] }>;
+      newResults['docker.listContainers()'] = {
+        status: 'OK',
+        output: `Found ${containers.length} containers: ${containers.slice(0, 3).map((c) => c.Names?.[0] || 'unnamed').join(', ')}${containers.length > 3 ? '...' : ''}`,
+      };
+    } catch (e) {
+      newResults['docker.listContainers()'] = {
+        status: 'FAILED',
+        output: e instanceof Error ? e.message : JSON.stringify(e),
+      };
+    }
+
+    // Test ddClient.docker.listImages
+    try {
+      const images = await ddClient.docker.listImages() as unknown[];
+      newResults['docker.listImages()'] = {
+        status: 'OK',
+        output: `Found ${images.length} images`,
+      };
+    } catch (e) {
+      newResults['docker.listImages()'] = {
+        status: 'FAILED',
+        output: e instanceof Error ? e.message : JSON.stringify(e),
+      };
+    }
+
+    // Test ddClient.desktopUI.toast (if available)
+    const toastObj = ddClient.desktopUI?.toast;
+    try {
+      if (typeof toastObj?.success === 'function') {
+        await toastObj.success('SDK Test: Toast success works!');
+        newResults['desktopUI.toast.success()'] = {
+          status: 'OK',
+          output: 'Toast shown (check UI)',
+        };
+      } else {
+        newResults['desktopUI.toast.success()'] = {
+          status: 'N/A',
+          output: 'Method not available',
+        };
+      }
+    } catch (e) {
+      newResults['desktopUI.toast.success()'] = {
+        status: 'FAILED',
+        output: e instanceof Error ? e.message : JSON.stringify(e),
+      };
+    }
+
+    // Test ddClient.desktopUI.toast.warning
+    try {
+      if (typeof toastObj?.warning === 'function') {
+        await toastObj.warning('SDK Test: Toast warning works!');
+        newResults['desktopUI.toast.warning()'] = {
+          status: 'OK',
+          output: 'Toast shown (check UI)',
+        };
+      } else {
+        newResults['desktopUI.toast.warning()'] = {
+          status: 'N/A',
+          output: 'Method not available',
+        };
+      }
+    } catch (e) {
+      newResults['desktopUI.toast.warning()'] = {
+        status: 'FAILED',
+        output: e instanceof Error ? e.message : JSON.stringify(e),
+      };
+    }
+
+    // Check what's available on desktopUI
+    try {
+      const desktopUI = ddClient.desktopUI;
+      const availableMethods: string[] = [];
+      if (desktopUI) {
+        for (const key of Object.keys(desktopUI)) {
+          availableMethods.push(key);
+        }
+      }
+      newResults['desktopUI (available keys)'] = {
+        status: 'INFO',
+        output: availableMethods.length > 0 ? availableMethods.join(', ') : 'No keys found',
+      };
+    } catch (e) {
+      newResults['desktopUI (available keys)'] = {
+        status: 'FAILED',
+        output: e instanceof Error ? e.message : JSON.stringify(e),
+      };
+    }
+
+    // Check extension.id and extension.version
+    try {
+      const ext = ddClient.extension as unknown as Record<string, unknown>;
+      newResults['extension.id'] = {
+        status: ext?.id ? 'OK' : 'MISSING',
+        output: String(ext?.id ?? 'undefined'),
+      };
+      newResults['extension.version'] = {
+        status: ext?.version ? 'OK' : 'MISSING',
+        output: String(ext?.version ?? 'undefined'),
+      };
+      newResults['extension.image'] = {
+        status: ext?.image ? (String(ext.image).includes(':') ? 'OK' : 'BROKEN') : 'MISSING',
+        output: String(ext?.image ?? 'undefined') + (ext?.image && !String(ext.image).includes(':') ? ' (missing tag!)' : ''),
+      };
+    } catch (e) {
+      newResults['extension properties'] = {
+        status: 'FAILED',
+        output: e instanceof Error ? e.message : JSON.stringify(e),
+      };
+    }
+
+    setResults(newResults);
+    setLoading(false);
+  }, []);
+
+  return (
+    <Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Tests additional Docker Desktop SDK methods to check compatibility with Rancher Desktop.
+      </Typography>
+
+      <Button
+        variant="contained"
+        startIcon={loading ? <CircularProgress size={20} /> : <BugReportIcon />}
+        onClick={runSdkTests}
+        disabled={loading}
+        sx={{ mb: 2 }}
+      >
+        {loading ? 'Testing...' : 'Test SDK Methods'}
+      </Button>
+
+      {Object.keys(results).length > 0 && (
+        <TableContainer component={Paper}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Method</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Output</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {Object.entries(results).map(([method, { status, output }]) => (
+                <TableRow key={method}>
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    {method}
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={status}
+                      size="small"
+                      color={
+                        status === 'OK' ? 'success' :
+                        status === 'FAILED' ? 'error' :
+                        status === 'BROKEN' ? 'warning' :
+                        status === 'MISSING' ? 'warning' :
+                        'default'
+                      }
+                    />
+                  </TableCell>
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', maxWidth: 400 }}>
+                    {output}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Box>
+  );
+}
+
 // Main App component
 export default function App() {
   const [expanded, setExpanded] = useState<string | false>('ddClient');
@@ -903,6 +1087,51 @@ export default function App() {
     }
     lines.push('');
 
+    // 7. SDK Method Compatibility
+    setExportProgress('Testing SDK methods...');
+    lines.push('-'.repeat(80));
+    lines.push('7. SDK METHOD COMPATIBILITY');
+    lines.push('-'.repeat(80));
+
+    // Test docker.listContainers
+    try {
+      const containers = await ddClient.docker.listContainers() as unknown[];
+      lines.push(`docker.listContainers(): OK - Found ${containers.length} containers`);
+    } catch (e) {
+      lines.push(`docker.listContainers(): FAILED - ${e instanceof Error ? e.message : JSON.stringify(e)}`);
+    }
+
+    // Test docker.listImages
+    try {
+      const images = await ddClient.docker.listImages() as unknown[];
+      lines.push(`docker.listImages(): OK - Found ${images.length} images`);
+    } catch (e) {
+      lines.push(`docker.listImages(): FAILED - ${e instanceof Error ? e.message : JSON.stringify(e)}`);
+    }
+
+    // Test desktopUI.toast
+    const toast = ddClient.desktopUI?.toast;
+    lines.push(`desktopUI.toast.success: ${typeof toast?.success === 'function' ? 'Available' : 'Not available'}`);
+    lines.push(`desktopUI.toast.warning: ${typeof toast?.warning === 'function' ? 'Available' : 'Not available'}`);
+    lines.push(`desktopUI.toast.error: ${typeof toast?.error === 'function' ? 'Available' : 'Not available'}`)
+
+    // Check available desktopUI keys
+    try {
+      const desktopUIKeys = ddClient.desktopUI ? Object.keys(ddClient.desktopUI) : [];
+      lines.push(`desktopUI available keys: ${desktopUIKeys.length > 0 ? desktopUIKeys.join(', ') : 'none'}`);
+    } catch (e) {
+      lines.push(`desktopUI keys: Error - ${e instanceof Error ? e.message : e}`);
+    }
+
+    // Check extension properties
+    const ext = ddClient.extension as unknown as Record<string, unknown>;
+    lines.push(`extension.id: ${ext?.id !== undefined ? String(ext.id) : 'undefined (MISSING)'}`);
+    lines.push(`extension.version: ${ext?.version !== undefined ? String(ext.version) : 'undefined (MISSING)'}`);
+    const imageValue = ext?.image !== undefined ? String(ext.image) : 'undefined';
+    const imageStatus = ext?.image ? (String(ext.image).includes(':') ? 'OK' : 'BROKEN - missing tag') : 'MISSING';
+    lines.push(`extension.image: ${imageValue} (${imageStatus})`);
+    lines.push('');
+
     // Footer
     lines.push('='.repeat(80));
     lines.push('END OF DIAGNOSTIC REPORT');
@@ -1000,6 +1229,15 @@ export default function App() {
         </AccordionSummary>
         <AccordionDetails>
           <KubernetesPanel />
+        </AccordionDetails>
+      </Accordion>
+
+      <Accordion expanded={expanded === 'sdkMethods'} onChange={handleChange('sdkMethods')}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="h6">7. SDK Method Compatibility</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <SdkMethodsPanel />
         </AccordionDetails>
       </Accordion>
 
