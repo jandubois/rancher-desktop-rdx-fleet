@@ -588,9 +588,18 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                 {colorFields.map((field) => {
                   const currentValue = getColorValue(field);
                   const isDefault = currentValue === field.defaultValue;
-                  const isValid = field.property === 'title' && currentValue === 'inherit'
-                    ? true
-                    : isValidHexColor(currentValue);
+                  const isHexColor = isValidHexColor(currentValue);
+                  const isInherit = currentValue === 'inherit';
+                  const isValid = isHexColor || isInherit;
+
+                  // Helper text based on state
+                  const helperText = !isValid
+                    ? 'Enter hex color (e.g., #1976d2) or "inherit"'
+                    : isInherit
+                    ? 'Inherits from parent (type hex to customize)'
+                    : isDefault
+                    ? 'Default'
+                    : 'Custom';
 
                   return (
                     <Box key={field.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -601,28 +610,47 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                         size="small"
                         fullWidth
                         error={!isValid}
-                        helperText={!isValid ? 'Invalid hex color' : (isDefault ? 'Default' : 'Custom')}
+                        helperText={helperText}
                         slotProps={{
                           input: {
                             startAdornment: (
                               <InputAdornment position="start">
-                                <Box
-                                  component="input"
-                                  type="color"
-                                  value={isValid && currentValue !== 'inherit' ? currentValue : '#000000'}
-                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChange(field, e.target.value)}
-                                  sx={{
-                                    width: 24,
-                                    height: 24,
-                                    p: 0,
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    borderRadius: 0.5,
-                                    cursor: 'pointer',
-                                    '&::-webkit-color-swatch-wrapper': { p: 0 },
-                                    '&::-webkit-color-swatch': { border: 'none', borderRadius: 0.5 },
-                                  }}
-                                />
+                                {isHexColor ? (
+                                  <Box
+                                    component="input"
+                                    type="color"
+                                    value={currentValue}
+                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChange(field, e.target.value)}
+                                    sx={{
+                                      width: 24,
+                                      height: 24,
+                                      p: 0,
+                                      border: '1px solid',
+                                      borderColor: 'divider',
+                                      borderRadius: 0.5,
+                                      cursor: 'pointer',
+                                      '&::-webkit-color-swatch-wrapper': { p: 0 },
+                                      '&::-webkit-color-swatch': { border: 'none', borderRadius: 0.5 },
+                                    }}
+                                  />
+                                ) : (
+                                  <Box
+                                    sx={{
+                                      width: 24,
+                                      height: 24,
+                                      border: '1px dashed',
+                                      borderColor: 'divider',
+                                      borderRadius: 0.5,
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontSize: '0.6rem',
+                                      color: 'text.disabled',
+                                    }}
+                                  >
+                                    —
+                                  </Box>
+                                )}
                               </InputAdornment>
                             ),
                           },

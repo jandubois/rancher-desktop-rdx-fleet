@@ -39,10 +39,13 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
           sx={{
             typography: variant,
             fontWeight: variant === 'h6' ? 500 : undefined,
+            color: 'inherit', // Inherit color from parent (e.g., header text color)
             '& .MuiInputBase-input': {
               p: 0,
+              color: 'inherit',
               '&::placeholder': {
                 opacity: 0.5,
+                color: 'inherit',
               },
             },
           }}
