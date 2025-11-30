@@ -120,6 +120,31 @@ Click the **Edit** button in the header bar to toggle edit mode.
 
 Click the **Done** button to exit edit mode. Your layout is preserved.
 
+### Loading Configuration
+
+In edit mode, you can load a configuration from an existing custom extension:
+
+1. **From a Docker Image**
+   - Select a custom extension image from the dropdown (only images with `io.rancher-desktop.fleet.type=custom` label are shown)
+   - Click **Load** to extract and apply the configuration
+
+2. **From a ZIP File**
+   - Click **Browse...** to select a previously downloaded extension ZIP
+   - The configuration will be parsed and applied
+
+3. **Reset to Defaults**
+   - Click **Reset to Defaults** to restore the base extension configuration
+
+### Extracting Configuration from Images
+
+You can also extract configuration from any Fleet extension image via command line:
+
+```bash
+docker run --rm my-fleet-extension:v1.0 export-config > config.json
+```
+
+This outputs a JSON file with base64-encoded configuration files that can be decoded and modified.
+
 ---
 
 ## Card Types Overview
