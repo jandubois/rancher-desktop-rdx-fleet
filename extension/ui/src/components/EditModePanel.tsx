@@ -53,7 +53,7 @@ import {
   HARMONY_TYPES,
   type HarmonyType,
 } from '../utils/paletteGenerator';
-import { extractColorsFromSvg, hexToRgb } from '../utils/colorExtractor';
+import { extractColorsFromSvg, hexToRgb, getColorNames } from '../utils/colorExtractor';
 
 // Default Fleet icon SVG content for color extraction
 const DEFAULT_FLEET_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
@@ -192,6 +192,24 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
   const [paletteMenuAnchor, setPaletteMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
   const [generatingPalette, setGeneratingPalette] = useState(false);
+
+  // Color names state - maps hex values to human-readable names
+  const [colorNames, setColorNames] = useState<Map<string, string>>(new Map());
+
+  // Fetch color names when palette colors change
+  useEffect(() => {
+    const fetchColorNames = async () => {
+      const hexColors = colorFields
+        .map(field => getColorValue(field))
+        .filter(color => isValidHexColor(color));
+
+      if (hexColors.length > 0) {
+        const names = await getColorNames(hexColors);
+        setColorNames(names);
+      }
+    };
+    fetchColorNames();
+  }, [manifest.branding?.palette]);
 
   // Generate palette from icon
   const handleGeneratePalette = async (harmony: HarmonyType) => {
@@ -741,11 +759,14 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
                   };
                   const pickerValue = isHexColor ? currentValue : getPickerFallback();
 
-                  // Helper text based on state
+                  // Helper text based on state, including color name
+                  const colorName = isHexColor ? colorNames.get(currentValue) : null;
                   const helperText = !isValid
                     ? 'Enter hex color (e.g., #1976d2) or "inherit"'
                     : isInherit
                     ? 'Inherits from parent'
+                    : colorName
+                    ? `${colorName}${isDefault ? ' (default)' : ''}`
                     : isDefault
                     ? 'Default'
                     : 'Custom';
