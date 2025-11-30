@@ -418,7 +418,7 @@ branding:
       background: "#f5f5f5"    # Page background color
     card:
       border: "#4caf50"        # Card border color
-      title: "#1b5e20"         # Card title color (reserved for future use)
+      title: "#1b5e20"         # Card title/text color
 ```
 
 ### Palette Properties
@@ -429,7 +429,7 @@ branding:
 | `header.text` | Header text and icon color | `#ffffff` (white) |
 | `body.background` | Main content area background | `#fafafa` (light gray) |
 | `card.border` | Card border color | `#e0e0e0` (gray) |
-| `card.title` | Card title text color (reserved) | `inherit` |
+| `card.title` | Card title/text color | `inherit` |
 
 All colors are optional. Unspecified colors fall back to their defaults.
 
