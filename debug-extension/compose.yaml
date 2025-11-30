@@ -1,3 +1,4 @@
 services:
   backend:
     image: rd-extension-debugger
+    pull_policy: never
