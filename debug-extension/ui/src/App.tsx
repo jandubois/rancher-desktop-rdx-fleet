@@ -509,13 +509,13 @@ function BackendServicePanel() {
             Backend Service Not Available
           </Typography>
           <Typography variant="body2">
-            Rancher Desktop does not appear to support Docker Desktop extension backend containers.
-            The <code>vm</code> section in metadata.json is recognized by Docker Desktop to run a
-            backend container, but Rancher Desktop does not start this container.
+            Rancher Desktop does not support the <code>vm.image</code> syntax in metadata.json.
+            While Docker Desktop accepts both <code>vm.image</code> and <code>vm.composefile</code>,
+            Rancher Desktop only works with <code>vm.composefile</code>.
           </Typography>
           <Typography variant="body2" sx={{ mt: 1 }}>
-            <strong>Implication:</strong> Extensions that require server-side logic must use host
-            binaries instead of backend services when targeting Rancher Desktop.
+            <strong>Workaround:</strong> Use <code>vm.composefile</code> instead of <code>vm.image</code>
+            to define backend services when targeting Rancher Desktop.
           </Typography>
         </Alert>
       )}
@@ -1467,7 +1467,7 @@ export default function App() {
           <li>Host binaries limited to ~2-3 scripts (4th binary fails with ENOENT)</li>
           <li>Extension sidebar icon caching (requires full RD restart)</li>
           <li>GUI uninstall fails silently (CLI works fine)</li>
-          <li><strong>Backend containers not supported</strong> - RD ignores the vm section in metadata.json</li>
+          <li><strong>vm.image not supported</strong> - RD requires vm.composefile; vm.image is ignored</li>
         </Box>
       </Paper>
     </Container>

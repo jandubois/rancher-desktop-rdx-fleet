@@ -1,7 +1,7 @@
 {
   "icon": "/icons/debug-icon.svg",
   "vm": {
-    "composefile": "compose.yaml"
+    "image": "${DESKTOP_PLUGIN_IMAGE}"
   },
   "ui": {
     "dashboard-tab": {
