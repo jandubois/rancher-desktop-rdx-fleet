@@ -120,6 +120,31 @@ Click the **Edit** button in the header bar to toggle edit mode.
 
 Click the **Done** button to exit edit mode. Your layout is preserved.
 
+### Loading Configuration
+
+In edit mode, you can load a configuration from an existing custom extension:
+
+1. **From a Docker Image**
+   - Select a custom extension image from the dropdown (only images with `io.rancher-desktop.fleet.type=custom` label are shown)
+   - Click **Load** to extract and apply the configuration
+
+2. **From a ZIP File**
+   - Click **Browse...** to select a previously downloaded extension ZIP
+   - The configuration will be parsed and applied
+
+3. **Reset to Defaults**
+   - Click **Reset to Defaults** to restore the base extension configuration
+
+### Extracting Configuration from Images
+
+You can also extract configuration from any Fleet extension image via command line:
+
+```bash
+docker run --rm my-fleet-extension:v1.0 export-config > config.json
+```
+
+This outputs a JSON file with base64-encoded configuration files that can be decoded and modified.
+
 ---
 
 ## Card Types Overview
@@ -228,7 +253,7 @@ cards:
 
 ## Creating Custom Extensions
 
-For enterprise or team deployments, you can create a **subclassed extension** that inherits from the base Fleet GitOps extension and adds your own customizations. This allows you to:
+For enterprise or team deployments, you can create a **custom extension** that inherits from the base Fleet GitOps extension and adds your own customizations. This allows you to:
 
 - Pre-configure repositories and settings for your organization
 - Lock certain fields to prevent modification
@@ -236,9 +261,9 @@ For enterprise or team deployments, you can create a **subclassed extension** th
 - Include custom documentation and links
 - Distribute as a single Docker image
 
-### How Subclassed Extensions Work
+### How Custom Extensions Work
 
-A subclassed extension uses Docker's `FROM` instruction to inherit all functionality from the base extension image, then overlays your customizations:
+A custom extension uses Docker's `FROM` instruction to inherit all functionality from the base extension image, then overlays your customizations:
 
 ```dockerfile
 ARG BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops:latest
@@ -255,7 +280,7 @@ COPY icons/ /icons/
 
 ### Required Files
 
-Your subclassed extension needs these files:
+Your custom extension needs these files:
 
 | File | Purpose |
 |------|---------|
@@ -345,7 +370,7 @@ layout:
 
 ### Complete Example
 
-See the [examples/subclassed-extension](../../examples/subclassed-extension/) directory for a complete working example with all files.
+See the [examples/custom-extension](../../examples/custom-extension/) directory for a complete working example with all files.
 
 ---
 

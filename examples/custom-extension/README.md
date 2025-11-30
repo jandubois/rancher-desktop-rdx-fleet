@@ -1,16 +1,16 @@
-# Subclassed Extension Example
+# Custom Extension Example
 
 This example demonstrates how to create a customized Fleet GitOps extension by inheriting from the base extension image.
 
-## What is a Subclassed Extension?
+## What is a Custom Extension?
 
-A subclassed extension uses Docker's `FROM` instruction to inherit all functionality from the base Fleet GitOps extension, then layers on customizations:
+A custom extension uses Docker's `FROM` instruction to inherit all functionality from the base Fleet GitOps extension, then layers on customizations:
 
 - **Custom manifest.yaml**: Pre-configure repositories, lock fields, add informational cards
 - **Custom metadata.json**: Change the extension title and icon
 - **Custom icons**: Add your company branding
 
-## Building the Subclassed Extension
+## Building the Custom Extension
 
 ### Prerequisites
 
@@ -21,10 +21,10 @@ cd ../../extension
 docker build -t fleet-gitops-extension:latest .
 ```
 
-### Build the Subclassed Extension
+### Build the Custom Extension
 
 ```bash
-cd examples/subclassed-extension
+cd examples/custom-extension
 docker build -t my-company-fleet:dev .
 ```
 
@@ -93,7 +93,7 @@ layout:
 ## File Structure
 
 ```
-subclassed-extension/
+custom-extension/
 ├── Dockerfile          # Inherits from base extension
 ├── manifest.yaml       # Custom card configuration
 ├── metadata.json       # Extension title and icon path

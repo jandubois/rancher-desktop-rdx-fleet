@@ -9,12 +9,19 @@ RUN npm run build
 # Final image
 FROM alpine:3.19
 
+# Standard OCI labels
 LABEL org.opencontainers.image.title="Fleet GitOps"
 LABEL org.opencontainers.image.description="GitOps-based developer environment provisioning using Fleet"
 LABEL org.opencontainers.image.vendor="SUSE"
+
+# Docker Desktop extension labels
 LABEL com.docker.desktop.extension.api.version="0.3.4"
 LABEL com.docker.extension.categories="kubernetes,utility-tools"
 LABEL com.docker.desktop.extension.icon="/icons/fleet-icon.svg"
+
+# Fleet extension labels - used to identify and filter Fleet extensions
+LABEL io.rancher-desktop.fleet.type="base"
+LABEL io.rancher-desktop.fleet.version="1.0"
 
 # Copy UI build
 COPY --from=ui-builder /app/build /ui
@@ -26,3 +33,10 @@ COPY icons/ /icons/
 # Copy host binary wrapper scripts
 COPY host/ /host/
 RUN chmod +x /host/darwin/* /host/linux/*
+
+# Copy scripts for config export
+COPY scripts/ /scripts/
+RUN chmod +x /scripts/*.sh
+
+# Set entrypoint for command handling (export-config, etc.)
+ENTRYPOINT ["/scripts/entrypoint.sh"]
