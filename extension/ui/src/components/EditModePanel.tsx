@@ -33,15 +33,17 @@ import {
   FleetExtensionImage,
   ImportResult,
 } from '../utils/extensionBuilder';
+import type { IconState } from './EditableHeaderIcon';
 
 interface EditModePanelProps {
   manifest: Manifest;
   cards: CardDefinition[];
   cardOrder: string[];
+  iconState: IconState;
   onConfigLoaded?: (manifest: Manifest, sourceName: string) => void;
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, onConfigLoaded }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigLoaded }: EditModePanelProps) {
   const [expanded, setExpanded] = useState(true);
   const [extensionName, setExtensionName] = useState(manifest.app?.name || 'My Fleet Extension');
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
@@ -106,6 +108,7 @@ export function EditModePanel({ manifest, cards, cardOrder, onConfigLoaded }: Ed
     cards,
     cardOrder,
     baseImage: baseImage || undefined,
+    iconState,
   });
 
   const handleDownload = async () => {
