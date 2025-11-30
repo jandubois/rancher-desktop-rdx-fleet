@@ -29,9 +29,11 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        fullWidth
         sx={{
           typography: variant,
           fontWeight: variant === 'h6' ? 500 : undefined,
+          flex: 1,
           '& .MuiInputBase-input': {
             p: 0,
             '&::placeholder': {
