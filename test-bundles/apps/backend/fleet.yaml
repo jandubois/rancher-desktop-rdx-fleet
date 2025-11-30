@@ -1,0 +1,12 @@
+# Backend service - depends on database
+# This tests TRANSITIVE dependencies (backend -> database -> postgres-operator)
+name: backend
+defaultNamespace: app-backend
+
+# Depends on database, which itself depends on postgres-operator
+dependsOn:
+  - name: test-bundles-infra-database
+
+helm:
+  releaseName: backend
+  chart: ./charts/backend

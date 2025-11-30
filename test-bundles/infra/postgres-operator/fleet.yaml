@@ -1,0 +1,8 @@
+# Base infrastructure - no dependencies
+name: postgres-operator
+defaultNamespace: postgres-system
+helm:
+  releaseName: postgres-operator
+  chart: postgres-operator
+  repo: https://opensource.zalando.com/postgres-operator/charts/postgres-operator
+  version: 1.10.0

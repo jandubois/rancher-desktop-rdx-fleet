@@ -53,15 +53,110 @@ Essential for private Git repositories and enterprise use.
 
 ## Priority 2: Dependency Awareness
 
-Smart path handling to prevent user errors.
+Smart path handling to prevent user errors. See **[bundle-dependencies.md](reference/bundle-dependencies.md)** for full technical details.
 
-### Tasks
+### Background: Bundle Naming
 
-1. Parse `dependsOn` from `fleet.yaml` files (logic exists in `App.tsx`)
-2. Display dependency info in path selection UI
-3. Grey out/disable paths with unresolved dependencies
-4. Auto-select in-repo dependencies when parent path enabled
-5. Warn about external dependencies (CRDs from other sources)
+Fleet creates bundle names from: `<GitRepo-name>-<path-with-hyphens>`
+
+**Critical**: The bundle name depends on `GitRepo.metadata.name`, NOT the Git URL. This means:
+- We must track GitRepo names to compute bundle names
+- Dependencies reference bundle names, not paths
+- We need a registry mapping bundle names back to GitRepo/path pairs
+
+### Phase 1: Bundle Registry
+
+Build a global registry of bundle names from all configured GitRepos.
+
+1. **Compute bundle names** for all discovered paths
+   - Formula: `gitRepoName + '-' + path.replace(/\//g, '-')`
+   - Store in `Map<bundleName, { gitRepoName, path, dependsOn }>`
+
+2. **Track GitRepo names** in path discovery
+   - Currently we only track paths; need to associate with GitRepo name
+   - Update `PathInfo` type to include source GitRepo name
+
+3. **Parse `dependsOn`** from fleet.yaml (existing code in `github.ts`)
+
+### Phase 2: Dependency Resolution
+
+Categorize and resolve dependencies before allowing selection.
+
+1. **Categorize each dependency**:
+   - **Same-repo**: In same GitRepo → auto-select
+   - **Cross-repo**: In different configured GitRepo → warn, require manual selection
+   - **External**: Not in any GitRepo → block selection
+
+2. **Resolve transitive dependencies**
+   - If A depends on B, and B depends on C, selecting A must also select B and C
+   - Implement cycle detection to handle circular dependencies
+
+3. **Validation function**:
+   ```typescript
+   function canSelectPath(path, gitRepo, registry): {
+     canSelect: boolean;
+     blockedBy?: string[];        // External deps that block selection
+     willAutoSelect?: string[];   // Paths that will be auto-selected
+   }
+   ```
+
+### Phase 3: UI Integration
+
+Update path selection UI with dependency awareness.
+
+1. **Block paths with external dependencies**
+   - Disabled checkbox, grayed out
+   - Tooltip: "Requires external bundle: X (not in any configured repository)"
+
+2. **Show dependencies on selection**
+   - When user checks a path, show confirmation if dependencies exist:
+     "Will also enable: path1, path2, path3"
+   - List includes transitive dependencies
+
+3. **Auto-select dependencies**
+   - When user confirms, check all dependency paths automatically
+   - Works across GitRepos (cross-repo dependencies)
+
+4. **Prevent deselection of required dependencies**
+   - If path A depends on path B, user cannot uncheck B while A is checked
+   - Show indicator: "Required by: A" next to protected paths
+   - Tooltip explains why checkbox is disabled
+
+5. **Visual indicators**:
+   | State | Display |
+   |-------|---------|
+   | Normal | Standard checkbox |
+   | Has dependencies | Shows dep count, expands on hover/select |
+   | Auto-selected | Checked + "required by: X" label |
+   | Blocked | Disabled + red warning icon |
+
+### Phase 4: Direct Selection State (Future TODO)
+
+**Deferred**: Implement three-state selection for automatic cleanup.
+
+| State | Meaning |
+|-------|---------|
+| Unselected | Not deployed |
+| Directly Selected | User explicitly chose this |
+| Indirectly Selected | Auto-selected as dependency |
+
+When all dependents of an indirectly-selected path are removed, that path can be automatically deselected. Users can "pin" an indirect selection to make it direct.
+
+**Implementation notes for future**:
+- Track `selectionState: 'direct' | 'indirect'` per path
+- On deselection, check if any remaining selected paths depend on this one
+- If not, and state is 'indirect', auto-deselect
+- Add UI affordance to convert indirect → direct (pin icon?)
+
+### Key Files to Modify
+
+| File | Changes |
+|------|---------|
+| `extension/ui/src/types.ts` | Add `BundleInfo`, update `PathInfo` |
+| `extension/ui/src/utils/github.ts` | Bundle name computation |
+| `extension/ui/src/hooks/usePathDiscovery.ts` | Build bundle registry |
+| `extension/ui/src/hooks/useDependencyResolver.ts` | **New**: Dependency resolution logic |
+| `extension/ui/src/App.tsx` | Selection UI with dependency handling |
 
 ---
 

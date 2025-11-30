@@ -1,0 +1,18 @@
+# Custom monitoring dashboards - depends on rancher-monitoring-crd from fleet-examples
+# This tests CROSS-REPO dependency resolution
+#
+# To test this:
+# 1. Add GitRepo "fleet-examples" pointing to https://github.com/rancher/fleet-examples
+# 2. Add GitRepo "test-bundles" pointing to this repo's test-bundles directory
+# 3. The rancher-monitoring-crd must be available from fleet-examples for this to be selectable
+name: custom-dashboards
+defaultNamespace: cattle-monitoring-system
+
+# Cross-repo dependency: requires rancher-monitoring-crd from fleet-examples repo
+# Bundle name assumes GitRepo is named "fleet-examples" with path "single-cluster/helm-multi-chart/rancher-monitoring-crd"
+dependsOn:
+  - name: fleet-examples-single-cluster-helm-multi-chart-rancher-monitoring-crd
+
+helm:
+  releaseName: custom-dashboards
+  chart: ./charts/dashboards

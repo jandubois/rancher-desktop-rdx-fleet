@@ -1,0 +1,16 @@
+# Database bundle - depends on postgres-operator in same repo
+# This tests SAME-REPO dependency resolution
+name: database
+defaultNamespace: app-database
+
+# Depends on postgres-operator bundle in this same GitRepo
+# Bundle name format: <gitrepo-name>-<path-with-hyphens>
+# If GitRepo is named "test-bundles", this becomes: test-bundles-infra-postgres-operator
+dependsOn:
+  - name: test-bundles-infra-postgres-operator
+
+helm:
+  releaseName: app-database
+  chart: postgresql
+  repo: https://charts.bitnami.com/bitnami
+  version: 12.0.0

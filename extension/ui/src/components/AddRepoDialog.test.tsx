@@ -33,8 +33,8 @@ describe('AddRepoDialog', () => {
   it('has default values for name and URL', () => {
     render(<AddRepoDialog {...defaultProps} />);
 
-    expect(screen.getByLabelText(/name/i)).toHaveValue('fleet-examples');
-    expect(screen.getByLabelText(/repository url/i)).toHaveValue('https://github.com/rancher/fleet-examples');
+    expect(screen.getByLabelText(/name/i)).toHaveValue('test-bundles');
+    expect(screen.getByLabelText(/repository url/i)).toHaveValue('https://github.com/jandubois/rancher-desktop-rdx-fleet');
     expect(screen.getByLabelText(/branch/i)).toHaveValue('');
   });
 
@@ -71,7 +71,7 @@ describe('AddRepoDialog', () => {
     await user.click(screen.getByRole('button', { name: /^add$/i }));
 
     await waitFor(() => {
-      expect(onAdd).toHaveBeenCalledWith('fleet-examples', 'https://github.com/rancher/fleet-examples', undefined);
+      expect(onAdd).toHaveBeenCalledWith('test-bundles', 'https://github.com/jandubois/rancher-desktop-rdx-fleet', undefined);
     });
   });
 
