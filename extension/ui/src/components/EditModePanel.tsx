@@ -46,6 +46,7 @@ interface EditModePanelProps {
   cards: CardDefinition[];
   cardOrder: string[];
   iconState: IconState;
+  resolvedPalette?: ReturnType<typeof import('../hooks/usePalette').usePalette>;
   onConfigLoaded?: (manifest: Manifest, sourceName: string) => void;
   onPaletteChange?: (palette: ColorPalette) => void;
 }
@@ -84,7 +85,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigLoaded, onPaletteChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedPalette, onConfigLoaded, onPaletteChange }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -592,9 +593,19 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                   const isInherit = currentValue === 'inherit';
                   const isValid = isHexColor || isInherit;
 
-                  // For color picker: use actual value if hex, otherwise a sensible fallback
-                  // "inherit" for card title means inherit text color, which is typically dark
-                  const pickerValue = isHexColor ? currentValue : '#212121';
+                  // For color picker: use actual value if hex, otherwise use resolved palette value
+                  // This ensures "inherit" fields show the actual color that would be used
+                  const getPickerFallback = (): string => {
+                    if (resolvedPalette) {
+                      const group = resolvedPalette[field.group as keyof typeof resolvedPalette];
+                      if (group && typeof group === 'object') {
+                        const value = (group as Record<string, string>)[field.property];
+                        if (value && isValidHexColor(value)) return value;
+                      }
+                    }
+                    return field.defaultValue !== 'inherit' ? field.defaultValue : '#212121';
+                  };
+                  const pickerValue = isHexColor ? currentValue : getPickerFallback();
 
                   // Helper text based on state
                   const helperText = !isValid

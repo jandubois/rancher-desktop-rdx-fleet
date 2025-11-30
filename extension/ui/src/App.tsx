@@ -923,6 +923,7 @@ function App() {
               cards={manifestCards}
               cardOrder={effectiveCardOrder}
               iconState={iconState}
+              resolvedPalette={palette}
               onConfigLoaded={handleConfigLoaded}
               onPaletteChange={handlePaletteChange}
             />
