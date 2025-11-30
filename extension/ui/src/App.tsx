@@ -971,9 +971,9 @@ function App() {
       );
     }
 
-    // Manifest cards (markdown, image, video, link, divider)
+    // Manifest cards (markdown, html, image, video, link, divider)
     const card = manifestCards.find((c) => c.id === cardId);
-    if (card && (card.type === 'markdown' || card.type === 'image' || card.type === 'video' || card.type === 'link' || card.type === 'divider')) {
+    if (card && (card.type === 'markdown' || card.type === 'html' || card.type === 'image' || card.type === 'video' || card.type === 'link' || card.type === 'divider')) {
       if (card.visible === false && !editMode) return null;
       const index = manifestCards.indexOf(card);
       return (
