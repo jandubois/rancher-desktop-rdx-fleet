@@ -1530,6 +1530,7 @@ export default function App() {
           <li>Extension sidebar icon caching (requires full RD restart)</li>
           <li>GUI uninstall fails silently (CLI works fine)</li>
           <li><strong>vm.image not supported</strong> - RD requires vm.composefile; vm.image is ignored</li>
+          <li><strong>vm.service not implemented</strong> - ddClient.extension.vm.service API unavailable; use HTTP fallback via exposed port</li>
         </Box>
       </Paper>
     </Container>
