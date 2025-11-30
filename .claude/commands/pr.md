@@ -15,6 +15,21 @@ Before starting, create a todo list with ALL of the following items:
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
+## IMPORTANT: Explain All Decisions
+
+**When you determine that a step requires no action, you MUST explain WHY.** Do not just run a search/Glob command and silently move on. For each step, provide a clear decision statement:
+
+- ✅ **Good**: "No new tests needed because the changes are limited to documentation files (README.md, docs/*.md) which don't require test coverage."
+- ✅ **Good**: "Test coverage exists: `useConfig.test.ts` already covers the modified hook, and the changes only affect internal implementation without changing behavior."
+- ✅ **Good**: "Documentation updates not needed because this is a bug fix that doesn't change any user-facing behavior or API."
+- ❌ **Bad**: *[runs Glob, sees no matches, moves to next step without explanation]*
+- ❌ **Bad**: "Checked for test files. Moving on to the next step."
+
+The explanation should include:
+1. **What you checked** (files examined, patterns searched)
+2. **What you found** (or didn't find)
+3. **Your reasoning** for why no action is needed
+
 ---
 
 Follow these steps exactly when creating a PR:
@@ -47,6 +62,11 @@ For each changed code file, ask yourself:
 - Are there existing tests that need to be updated?
 - If this is a new file, does it have corresponding test coverage?
 
+**Decision Required**: After checking, explicitly state your conclusion:
+- If tests are needed: Explain what tests you will add and why.
+- If tests exist: Name the specific test file(s) that cover the changes.
+- If no tests needed: Explain why (e.g., "config-only change", "type definitions only", "documentation files only").
+
 Common patterns for this project:
 - `extension/ui/src/utils/foo.ts` → Should have tests in `extension/ui/src/utils/foo.test.ts`
 - `extension/ui/src/hooks/useBar.ts` → Should have tests in `extension/ui/src/hooks/useBar.test.ts`
@@ -67,6 +87,11 @@ For each changed test file:
 - Check if the `describe()` blocks accurately describe what's tested
 - Verify `it()` descriptions match the actual test behavior
 - Update descriptions if tests were added, removed, or significantly changed
+
+**Decision Required**: After checking, explicitly state your conclusion:
+- If updates needed: Describe what descriptions are outdated and how you'll fix them.
+- If no test files changed: State that no test files were modified in this PR.
+- If descriptions are accurate: Confirm you reviewed the test file(s) and the descriptions match the test behavior.
 
 ## 3. Check for Library Reimplementations
 
@@ -91,6 +116,10 @@ If you find reimplementations:
 3. Update tests accordingly
 4. Commit the fix before proceeding
 
+**Decision Required**: After reviewing the changed files, explicitly state your conclusion:
+- If reimplementations found: Describe what was reimplemented and which library should be used instead.
+- If no issues found: Explain what you checked in each file and confirm no custom implementations of common functionality were introduced (e.g., "Reviewed `useConfig.ts` - it uses the existing yaml parsing from js-yaml, no custom parsers added").
+
 **Rationale**: See `.claude/instructions.md` Development Guidelines for more details.
 
 ## 4. Check Documentation
@@ -110,6 +139,10 @@ Review if any documentation needs updates based on the changes:
 
 **Important**: When adding or modifying card types, update BOTH the developer reference
 (`docs/reference/ui-card-architecture.md`) AND user guide (`docs/user-guide/card-types.md`).
+
+**Decision Required**: After reviewing the changes against the documentation list above, explicitly state your conclusion:
+- If docs need updates: Specify which doc files need changes and what updates are required.
+- If no docs needed: Explain why the changes don't warrant documentation updates (e.g., "This is an internal refactor that doesn't change any public APIs or user-facing behavior", "Bug fix for edge case - no new features or behavioral changes to document").
 
 If docs need updates, make the changes and commit before proceeding.
 
