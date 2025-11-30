@@ -392,6 +392,172 @@ echo "=== END VM DEBUG ==="
   );
 }
 
+// Panel for backend service API
+function BackendServicePanel() {
+  const [results, setResults] = useState<Record<string, { status: string; data: unknown; error?: string }>>({});
+  const [loading, setLoading] = useState(false);
+  const [selectedEndpoint, setSelectedEndpoint] = useState<string | null>(null);
+
+  const endpoints = [
+    { path: '/', name: 'API Discovery', description: 'List all available endpoints' },
+    { path: '/health', name: 'Health Check', description: 'Service health and uptime' },
+    { path: '/info', name: 'Container Info', description: 'Hostname, PID, user, Go runtime info' },
+    { path: '/env', name: 'Environment Variables', description: 'All environment variables in the container' },
+    { path: '/system', name: 'System Info', description: 'OS release, kernel, memory, CPU info' },
+    { path: '/filesystem?path=/', name: 'Filesystem (root)', description: 'Root directory contents and mounts' },
+    { path: '/filesystem?path=/ui', name: 'Filesystem (/ui)', description: 'UI directory contents' },
+    { path: '/processes', name: 'Processes', description: 'Running processes in the container' },
+    { path: '/network', name: 'Network', description: 'Network interfaces, DNS, hosts' },
+  ];
+
+  const queryEndpoint = useCallback(async (path: string) => {
+    setLoading(true);
+    setSelectedEndpoint(path);
+
+    const vm = ddClient.extension?.vm;
+    if (!vm?.service) {
+      setResults(prev => ({
+        ...prev,
+        [path]: { status: 'error', data: null, error: 'ddClient.extension.vm.service is not available' }
+      }));
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const result = await vm.service.get(path);
+      setResults(prev => ({
+        ...prev,
+        [path]: { status: 'ok', data: result }
+      }));
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
+      setResults(prev => ({
+        ...prev,
+        [path]: { status: 'error', data: null, error: errorMsg }
+      }));
+    }
+
+    setLoading(false);
+  }, []);
+
+  const queryAllEndpoints = useCallback(async () => {
+    setLoading(true);
+    const vm = ddClient.extension?.vm;
+
+    if (!vm?.service) {
+      const errorResult = { status: 'error', data: null, error: 'ddClient.extension.vm.service is not available' };
+      const newResults: Record<string, typeof errorResult> = {};
+      endpoints.forEach(ep => {
+        newResults[ep.path] = errorResult;
+      });
+      setResults(newResults);
+      setLoading(false);
+      return;
+    }
+
+    for (const ep of endpoints) {
+      try {
+        const result = await vm.service.get(ep.path);
+        setResults(prev => ({
+          ...prev,
+          [ep.path]: { status: 'ok', data: result }
+        }));
+      } catch (e) {
+        const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
+        setResults(prev => ({
+          ...prev,
+          [ep.path]: { status: 'error', data: null, error: errorMsg }
+        }));
+      }
+    }
+
+    setLoading(false);
+  }, []);
+
+  return (
+    <Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Query the backend service running in the extension container via ddClient.extension.vm.service.
+        The backend exposes REST API endpoints for inspecting the container runtime environment.
+      </Typography>
+
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+        <Button
+          variant="contained"
+          startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+          onClick={queryAllEndpoints}
+          disabled={loading}
+        >
+          Query All Endpoints
+        </Button>
+      </Box>
+
+      <TableContainer component={Paper} sx={{ mb: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Endpoint</TableCell>
+              <TableCell>Description</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Action</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {endpoints.map((ep) => {
+              const result = results[ep.path];
+              return (
+                <TableRow key={ep.path} selected={selectedEndpoint === ep.path}>
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    {ep.path}
+                  </TableCell>
+                  <TableCell>{ep.description}</TableCell>
+                  <TableCell>
+                    {!result ? (
+                      <Chip label="Not queried" size="small" />
+                    ) : result.status === 'ok' ? (
+                      <Chip label="OK" color="success" size="small" />
+                    ) : (
+                      <Chip label="ERROR" color="error" size="small" />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="small"
+                      onClick={() => queryEndpoint(ep.path)}
+                      disabled={loading}
+                    >
+                      Query
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {selectedEndpoint && results[selectedEndpoint] && (
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            Response from {selectedEndpoint}:
+          </Typography>
+          {results[selectedEndpoint].status === 'error' ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {results[selectedEndpoint].error}
+            </Alert>
+          ) : (
+            <CodeBlock
+              content={JSON.stringify(results[selectedEndpoint].data, null, 2)}
+              maxHeight={500}
+            />
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 // Panel for host binary environment
 function HostBinaryEnvPanel() {
   const [result, setResult] = useState<CommandResult | null>(null);
@@ -1196,9 +1362,18 @@ export default function App() {
         </AccordionDetails>
       </Accordion>
 
+      <Accordion expanded={expanded === 'backend'} onChange={handleChange('backend')}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="h6">3. Backend Service API</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <BackendServicePanel />
+        </AccordionDetails>
+      </Accordion>
+
       <Accordion expanded={expanded === 'hostBinary'} onChange={handleChange('hostBinary')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">3. Host Binary Environment</Typography>
+          <Typography variant="h6">4. Host Binary Environment</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <HostBinaryEnvPanel />
@@ -1207,7 +1382,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'stressTest'} onChange={handleChange('stressTest')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">4. Host Binary Stress Test (Bug Reproduction)</Typography>
+          <Typography variant="h6">5. Host Binary Stress Test (Bug Reproduction)</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <HostBinaryStressTestPanel />
@@ -1216,7 +1391,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'rdTools'} onChange={handleChange('rdTools')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">5. RD Tools Inventory</Typography>
+          <Typography variant="h6">6. RD Tools Inventory</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <RdToolsPanel />
@@ -1225,7 +1400,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'kubernetes'} onChange={handleChange('kubernetes')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">6. Kubernetes Context</Typography>
+          <Typography variant="h6">7. Kubernetes Context</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <KubernetesPanel />
@@ -1234,7 +1409,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'sdkMethods'} onChange={handleChange('sdkMethods')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">7. SDK Method Compatibility</Typography>
+          <Typography variant="h6">8. SDK Method Compatibility</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <SdkMethodsPanel />
