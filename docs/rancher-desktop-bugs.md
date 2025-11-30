@@ -81,7 +81,9 @@ However, this warning is likely not the root cause since:
 
 **Workaround:** Use `rdctl extension uninstall <image>` from the command line.
 
-**Status:** Needs investigation in Rancher Desktop source code.
+**Update (2025-11-29):** Confirmed this also affects the debug-extension (rd-extension-debugger). GUI uninstall does nothing, CLI works fine. This appears to be a general RD bug, not extension-specific.
+
+**Status:** Confirmed reproducible - needs investigation in Rancher Desktop source code.
 
 ---
 
