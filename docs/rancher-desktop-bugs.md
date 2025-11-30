@@ -36,9 +36,12 @@ This document tracks suspected bugs in the Rancher Desktop implementation of the
 Error invoking remote method 'extensions/spawn/blocking': Error: spawn /Users/.../extensions/.../bin/rd-exec ENOENT
 ```
 
-**Workaround:** None yet. May need to consolidate scripts or remove unused ones.
+**Update (2025-11-29):** Could not reproduce with debug-extension using 5 binaries (kubectl, helm, rdctl, docker, debug-env). All 5 work correctly. The original failures may have been due to:
+- Incorrect arguments passed to binaries (e.g., `--client` flag not supported by helm/rdctl/docker)
+- A bug that was fixed in a recent RD version
+- Specific conditions not yet identified
 
-**Status:** Needs investigation
+**Status:** Needs re-investigation - could not reproduce with 5 binaries
 
 ---
 
@@ -78,7 +81,66 @@ However, this warning is likely not the root cause since:
 
 **Workaround:** Use `rdctl extension uninstall <image>` from the command line.
 
-**Status:** Needs investigation in Rancher Desktop source code.
+**Update (2025-11-29):** Confirmed this also affects the debug-extension (rd-extension-debugger). GUI uninstall does nothing, CLI works fine. This appears to be a general RD bug, not extension-specific.
+
+**Status:** Confirmed reproducible - needs investigation in Rancher Desktop source code.
+
+---
+
+## 5. Double slash in extension URL path (Minor)
+
+**Expected:** Clean URL path for extension UI.
+
+**Actual:** The webview URL shows a double slash: `x-rd-extension://.../ui/dashboard-tab//ui/index.html`
+
+**Impact:** Minor cosmetic issue, doesn't affect functionality.
+
+**Status:** Low priority
+
+---
+
+## Debug Extension Findings (2025-11-29)
+
+The `debug-extension/` provides detailed diagnostics. Key findings:
+
+### Webview Environment
+- Protocol: `x-rd-extension:` (custom Electron protocol)
+- Hostname: Hex-encoded extension name (e.g., `72642d657874656e73696f6e2d6465627567676572` = "rd-extension-debugger")
+- No container ID visible in webview context
+
+### Host Binary Environment
+- PATH does NOT include `~/.rd/bin` - tools work via symlinks pointing to app bundle
+- Working directory is `/` (root)
+- Full user context (uid, groups, home directory)
+- Environment includes `__CFBundleIdentifier=io.rancherdesktop.app`
+
+### SDK Comparison (vs Docker Desktop Extension SDK)
+
+**ddClient.extension:**
+| Property | Expected | Actual |
+|----------|----------|--------|
+| `image` | Full IMAGE:TAG | Missing tag ❌ |
+| `vm` | Backend exec | Present, but needs compose.yaml |
+| `host` | Host binaries | Working ✓ |
+
+**ddClient.docker:**
+| Method | Status |
+|--------|--------|
+| `cli.exec()` | Working ✓ |
+| `listContainers()` | Untested |
+| `listImages()` | Untested |
+
+**ddClient.desktopUI:**
+| Method | Status |
+|--------|--------|
+| `toast.success/warning/error()` | Untested |
+| `dialog.showOpenDialog()` | Untested |
+| `navigate.*()` | Untested |
+
+### Missing from SDK (compared to Docker Desktop)
+- `ddClient.extension.id` - undefined
+- `ddClient.extension.version` - undefined
+- Only `image` is exposed, and it's broken (missing tag)
 
 ---
 
@@ -86,3 +148,4 @@ However, this warning is likely not the root cause since:
 
 - Rancher Desktop source: https://github.com/rancher-sandbox/rancher-desktop
 - Extension implementation likely in `pkg/rancher-desktop/` or similar
+- Debug extension for testing: `debug-extension/` in this repo

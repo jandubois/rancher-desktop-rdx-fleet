@@ -1,0 +1,37 @@
+#!/bin/sh
+# Debug script to dump host environment information
+# This script outputs structured information about the host environment
+# as seen by a Rancher Desktop extension host binary
+
+echo "=== HOST BINARY ENVIRONMENT DEBUG ==="
+echo ""
+echo "--- Basic Info ---"
+echo "Hostname: $(hostname)"
+echo "Username: $(whoami)"
+echo "User ID: $(id)"
+echo "Home: $HOME"
+echo "Shell: $SHELL"
+echo "PWD: $(pwd)"
+echo ""
+echo "--- System Info ---"
+echo "Uname: $(uname -a)"
+echo "Architecture: $(uname -m)"
+echo ""
+echo "--- PATH ---"
+echo "$PATH" | tr ':' '\n'
+echo ""
+echo "--- RD Bin Directory ---"
+if [ -d "$HOME/.rd/bin" ]; then
+  ls -la "$HOME/.rd/bin/"
+else
+  echo "$HOME/.rd/bin does not exist"
+fi
+echo ""
+echo "--- All Environment Variables ---"
+env | sort
+echo ""
+echo "--- Script Arguments ---"
+echo "Number of args: $#"
+echo "Args: $@"
+echo ""
+echo "=== END DEBUG OUTPUT ==="

@@ -1,0 +1,39 @@
+{
+  "icon": "/icons/debug-icon.svg",
+  "ui": {
+    "dashboard-tab": {
+      "title": "RD Extension Debugger",
+      "root": "/ui",
+      "src": "index.html"
+    }
+  },
+  "host": {
+    "binaries": [
+      {
+        "darwin": [{ "path": "/host/darwin/kubectl" }],
+        "linux": [{ "path": "/host/linux/kubectl" }],
+        "windows": [{ "path": "/host/windows/kubectl.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/helm" }],
+        "linux": [{ "path": "/host/linux/helm" }],
+        "windows": [{ "path": "/host/windows/helm.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/rdctl" }],
+        "linux": [{ "path": "/host/linux/rdctl" }],
+        "windows": [{ "path": "/host/windows/rdctl.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/docker" }],
+        "linux": [{ "path": "/host/linux/docker" }],
+        "windows": [{ "path": "/host/windows/docker.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/debug-env" }],
+        "linux": [{ "path": "/host/linux/debug-env" }],
+        "windows": [{ "path": "/host/windows/debug-env.cmd" }]
+      }
+    ]
+  }
+}
