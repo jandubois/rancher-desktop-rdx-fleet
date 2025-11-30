@@ -14,6 +14,11 @@ import MenuItem from '@mui/material/MenuItem';
 import InputAdornment from '@mui/material/InputAdornment';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
+import Menu from '@mui/material/Menu';
+import ListItemText from '@mui/material/ListItemText';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import Divider from '@mui/material/Divider';
+import Tooltip from '@mui/material/Tooltip';
 import DownloadIcon from '@mui/icons-material/Download';
 import BuildIcon from '@mui/icons-material/Build';
 import UploadIcon from '@mui/icons-material/Upload';
@@ -24,6 +29,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RestoreIcon from '@mui/icons-material/Restore';
 import SettingsIcon from '@mui/icons-material/Settings';
 import PaletteIcon from '@mui/icons-material/Palette';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import CheckIcon from '@mui/icons-material/Check';
 import { Manifest, CardDefinition, DEFAULT_MANIFEST } from '../manifest';
 import { ColorPalette, defaultPalette } from '../theme/palette';
 import {
@@ -39,7 +46,20 @@ import {
   ImportResult,
 } from '../utils/extensionBuilder';
 import type { IconState } from './EditableHeaderIcon';
+import type { CustomIcon } from './IconUpload';
 import { ConfirmDialog } from './ConfirmDialog';
+import {
+  generatePaletteFromColor,
+  HARMONY_TYPES,
+  type HarmonyType,
+} from '../utils/paletteGenerator';
+import { extractColorsFromSvg, hexToRgb } from '../utils/colorExtractor';
+
+// Default Fleet icon SVG content for color extraction
+const DEFAULT_FLEET_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <rect fill="#22ad5f" width="100" height="100" rx="10"/>
+  <path fill="#fff" d="M108.734,68.40666..."/>
+</svg>`;
 
 interface EditModePanelProps {
   manifest: Manifest;
@@ -167,6 +187,74 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
 
   // Confirmation dialog state
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+
+  // Auto-palette state
+  const [paletteMenuAnchor, setPaletteMenuAnchor] = useState<null | HTMLElement>(null);
+  const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
+  const [generatingPalette, setGeneratingPalette] = useState(false);
+
+  // Generate palette from icon
+  const handleGeneratePalette = async (harmony: HarmonyType) => {
+    if (!onPaletteChange) return;
+
+    setGeneratingPalette(true);
+    setPaletteMenuAnchor(null);
+    setSelectedHarmony(harmony);
+
+    try {
+      let dominantColor;
+
+      if (iconState === 'deleted') {
+        // No icon, use default blue
+        dominantColor = {
+          hex: defaultPalette.header.background,
+          rgb: hexToRgb(defaultPalette.header.background)!,
+        };
+      } else if (iconState === null) {
+        // Default Fleet icon - extract from SVG
+        const colors = extractColorsFromSvg(DEFAULT_FLEET_ICON_SVG);
+        dominantColor = colors[0] || {
+          hex: '#22ad5f',
+          rgb: { r: 34, g: 173, b: 95 },
+        };
+      } else {
+        // Custom icon - need to extract colors
+        const customIcon = iconState as CustomIcon;
+        const dataUrl = `data:${customIcon.mimeType};base64,${customIcon.data}`;
+
+        if (customIcon.mimeType === 'image/svg+xml') {
+          // For SVG, decode and parse
+          const svgContent = atob(customIcon.data);
+          const colors = extractColorsFromSvg(svgContent);
+          dominantColor = colors[0];
+        } else {
+          // For raster images, use ColorThief via dynamic import
+          const { extractDominantColor } = await import('../utils/colorExtractor');
+          dominantColor = await extractDominantColor(dataUrl);
+        }
+
+        if (!dominantColor) {
+          console.warn('Could not extract color from icon, using default');
+          dominantColor = {
+            hex: '#22ad5f',
+            rgb: { r: 34, g: 173, b: 95 },
+          };
+        }
+      }
+
+      // Generate palette using the selected harmony
+      const result = generatePaletteFromColor(dominantColor, { harmony });
+
+      // Apply the generated UI palette
+      onPaletteChange(result.uiPalette);
+      setImportSuccess(`Palette generated using ${HARMONY_TYPES.find(h => h.value === harmony)?.label || harmony} harmony`);
+    } catch (err) {
+      console.error('Failed to generate palette:', err);
+      setImportError('Failed to generate palette from icon');
+    } finally {
+      setGeneratingPalette(false);
+    }
+  };
 
   // Try to detect the base image asynchronously (includes rdctl fallback for tag)
   useEffect(() => {
@@ -574,11 +662,57 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
             {/* Edit Tab */}
             <TabPanel value={activeTab} index={0}>
               {/* Branding Colors Section */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <PaletteIcon color="action" />
-                <Typography variant="subtitle2">
-                  Branding Colors
-                </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <PaletteIcon color="action" />
+                  <Typography variant="subtitle2">
+                    Branding Colors
+                  </Typography>
+                </Box>
+                <Tooltip title="Generate color palette from icon">
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={generatingPalette ? <CircularProgress size={16} /> : <AutoFixHighIcon />}
+                    onClick={(e) => setPaletteMenuAnchor(e.currentTarget)}
+                    disabled={generatingPalette || !onPaletteChange}
+                  >
+                    Auto Palette
+                  </Button>
+                </Tooltip>
+                <Menu
+                  anchorEl={paletteMenuAnchor}
+                  open={Boolean(paletteMenuAnchor)}
+                  onClose={() => setPaletteMenuAnchor(null)}
+                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                >
+                  <Box sx={{ px: 2, py: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Generate palette from icon using:
+                    </Typography>
+                  </Box>
+                  <Divider />
+                  {HARMONY_TYPES.map((harmony) => (
+                    <MenuItem
+                      key={harmony.value}
+                      onClick={() => handleGeneratePalette(harmony.value)}
+                      selected={selectedHarmony === harmony.value}
+                    >
+                      {selectedHarmony === harmony.value && (
+                        <ListItemIcon>
+                          <CheckIcon fontSize="small" />
+                        </ListItemIcon>
+                      )}
+                      <ListItemText
+                        inset={selectedHarmony !== harmony.value}
+                        primary={harmony.label}
+                        secondary={harmony.description}
+                        secondaryTypographyProps={{ variant: 'caption' }}
+                      />
+                    </MenuItem>
+                  ))}
+                </Menu>
               </Box>
 
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
