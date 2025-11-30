@@ -592,11 +592,15 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                   const isInherit = currentValue === 'inherit';
                   const isValid = isHexColor || isInherit;
 
+                  // For color picker: use actual value if hex, otherwise a sensible fallback
+                  // "inherit" for card title means inherit text color, which is typically dark
+                  const pickerValue = isHexColor ? currentValue : '#212121';
+
                   // Helper text based on state
                   const helperText = !isValid
                     ? 'Enter hex color (e.g., #1976d2) or "inherit"'
                     : isInherit
-                    ? 'Inherits from parent (type hex to customize)'
+                    ? 'Inherits from parent'
                     : isDefault
                     ? 'Default'
                     : 'Custom';
@@ -615,42 +619,23 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                           input: {
                             startAdornment: (
                               <InputAdornment position="start">
-                                {isHexColor ? (
-                                  <Box
-                                    component="input"
-                                    type="color"
-                                    value={currentValue}
-                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChange(field, e.target.value)}
-                                    sx={{
-                                      width: 24,
-                                      height: 24,
-                                      p: 0,
-                                      border: '1px solid',
-                                      borderColor: 'divider',
-                                      borderRadius: 0.5,
-                                      cursor: 'pointer',
-                                      '&::-webkit-color-swatch-wrapper': { p: 0 },
-                                      '&::-webkit-color-swatch': { border: 'none', borderRadius: 0.5 },
-                                    }}
-                                  />
-                                ) : (
-                                  <Box
-                                    sx={{
-                                      width: 24,
-                                      height: 24,
-                                      border: '1px dashed',
-                                      borderColor: 'divider',
-                                      borderRadius: 0.5,
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'center',
-                                      fontSize: '0.6rem',
-                                      color: 'text.disabled',
-                                    }}
-                                  >
-                                    —
-                                  </Box>
-                                )}
+                                <Box
+                                  component="input"
+                                  type="color"
+                                  value={pickerValue}
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChange(field, e.target.value)}
+                                  sx={{
+                                    width: 24,
+                                    height: 24,
+                                    p: 0,
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    borderRadius: 0.5,
+                                    cursor: 'pointer',
+                                    '&::-webkit-color-swatch-wrapper': { p: 0 },
+                                    '&::-webkit-color-swatch': { border: 'none', borderRadius: 0.5 },
+                                  }}
+                                />
                               </InputAdornment>
                             ),
                           },
