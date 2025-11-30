@@ -398,6 +398,8 @@ function BackendServicePanel() {
   const [loading, setLoading] = useState(false);
   const [selectedEndpoint, setSelectedEndpoint] = useState<string | null>(null);
   const [backendStatus, setBackendStatus] = useState<'unknown' | 'available' | 'unavailable'>('unknown');
+  const [vmDiagnostics, setVmDiagnostics] = useState<string>('');
+  const [httpStatus, setHttpStatus] = useState<'unknown' | 'available' | 'unavailable'>('unknown');
 
   const endpoints = [
     { path: '/', name: 'API Discovery', description: 'List all available endpoints' },
@@ -414,16 +416,43 @@ function BackendServicePanel() {
   // Check backend availability on mount
   useEffect(() => {
     const checkBackend = async () => {
+      // Diagnostic info about vm object
       const vm = ddClient.extension?.vm;
+      const vmInfo: string[] = [];
+      vmInfo.push(`ddClient.extension.vm exists: ${!!vm}`);
+      if (vm) {
+        vmInfo.push(`vm.service exists: ${!!vm.service}`);
+        vmInfo.push(`vm.cli exists: ${!!vm.cli}`);
+        if (vm.service) {
+          vmInfo.push(`vm.service.get exists: ${typeof vm.service.get}`);
+          vmInfo.push(`vm.service.post exists: ${typeof vm.service.post}`);
+        }
+        vmInfo.push(`vm keys: ${Object.keys(vm).join(', ')}`);
+      }
+      setVmDiagnostics(vmInfo.join('\n'));
+
+      // Try vm.service API
       if (!vm?.service) {
         setBackendStatus('unavailable');
-        return;
+      } else {
+        try {
+          await vm.service.get('/health');
+          setBackendStatus('available');
+        } catch {
+          setBackendStatus('unavailable');
+        }
       }
+
+      // Try direct HTTP fetch to localhost:8080
       try {
-        await vm.service.get('/health');
-        setBackendStatus('available');
+        const resp = await fetch('http://localhost:8080/health');
+        if (resp.ok) {
+          setHttpStatus('available');
+        } else {
+          setHttpStatus('unavailable');
+        }
       } catch {
-        setBackendStatus('unavailable');
+        setHttpStatus('unavailable');
       }
     };
     checkBackend();
@@ -433,28 +462,38 @@ function BackendServicePanel() {
     setLoading(true);
     setSelectedEndpoint(path);
 
+    // Try vm.service first, then fall back to HTTP
     const vm = ddClient.extension?.vm;
-    if (!vm?.service) {
-      setResults(prev => ({
-        ...prev,
-        [path]: { status: 'error', data: null, error: 'ddClient.extension.vm.service is not available' }
-      }));
-      setLoading(false);
-      return;
+    if (vm?.service) {
+      try {
+        const result = await vm.service.get(path);
+        setResults(prev => ({
+          ...prev,
+          [path]: { status: 'ok', data: result }
+        }));
+        setBackendStatus('available');
+        setLoading(false);
+        return;
+      } catch (e) {
+        // Continue to try HTTP fallback
+        console.log('vm.service failed, trying HTTP fallback:', e);
+      }
     }
 
+    // Try direct HTTP fetch
     try {
-      const result = await vm.service.get(path);
+      const resp = await fetch(`http://localhost:8080${path}`);
+      const data = await resp.json();
       setResults(prev => ({
         ...prev,
-        [path]: { status: 'ok', data: result }
+        [path]: { status: 'ok', data, error: 'via HTTP fallback' }
       }));
-      setBackendStatus('available');
+      setHttpStatus('available');
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
       setResults(prev => ({
         ...prev,
-        [path]: { status: 'error', data: null, error: errorMsg }
+        [path]: { status: 'error', data: null, error: `vm.service unavailable, HTTP fallback failed: ${errorMsg}` }
       }));
     }
 
@@ -463,33 +502,43 @@ function BackendServicePanel() {
 
   const queryAllEndpoints = useCallback(async () => {
     setLoading(true);
-    const vm = ddClient.extension?.vm;
-
-    if (!vm?.service) {
-      const errorResult = { status: 'error', data: null, error: 'ddClient.extension.vm.service is not available' };
-      const newResults: Record<string, typeof errorResult> = {};
-      endpoints.forEach(ep => {
-        newResults[ep.path] = errorResult;
-      });
-      setResults(newResults);
-      setLoading(false);
-      return;
-    }
 
     for (const ep of endpoints) {
-      try {
-        const result = await vm.service.get(ep.path);
-        setResults(prev => ({
-          ...prev,
-          [ep.path]: { status: 'ok', data: result }
-        }));
-        setBackendStatus('available');
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
-        setResults(prev => ({
-          ...prev,
-          [ep.path]: { status: 'error', data: null, error: errorMsg }
-        }));
+      // Try vm.service first, then fall back to HTTP
+      const vm = ddClient.extension?.vm;
+      let success = false;
+
+      if (vm?.service) {
+        try {
+          const result = await vm.service.get(ep.path);
+          setResults(prev => ({
+            ...prev,
+            [ep.path]: { status: 'ok', data: result }
+          }));
+          setBackendStatus('available');
+          success = true;
+        } catch {
+          // Continue to HTTP fallback
+        }
+      }
+
+      if (!success) {
+        // Try direct HTTP fetch
+        try {
+          const resp = await fetch(`http://localhost:8080${ep.path}`);
+          const data = await resp.json();
+          setResults(prev => ({
+            ...prev,
+            [ep.path]: { status: 'ok', data, error: 'via HTTP' }
+          }));
+          setHttpStatus('available');
+        } catch (e) {
+          const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
+          setResults(prev => ({
+            ...prev,
+            [ep.path]: { status: 'error', data: null, error: errorMsg }
+          }));
+        }
       }
     }
 
@@ -503,24 +552,15 @@ function BackendServicePanel() {
         The backend exposes REST API endpoints for inspecting the container runtime environment.
       </Typography>
 
-      {backendStatus === 'unavailable' && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>
-            Backend Service Not Available
-          </Typography>
-          <Typography variant="body2">
-            Rancher Desktop does not support the <code>vm.image</code> syntax in metadata.json.
-            While Docker Desktop accepts both <code>vm.image</code> and <code>vm.composefile</code>,
-            Rancher Desktop only works with <code>vm.composefile</code>.
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 1 }}>
-            <strong>Workaround:</strong> Use <code>vm.composefile</code> instead of <code>vm.image</code>
-            to define backend services when targeting Rancher Desktop.
-          </Typography>
-        </Alert>
-      )}
+      {/* VM Diagnostics */}
+      <Paper sx={{ p: 1, mb: 2, bgcolor: '#1a1a1a' }}>
+        <Typography variant="caption" color="text.secondary">VM Object Diagnostics:</Typography>
+        <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', m: 0, whiteSpace: 'pre-wrap' }}>
+          {vmDiagnostics || 'Loading...'}
+        </Typography>
+      </Paper>
 
-      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
         <Button
           variant="contained"
           startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
@@ -530,12 +570,34 @@ function BackendServicePanel() {
           Query All Endpoints
         </Button>
         <Chip
-          label={backendStatus === 'available' ? 'Backend Available' : backendStatus === 'unavailable' ? 'Backend Unavailable' : 'Checking...'}
+          label={`vm.service: ${backendStatus}`}
           color={backendStatus === 'available' ? 'success' : backendStatus === 'unavailable' ? 'error' : 'default'}
           size="small"
-          sx={{ alignSelf: 'center' }}
+        />
+        <Chip
+          label={`HTTP :8080: ${httpStatus}`}
+          color={httpStatus === 'available' ? 'success' : httpStatus === 'unavailable' ? 'error' : 'default'}
+          size="small"
         />
       </Box>
+
+      {backendStatus === 'unavailable' && httpStatus === 'available' && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            <strong>ddClient.extension.vm.service</strong> is not available, but HTTP fallback on port 8080 works.
+            Queries will use direct HTTP fetch to localhost:8080.
+          </Typography>
+        </Alert>
+      )}
+
+      {backendStatus === 'unavailable' && httpStatus === 'unavailable' && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            Neither <code>vm.service</code> nor HTTP fallback is available.
+            The backend container may not be running or port 8080 may not be exposed.
+          </Typography>
+        </Alert>
+      )}
 
       <TableContainer component={Paper} sx={{ mb: 2 }}>
         <Table size="small">
