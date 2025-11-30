@@ -860,11 +860,10 @@ function App() {
           bgcolor: palette.header.background,
           color: palette.header.text,
           py: 2,
-          px: 3,
           boxShadow: 1,
         }}
       >
-        <Box sx={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box sx={{ maxWidth: 900, margin: '0 auto', px: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <EditableHeaderIcon
               iconState={iconState}
