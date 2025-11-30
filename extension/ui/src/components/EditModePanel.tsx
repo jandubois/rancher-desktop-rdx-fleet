@@ -374,9 +374,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
               aria-label="Edit mode tabs"
               sx={{ borderBottom: 1, borderColor: 'divider' }}
             >
-              <Tab label="Load" id="edit-mode-tab-0" aria-controls="edit-mode-tabpanel-0" />
-              <Tab label="Build" id="edit-mode-tab-1" aria-controls="edit-mode-tabpanel-1" />
-              <Tab label="Edit" id="edit-mode-tab-2" aria-controls="edit-mode-tabpanel-2" />
+              <Tab label="Edit" id="edit-mode-tab-0" aria-controls="edit-mode-tabpanel-0" />
+              <Tab label="Load" id="edit-mode-tab-1" aria-controls="edit-mode-tabpanel-1" />
+              <Tab label="Build" id="edit-mode-tab-2" aria-controls="edit-mode-tabpanel-2" />
             </Tabs>
 
             {/* Import status messages - shown across all tabs */}
@@ -396,7 +396,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
             )}
 
             {/* Load Tab */}
-            <TabPanel value={activeTab} index={0}>
+            <TabPanel value={activeTab} index={1}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Load an existing configuration from a custom extension image or a ZIP file.
               </Typography>
@@ -476,7 +476,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
             </TabPanel>
 
             {/* Build Tab */}
-            <TabPanel value={activeTab} index={1}>
+            <TabPanel value={activeTab} index={2}>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                 Build or download your custom extension as a Docker image or ZIP file.
               </Typography>
@@ -572,7 +572,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
             </TabPanel>
 
             {/* Edit Tab */}
-            <TabPanel value={activeTab} index={2}>
+            <TabPanel value={activeTab} index={0}>
               {/* Branding Colors Section */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <PaletteIcon color="action" />
