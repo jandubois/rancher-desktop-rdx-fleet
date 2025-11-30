@@ -39,16 +39,16 @@ interface EditModePanelProps {
   manifest: Manifest;
   cards: CardDefinition[];
   cardOrder: string[];
+  customIcon: CustomIcon | null;
   onConfigLoaded?: (manifest: Manifest, sourceName: string) => void;
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, onConfigLoaded }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, customIcon, onConfigLoaded }: EditModePanelProps) {
   const [expanded, setExpanded] = useState(true);
   const [extensionName, setExtensionName] = useState(manifest.app?.name || 'My Fleet Extension');
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
   const [baseImage, setBaseImage] = useState('');
   const [baseImageStatus, setBaseImageStatus] = useState('Detecting...');
-  const [customIcon, setCustomIcon] = useState<CustomIcon | null>(null);
   const [downloading, setDownloading] = useState(false);
   const [building, setBuilding] = useState(false);
   const [buildOutput, setBuildOutput] = useState<string | null>(null);
@@ -374,17 +374,6 @@ export function EditModePanel({ manifest, cards, cardOrder, onConfigLoaded }: Ed
             sx={{ mb: 2 }}
             helperText="The name shown in Rancher Desktop"
           />
-
-          {/* Icon upload */}
-          <Box sx={{ mb: 2 }}>
-            <IconUpload
-              value={customIcon}
-              onChange={setCustomIcon}
-              defaultIconPath="/icons/fleet-icon.svg"
-            />
-          </Box>
-
-          <Divider sx={{ my: 2 }} />
 
           {/* Base image input */}
           <TextField

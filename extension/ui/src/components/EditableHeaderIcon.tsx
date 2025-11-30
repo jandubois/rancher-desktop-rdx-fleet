@@ -1,0 +1,279 @@
+import { useState, useCallback, useRef } from 'react';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import { CustomIcon } from './IconUpload';
+
+// Default Fleet icon SVG as a data URL for comparison purposes
+const DEFAULT_FLEET_ICON = (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135.97886 111.362" style={{ height: 40, width: 'auto' }}>
+    <rect fill="#22ad5f" width="135.97886" height="111.362" rx="14.39243"/>
+    <path fill="#fff" d="M108.734,68.40666c-.31959-.70715-.62976-1.41735-.95818-2.12167A192.12367,192.12367,0,0,0,87.66084,32.59744q-2.86843-3.84771-5.93119-7.55V74.33785h29.575Q110.07441,71.35528,108.734,68.40666Zm-21.07312,0V42.829a186.742,186.742,0,0,1,14.55423,25.57769Z"/>
+    <path fill="#fff" d="M70.04392,14.80415A192.53573,192.53573,0,0,0,41.96357,68.40666c-.6645,1.96876-1.30338,3.94462-1.90258,5.93119H75.97512V7.25412Q72.91337,10.95651,70.04392,14.80415Zm0,53.60251H48.22507a187.12611,187.12611,0,0,1,21.81885-43.371Z"/>
+    <path fill="#fff" d="M30.85013,74.33785h6.16628A186.918,186.918,0,0,1,68.31,12.10434L60.8196,16.65309c-1.82193,1.10623-3.634,2.25062-5.42293,3.41521A193.18859,193.18859,0,0,0,30.85013,74.33785Z"/>
+    <path fill="#fff" d="M21.74541,74.33785h6.12516A186.4801,186.4801,0,0,1,39.34147,42.4755q3.98814-8.55262,8.77147-16.59091-6.05757,4.39768-11.79853,9.2389Q35.11151,37.528,33.966,39.96893A192.29628,192.29628,0,0,0,21.74541,74.33785Z"/>
+    <path fill="#fff" d="M111.5533,86.70839v7.12988l-62.09479.13148-4.46034-7.1406,66.55513-.12076m5.93119-5.94206-83.17239.151L46.17449,99.9079l71.31-.151V80.76633Z"/>
+    <path fill="#fff" d="M43.10887,99.9079,31.24652,80.91736H24.25323L36.11561,99.9079Z"/>
+    <path fill="#fff" d="M33.15,99.9079,21.28768,80.91736h-6.9933L26.15677,99.9079Z"/>
+  </svg>
+);
+
+interface EditableHeaderIconProps {
+  customIcon: CustomIcon | null;
+  onChange: (icon: CustomIcon | null) => void;
+  editMode: boolean;
+}
+
+const ACCEPTED_TYPES = ['image/png', 'image/svg+xml', 'image/jpeg', 'image/gif', 'image/webp'];
+const MAX_SIZE = 512 * 1024; // 512KB max
+
+export function EditableHeaderIcon({ customIcon, onChange, editMode }: EditableHeaderIconProps) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const validateAndProcessFile = useCallback((file: File): Promise<CustomIcon | null> => {
+    return new Promise((resolve) => {
+      setError(null);
+
+      if (!ACCEPTED_TYPES.includes(file.type)) {
+        setError('Invalid file type');
+        setTimeout(() => setError(null), 3000);
+        resolve(null);
+        return;
+      }
+
+      if (file.size > MAX_SIZE) {
+        setError('File too large (max 512KB)');
+        setTimeout(() => setError(null), 3000);
+        resolve(null);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const base64 = e.target?.result as string;
+        const base64Data = base64.split(',')[1];
+        resolve({
+          data: base64Data,
+          filename: file.name,
+          mimeType: file.type,
+        });
+      };
+      reader.onerror = () => {
+        setError('Failed to read file');
+        setTimeout(() => setError(null), 3000);
+        resolve(null);
+      };
+      reader.readAsDataURL(file);
+    });
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (!editMode) return;
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      const icon = await validateAndProcessFile(files[0]);
+      if (icon) {
+        onChange(icon);
+      }
+    }
+  }, [editMode, onChange, validateAndProcessFile]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (editMode) {
+      setIsDragging(true);
+    }
+  }, [editMode]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleClick = useCallback(() => {
+    if (editMode) {
+      fileInputRef.current?.click();
+    }
+  }, [editMode]);
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const icon = await validateAndProcessFile(files[0]);
+      if (icon) {
+        onChange(icon);
+      }
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [onChange, validateAndProcessFile]);
+
+  const handleDelete = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onChange(null);
+  }, [onChange]);
+
+  // Get the preview URL for custom icon
+  const customIconUrl = customIcon
+    ? `data:${customIcon.mimeType};base64,${customIcon.data}`
+    : null;
+
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        display: 'inline-flex',
+        alignItems: 'center',
+        cursor: editMode ? 'pointer' : 'default',
+      }}
+      onMouseEnter={() => setIsHovering(true)}
+      onMouseLeave={() => setIsHovering(false)}
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onClick={handleClick}
+    >
+      {/* Icon container */}
+      <Box
+        sx={{
+          position: 'relative',
+          height: 40,
+          minWidth: 40,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 1,
+          transition: 'all 0.2s ease',
+          ...(editMode && {
+            border: '2px dashed',
+            borderColor: isDragging ? 'warning.light' : isHovering ? 'rgba(255,255,255,0.5)' : 'transparent',
+            bgcolor: isDragging ? 'rgba(255,255,255,0.1)' : 'transparent',
+            p: 0.5,
+          }),
+        }}
+      >
+        {customIconUrl ? (
+          <img
+            src={customIconUrl}
+            alt="Extension icon"
+            style={{
+              height: 40,
+              width: 'auto',
+              maxWidth: 60,
+              objectFit: 'contain',
+              borderRadius: 4,
+            }}
+          />
+        ) : (
+          DEFAULT_FLEET_ICON
+        )}
+
+        {/* Edit overlay - shown on hover in edit mode */}
+        {editMode && isHovering && !isDragging && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              bgcolor: 'rgba(0,0,0,0.5)',
+              borderRadius: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <EditIcon sx={{ color: 'white', fontSize: 20 }} />
+          </Box>
+        )}
+
+        {/* Drop indicator */}
+        {editMode && isDragging && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              bgcolor: 'rgba(255,255,255,0.2)',
+              borderRadius: 1,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Typography variant="caption" sx={{ color: 'white', fontWeight: 600 }}>
+              Drop
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Delete button - shown when custom icon exists in edit mode */}
+      {editMode && customIcon && isHovering && (
+        <Tooltip title="Remove custom icon">
+          <IconButton
+            size="small"
+            onClick={handleDelete}
+            sx={{
+              position: 'absolute',
+              top: -8,
+              right: -8,
+              bgcolor: 'error.main',
+              color: 'white',
+              width: 20,
+              height: 20,
+              '&:hover': {
+                bgcolor: 'error.dark',
+              },
+            }}
+          >
+            <DeleteIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {/* Error tooltip */}
+      {error && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            mt: 1,
+            px: 1,
+            py: 0.5,
+            bgcolor: 'error.main',
+            color: 'white',
+            borderRadius: 1,
+            fontSize: '0.75rem',
+            whiteSpace: 'nowrap',
+            zIndex: 1000,
+          }}
+        >
+          {error}
+        </Box>
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPTED_TYPES.join(',')}
+        style={{ display: 'none' }}
+        onChange={handleFileSelect}
+      />
+    </Box>
+  );
+}
