@@ -397,6 +397,7 @@ function BackendServicePanel() {
   const [results, setResults] = useState<Record<string, { status: string; data: unknown; error?: string }>>({});
   const [loading, setLoading] = useState(false);
   const [selectedEndpoint, setSelectedEndpoint] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<'unknown' | 'available' | 'unavailable'>('unknown');
 
   const endpoints = [
     { path: '/', name: 'API Discovery', description: 'List all available endpoints' },
@@ -409,6 +410,24 @@ function BackendServicePanel() {
     { path: '/processes', name: 'Processes', description: 'Running processes in the container' },
     { path: '/network', name: 'Network', description: 'Network interfaces, DNS, hosts' },
   ];
+
+  // Check backend availability on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      const vm = ddClient.extension?.vm;
+      if (!vm?.service) {
+        setBackendStatus('unavailable');
+        return;
+      }
+      try {
+        await vm.service.get('/health');
+        setBackendStatus('available');
+      } catch {
+        setBackendStatus('unavailable');
+      }
+    };
+    checkBackend();
+  }, []);
 
   const queryEndpoint = useCallback(async (path: string) => {
     setLoading(true);
@@ -430,6 +449,7 @@ function BackendServicePanel() {
         ...prev,
         [path]: { status: 'ok', data: result }
       }));
+      setBackendStatus('available');
     } catch (e) {
       const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
       setResults(prev => ({
@@ -463,6 +483,7 @@ function BackendServicePanel() {
           ...prev,
           [ep.path]: { status: 'ok', data: result }
         }));
+        setBackendStatus('available');
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
         setResults(prev => ({
@@ -482,6 +503,23 @@ function BackendServicePanel() {
         The backend exposes REST API endpoints for inspecting the container runtime environment.
       </Typography>
 
+      {backendStatus === 'unavailable' && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            Backend Service Not Available
+          </Typography>
+          <Typography variant="body2">
+            Rancher Desktop does not appear to support Docker Desktop extension backend containers.
+            The <code>vm</code> section in metadata.json is recognized by Docker Desktop to run a
+            backend container, but Rancher Desktop does not start this container.
+          </Typography>
+          <Typography variant="body2" sx={{ mt: 1 }}>
+            <strong>Implication:</strong> Extensions that require server-side logic must use host
+            binaries instead of backend services when targeting Rancher Desktop.
+          </Typography>
+        </Alert>
+      )}
+
       <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
         <Button
           variant="contained"
@@ -491,6 +529,12 @@ function BackendServicePanel() {
         >
           Query All Endpoints
         </Button>
+        <Chip
+          label={backendStatus === 'available' ? 'Backend Available' : backendStatus === 'unavailable' ? 'Backend Unavailable' : 'Checking...'}
+          color={backendStatus === 'available' ? 'success' : backendStatus === 'unavailable' ? 'error' : 'default'}
+          size="small"
+          sx={{ alignSelf: 'center' }}
+        />
       </Box>
 
       <TableContainer component={Paper} sx={{ mb: 2 }}>
@@ -1423,6 +1467,7 @@ export default function App() {
           <li>Host binaries limited to ~2-3 scripts (4th binary fails with ENOENT)</li>
           <li>Extension sidebar icon caching (requires full RD restart)</li>
           <li>GUI uninstall fails silently (CLI works fine)</li>
+          <li><strong>Backend containers not supported</strong> - RD ignores the vm section in metadata.json</li>
         </Box>
       </Paper>
     </Container>
