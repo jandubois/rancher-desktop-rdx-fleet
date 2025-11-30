@@ -402,6 +402,21 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                 Build or download your custom extension as a Docker image or ZIP file.
               </Typography>
 
+              {/* Base image input */}
+              <TextField
+                label="Base Image"
+                value={baseImage}
+                onChange={(e) => {
+                  setBaseImage(e.target.value);
+                  setBaseImageStatus('Manually set');
+                }}
+                size="small"
+                fullWidth
+                sx={{ mb: 2 }}
+                placeholder="e.g., fleet-gitops-extension:next"
+                helperText={baseImageStatus}
+              />
+
               {/* Output image name input */}
               <TextField
                 label="Output Image Name"
@@ -482,23 +497,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                 <SettingsIcon color="action" />
                 <Typography variant="body2" color="text.secondary">
-                  Configure extension settings and build options.
+                  Configure extension settings. More options coming soon.
                 </Typography>
               </Box>
-
-              {/* Base image input */}
-              <TextField
-                label="Base Image"
-                value={baseImage}
-                onChange={(e) => {
-                  setBaseImage(e.target.value);
-                  setBaseImageStatus('Manually set');
-                }}
-                size="small"
-                fullWidth
-                placeholder="e.g., fleet-gitops-extension:next"
-                helperText={baseImageStatus}
-              />
             </TabPanel>
           </Box>
         </Collapse>
