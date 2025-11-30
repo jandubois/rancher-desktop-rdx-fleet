@@ -70,8 +70,10 @@ export const CardWrapper: React.FC<CardWrapperProps> = ({
         </Box>
       )}
 
-      {/* Card content */}
-      {children}
+      {/* Card content - apply title color if specified */}
+      <Box sx={{ color: paletteColors?.title ?? 'inherit' }}>
+        {children}
+      </Box>
     </Paper>
   );
 };
