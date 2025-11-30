@@ -542,6 +542,8 @@ function BackendServicePanel() {
       }
     }
 
+    // Auto-select /info endpoint to show container details
+    setSelectedEndpoint('/info');
     setLoading(false);
   }, []);
 
@@ -613,7 +615,13 @@ function BackendServicePanel() {
             {endpoints.map((ep) => {
               const result = results[ep.path];
               return (
-                <TableRow key={ep.path} selected={selectedEndpoint === ep.path}>
+                <TableRow
+                  key={ep.path}
+                  selected={selectedEndpoint === ep.path}
+                  hover
+                  onClick={() => result && setSelectedEndpoint(ep.path)}
+                  sx={{ cursor: result ? 'pointer' : 'default' }}
+                >
                   <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
                     {ep.path}
                   </TableCell>
@@ -630,7 +638,7 @@ function BackendServicePanel() {
                   <TableCell>
                     <Button
                       size="small"
-                      onClick={() => queryEndpoint(ep.path)}
+                      onClick={(e) => { e.stopPropagation(); queryEndpoint(ep.path); }}
                       disabled={loading}
                     >
                       Query
