@@ -308,3 +308,37 @@ export function getContrastTextColor(backgroundColor: { r: number; g: number; b:
   const luminance = (0.299 * backgroundColor.r + 0.587 * backgroundColor.g + 0.114 * backgroundColor.b) / 255;
   return luminance > 0.5 ? '#000000' : '#ffffff';
 }
+
+/**
+ * Get a human-readable color name for a hex color
+ * Uses color-namer library with ntc (Name That Color) palette
+ */
+export async function getColorName(hex: string): Promise<string> {
+  try {
+    const colorNamer = (await import('color-namer')).default;
+    const result = colorNamer(hex);
+    // Use ntc (Name That Color) palette for best results
+    return result.ntc[0]?.name || result.basic[0]?.name || 'Unknown';
+  } catch {
+    return 'Unknown';
+  }
+}
+
+/**
+ * Get color names for multiple hex colors (batched for efficiency)
+ */
+export async function getColorNames(hexColors: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  try {
+    const colorNamer = (await import('color-namer')).default;
+    for (const hex of hexColors) {
+      if (hex && hex !== 'inherit') {
+        const result = colorNamer(hex);
+        names.set(hex, result.ntc[0]?.name || result.basic[0]?.name || 'Unknown');
+      }
+    }
+  } catch {
+    // Return empty map on error
+  }
+  return names;
+}

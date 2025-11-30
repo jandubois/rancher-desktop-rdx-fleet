@@ -206,29 +206,31 @@ function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[]): Colo
   const accentColor = harmonyColors.length > 1 ? harmonyColors[1] : harmonyColors[0];
   const secondaryColor = harmonyColors.length > 2 ? harmonyColors[2] : accentColor;
 
-  // For body background, use a very light tint of the accent color
-  // This creates subtle variation between harmony types
+  // For body background, use a light tint of the accent color
+  // Higher chroma cap (0.05) makes harmony differences visible
   const lightTint: OKLCH = {
-    l: 0.97, // Very light
-    c: Math.min(accentColor.c * 0.08, 0.02), // Very low saturation
+    l: 0.96, // Very light
+    c: Math.min(accentColor.c * 0.15, 0.05), // Subtle but visible saturation
     h: accentColor.h,
   };
   const bodyBackground = oklchToHex(lightTint);
 
   // For card border, use a desaturated mid-tone of the accent color
+  // Higher chroma cap (0.07) for more visible color
   const borderTint: OKLCH = {
-    l: 0.85,
-    c: Math.min(accentColor.c * 0.12, 0.03), // Subtle color
+    l: 0.82,
+    c: Math.min(accentColor.c * 0.25, 0.07), // More visible color
     h: accentColor.h,
   };
   const cardBorder = oklchToHex(borderTint);
 
-  // For card title, use a dark version of the secondary harmony color
+  // For card title, use a medium-dark version of the secondary harmony color
+  // Lightness ~0.45 gives visible color while maintaining readability
   let cardTitle = 'inherit';
   if (harmonyColors.length > 1) {
     const titleColor: OKLCH = {
-      l: Math.min(0.35, secondaryColor.l * 0.6), // Dark for readability
-      c: Math.min(secondaryColor.c * 0.8, 0.15), // Moderate saturation
+      l: 0.45, // Medium-dark for readability with visible color
+      c: Math.min(secondaryColor.c, 0.18), // Higher chroma for more color
       h: secondaryColor.h,
     };
     cardTitle = oklchToHex(titleColor);
