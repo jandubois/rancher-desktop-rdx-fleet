@@ -35,8 +35,9 @@ COPY --from=ui-builder /app/build /ui
 # Copy backend binary
 COPY --from=backend-builder /backend/bin/service /
 
-# Copy metadata and icons
+# Copy metadata, compose file, and icons
 COPY metadata.json /
+COPY compose.yaml /
 COPY icons/ /icons/
 
 # Copy host binary wrapper scripts
