@@ -1,3 +1,12 @@
+# Rancher Desktop Extension Backend Service
+#
+# WORKAROUNDS REQUIRED:
+# 1. Image name must be hardcoded - ${DESKTOP_PLUGIN_IMAGE} is not expanded
+# 2. pull_policy: never - required for locally-built images
+# 3. ports: 8080 exposed - ddClient.extension.vm.service is not implemented
+#
+# See docs/reference/rancher-desktop-extension-bugs.md for details
+
 services:
   backend:
     image: rd-extension-debugger:dev
