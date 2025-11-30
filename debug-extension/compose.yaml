@@ -1,0 +1,4 @@
+services:
+  backend:
+    image: ${DESKTOP_PLUGIN_IMAGE}
+    command: ["/service", "-socket", "/run/guest-services/rd-extension-debugger.sock"]
