@@ -182,7 +182,7 @@ function App() {
   const effectiveCardOrder = useMemo(() => {
     const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
     const manifestCardIds = manifestCards
-      .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'link' || c.type === 'divider' || c.type === 'placeholder')
+      .filter((c) => c.type === 'markdown' || c.type === 'html' || c.type === 'image' || c.type === 'video' || c.type === 'link' || c.type === 'divider' || c.type === 'placeholder')
       .map((c) => c.id);
     const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
 
