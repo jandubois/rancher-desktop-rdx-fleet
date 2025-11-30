@@ -24,7 +24,9 @@ var (
 
 func main() {
 	var socketPath string
+	var httpPort string
 	flag.StringVar(&socketPath, "socket", "/run/guest-services/backend.sock", "Unix domain socket to listen on")
+	flag.StringVar(&httpPort, "port", "8080", "HTTP port to listen on (in addition to socket)")
 	flag.Parse()
 
 	logger.SetOutput(os.Stdout)
@@ -41,7 +43,7 @@ func main() {
 	// Remove existing socket file if it exists
 	os.RemoveAll(socketPath)
 
-	logger.Infof("Starting debug backend service on %s", socketPath)
+	logger.Infof("Starting debug backend service on socket %s and HTTP port %s", socketPath, httpPort)
 
 	router := echo.New()
 	router.HideBanner = true
@@ -64,6 +66,15 @@ func main() {
 	router.GET("/processes", processes)
 	router.GET("/network", network)
 
+	// Start HTTP server in a goroutine
+	go func() {
+		httpAddr := ":" + httpPort
+		logger.Infof("Starting HTTP listener on %s", httpAddr)
+		if err := router.Start(httpAddr); err != nil && err != http.ErrServerClosed {
+			logger.Errorf("HTTP server error: %v", err)
+		}
+	}()
+
 	// Create Unix socket listener
 	ln, err := net.Listen("unix", socketPath)
 	if err != nil {
@@ -75,8 +86,29 @@ func main() {
 		logger.Warnf("Failed to chmod socket: %v", err)
 	}
 
-	router.Listener = ln
-	logger.Fatal(router.Start(""))
+	// Create a second echo instance for the socket
+	socketRouter := echo.New()
+	socketRouter.HideBanner = true
+	socketRouter.HidePort = true
+	socketRouter.Use(middleware.LoggerWithConfig(middleware.LoggerConfig{
+		Format: "[socket] method=${method}, uri=${uri}, status=${status}, latency=${latency_human}\n",
+		Output: os.Stdout,
+	}))
+	socketRouter.Use(middleware.Recover())
+
+	// Register same endpoints on socket router
+	socketRouter.GET("/", root)
+	socketRouter.GET("/health", health)
+	socketRouter.GET("/info", info)
+	socketRouter.GET("/env", env)
+	socketRouter.GET("/system", system)
+	socketRouter.GET("/filesystem", filesystem)
+	socketRouter.GET("/processes", processes)
+	socketRouter.GET("/network", network)
+
+	socketRouter.Listener = ln
+	logger.Infof("Starting socket listener on %s", socketPath)
+	logger.Fatal(socketRouter.Start(""))
 }
 
 // Root endpoint - API discovery
