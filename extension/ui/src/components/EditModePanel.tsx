@@ -69,7 +69,6 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigLoaded }: EditModePanelProps) {
   const [expanded, setExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
-  const [extensionName, setExtensionName] = useState(manifest.app?.name || 'My Fleet Extension');
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
   const [baseImage, setBaseImage] = useState('');
   const [baseImageStatus, setBaseImageStatus] = useState('Detecting...');
@@ -130,7 +129,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
   };
 
   const getConfig = (): ExtensionConfig => ({
-    name: extensionName,
+    name: manifest.app?.name || 'My Fleet Extension',
     manifest,
     cards,
     cardOrder,
@@ -186,11 +185,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
     if (result.success && result.manifest) {
       setImportError(null);
       setImportSuccess(`Configuration loaded from ${sourceName}`);
-      // Update extension name from loaded manifest
-      if (result.manifest.app?.name) {
-        setExtensionName(result.manifest.app.name);
-      }
-      // Notify parent of loaded config
+      // Notify parent of loaded config (which includes the extension name)
       if (onConfigLoaded) {
         onConfigLoaded(result.manifest, sourceName);
       }
@@ -243,7 +238,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
     setConfirmResetOpen(false);
     setImportError(null);
     setImportSuccess('Configuration reset to defaults');
-    setExtensionName(DEFAULT_MANIFEST.app?.name || 'Fleet GitOps');
     if (onConfigLoaded) {
       onConfigLoaded(DEFAULT_MANIFEST, 'defaults');
     }
@@ -492,17 +486,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                 </Typography>
               </Box>
 
-              {/* Extension name input */}
-              <TextField
-                label="Extension Name"
-                value={extensionName}
-                onChange={(e) => setExtensionName(e.target.value)}
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                helperText="The name shown in Rancher Desktop"
-              />
-
               {/* Base image input */}
               <TextField
                 label="Base Image"
@@ -513,7 +496,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
                 }}
                 size="small"
                 fullWidth
-                sx={{ mb: 2 }}
                 placeholder="e.g., fleet-gitops-extension:next"
                 helperText={baseImageStatus}
               />
