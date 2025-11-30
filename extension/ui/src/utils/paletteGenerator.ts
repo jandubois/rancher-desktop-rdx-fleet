@@ -193,40 +193,43 @@ export function generatePaletteFromColor(
 }
 
 /**
- * Build a ColorPalette suitable for the Fleet extension UI from harmony colors
+ * Build a ColorPalette suitable for the Fleet extension UI from harmony colors.
+ * Uses the harmony colors to create a cohesive theme that varies by harmony type.
  */
 function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[]): ColorPalette {
-  // Use the base color as header background
+  // Use the base color as header background (keeps brand identity)
   const headerBackground = baseColor.hex;
   const headerText = getContrastTextColor(baseColor.rgb);
 
-  // For body background, use a light tint derived from the base
-  // Create a very light version of the base color
-  const baseOklch = rgbToOklch(baseColor.rgb.r, baseColor.rgb.g, baseColor.rgb.b);
+  // Pick harmony colors for different UI elements
+  // harmonyColors[0] is usually close to base, so use [1] or later for variation
+  const accentColor = harmonyColors.length > 1 ? harmonyColors[1] : harmonyColors[0];
+  const secondaryColor = harmonyColors.length > 2 ? harmonyColors[2] : accentColor;
+
+  // For body background, use a very light tint of the accent color
+  // This creates subtle variation between harmony types
   const lightTint: OKLCH = {
     l: 0.97, // Very light
-    c: baseOklch.c * 0.1, // Very low saturation
-    h: baseOklch.h,
+    c: Math.min(accentColor.c * 0.08, 0.02), // Very low saturation
+    h: accentColor.h,
   };
   const bodyBackground = oklchToHex(lightTint);
 
-  // For card border, use a slightly darker version of the body background
+  // For card border, use a desaturated mid-tone of the accent color
   const borderTint: OKLCH = {
-    l: 0.88,
-    c: baseOklch.c * 0.15,
-    h: baseOklch.h,
+    l: 0.85,
+    c: Math.min(accentColor.c * 0.12, 0.03), // Subtle color
+    h: accentColor.h,
   };
   const cardBorder = oklchToHex(borderTint);
 
-  // For card title, use a complement or analogous color if available
+  // For card title, use a dark version of the secondary harmony color
   let cardTitle = 'inherit';
   if (harmonyColors.length > 1) {
-    // Use a darker version of a harmony color
-    const harmonyForTitle = harmonyColors[1];
     const titleColor: OKLCH = {
-      l: Math.min(0.4, harmonyForTitle.l), // Ensure it's dark enough for readability
-      c: harmonyForTitle.c,
-      h: harmonyForTitle.h,
+      l: Math.min(0.35, secondaryColor.l * 0.6), // Dark for readability
+      c: Math.min(secondaryColor.c * 0.8, 0.15), // Moderate saturation
+      h: secondaryColor.h,
     };
     cardTitle = oklchToHex(titleColor);
   }
