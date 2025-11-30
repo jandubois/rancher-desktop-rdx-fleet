@@ -43,7 +43,7 @@ import {
 } from '@dnd-kit/sortable';
 
 // Local imports
-import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
+import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, HtmlCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
 import type { ColorPalette } from './theme';
 import { CardWrapper, getCardComponent } from './cards';
 import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel, EditableHeaderIcon, IconState } from './components';
@@ -749,6 +749,8 @@ function App() {
     switch (cardType) {
       case 'markdown':
         return { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings;
+      case 'html':
+        return { content: '<!-- Enter HTML content here -->\n<div>\n  <p>Hello World</p>\n</div>' } as HtmlCardSettings;
       case 'image':
         return { src: '', alt: '' } as ImageCardSettings;
       case 'video':
@@ -783,6 +785,7 @@ function App() {
   const renderPlaceholderCard = (card: CardDefinition) => {
     const cardTypes: { type: CardType; label: string }[] = [
       { type: 'markdown', label: 'Markdown' },
+      { type: 'html', label: 'HTML' },
       { type: 'image', label: 'Image' },
       { type: 'video', label: 'Video' },
       { type: 'link', label: 'Links' },
