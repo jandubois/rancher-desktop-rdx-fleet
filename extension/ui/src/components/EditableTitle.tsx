@@ -1,6 +1,9 @@
 import React from 'react';
+import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import InputBase from '@mui/material/InputBase';
+
+const MAX_LENGTH_WARNING = 20;
 
 interface EditableTitleProps {
   value: string;
@@ -24,22 +27,32 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
   children,
 }) => {
   if (editMode && onChange) {
+    const isTooLong = value.length > MAX_LENGTH_WARNING;
+
     return (
-      <InputBase
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        sx={{
-          typography: variant,
-          fontWeight: variant === 'h6' ? 500 : undefined,
-          '& .MuiInputBase-input': {
-            p: 0,
-            '&::placeholder': {
-              opacity: 0.5,
+      <Box sx={{ flex: 1 }}>
+        <InputBase
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          fullWidth
+          sx={{
+            typography: variant,
+            fontWeight: variant === 'h6' ? 500 : undefined,
+            '& .MuiInputBase-input': {
+              p: 0,
+              '&::placeholder': {
+                opacity: 0.5,
+              },
             },
-          },
-        }}
-      />
+          }}
+        />
+        {isTooLong && (
+          <Typography variant="caption" color="warning.main">
+            Long names may wrap in the sidebar ({value.length} characters)
+          </Typography>
+        )}
+      </Box>
     );
   }
 

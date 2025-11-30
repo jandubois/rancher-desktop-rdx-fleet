@@ -198,6 +198,17 @@ function App() {
     setCardOrder(['fleet-status', ...newManifestCardIds, ...gitRepoIds]);
   }, [gitRepos]);
 
+  // Handle extension title change in header
+  const handleExtensionTitleChange = useCallback((title: string) => {
+    setManifest((prev) => ({
+      ...prev,
+      app: {
+        ...prev.app,
+        name: title,
+      },
+    }));
+  }, []);
+
   // Open add repo dialog
   const openAddRepoDialog = useCallback(() => {
     setAddDialogOpen(true);
@@ -870,9 +881,13 @@ function App() {
               onChange={setIconState}
               editMode={editMode}
             />
-            <Typography variant="h5" sx={{ fontWeight: 500 }}>
-              {manifest.app?.name || 'Fleet GitOps'}
-            </Typography>
+            <EditableTitle
+              value={manifest.app?.name || 'Fleet GitOps'}
+              editMode={editMode}
+              onChange={handleExtensionTitleChange}
+              placeholder="Extension Name"
+              variant="h6"
+            />
           </Box>
           {editModeAllowed && (
             <IconButton

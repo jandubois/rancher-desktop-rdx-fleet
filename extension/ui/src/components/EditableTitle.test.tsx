@@ -6,6 +6,7 @@
  * - Shows Typography when not in edit mode
  * - Supports different typography variants
  * - Accepts children to append after title text
+ * - Shows warning when title exceeds 20 characters in edit mode
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -104,6 +105,39 @@ describe('EditableTitle', () => {
 
       const input = screen.getByRole('textbox');
       expect(input).toHaveAttribute('placeholder', 'Enter title...');
+    });
+  });
+
+  describe('length warning', () => {
+    it('shows warning when title exceeds 20 characters in edit mode', () => {
+      const onChange = vi.fn();
+      const longTitle = 'This is a very long title that exceeds twenty characters';
+      render(<EditableTitle value={longTitle} editMode={true} onChange={onChange} />);
+
+      expect(screen.getByText(/Long names may wrap in the sidebar/)).toBeInTheDocument();
+      expect(screen.getByText(new RegExp(`${longTitle.length} characters`))).toBeInTheDocument();
+    });
+
+    it('does not show warning when title is exactly 20 characters', () => {
+      const onChange = vi.fn();
+      const exactTitle = '12345678901234567890'; // exactly 20 chars
+      render(<EditableTitle value={exactTitle} editMode={true} onChange={onChange} />);
+
+      expect(screen.queryByText(/Long names may wrap in the sidebar/)).not.toBeInTheDocument();
+    });
+
+    it('does not show warning when title is under 20 characters', () => {
+      const onChange = vi.fn();
+      render(<EditableTitle value="Short Title" editMode={true} onChange={onChange} />);
+
+      expect(screen.queryByText(/Long names may wrap in the sidebar/)).not.toBeInTheDocument();
+    });
+
+    it('does not show warning in display mode even for long titles', () => {
+      const longTitle = 'This is a very long title that exceeds twenty characters';
+      render(<EditableTitle value={longTitle} editMode={false} />);
+
+      expect(screen.queryByText(/Long names may wrap in the sidebar/)).not.toBeInTheDocument();
     });
   });
 });
