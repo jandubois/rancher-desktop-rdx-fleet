@@ -1553,14 +1553,19 @@ export default function App() {
       </Accordion>
 
       <Paper sx={{ p: 2, mt: 4, bgcolor: 'background.paper' }}>
-        <Typography variant="subtitle2" gutterBottom>Known Issues Being Investigated:</Typography>
+        <Typography variant="subtitle2" gutterBottom>Known Issues (Confirmed):</Typography>
         <Box component="ul" sx={{ m: 0, pl: 2 }}>
-          <li>ddClient.extension.image missing tag (returns name without :version)</li>
-          <li>Host binaries limited to ~2-3 scripts (4th binary fails with ENOENT)</li>
-          <li>Extension sidebar icon caching (requires full RD restart)</li>
-          <li>GUI uninstall fails silently (CLI works fine)</li>
-          <li><strong>vm.image not supported</strong> - RD requires vm.composefile; vm.image is ignored</li>
-          <li><strong>vm.service not implemented</strong> - ddClient.extension.vm.service API unavailable; use HTTP fallback via exposed port</li>
+          <li><strong>extension.image missing tag</strong> - returns name without :version</li>
+          <li><strong>extension.id missing</strong> - returns undefined</li>
+          <li><strong>extension.version missing</strong> - returns undefined</li>
+          <li><strong>vm.service not implemented</strong> - use HTTP fallback via exposed port</li>
+          <li>Extension sidebar icon caching - requires full RD restart</li>
+          <li>GUI uninstall fails silently - CLI works fine</li>
+        </Box>
+        <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>Needs Verification:</Typography>
+        <Box component="ul" sx={{ m: 0, pl: 2 }}>
+          <li><em>vm.image not supported?</em> - RD may require vm.composefile</li>
+          <li><s>Host binaries limited to ~2-3</s> - all 5 passed in stress test</li>
         </Box>
       </Paper>
     </Container>
