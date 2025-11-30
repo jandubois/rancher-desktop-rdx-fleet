@@ -47,4 +47,4 @@ RUN chmod +x /host/darwin/* /host/linux/*
 RUN apk add --no-cache coreutils procps
 
 # Start the backend service
-CMD ["/service", "-socket", "/run/guest-services/backend.sock"]
+CMD ["/service", "-socket", "/run/guest-services/rd-extension-debugger.sock"]
