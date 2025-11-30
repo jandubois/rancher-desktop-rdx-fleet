@@ -1287,6 +1287,28 @@ export default function App() {
     }
     lines.push('');
 
+    // 3b. Backend Service API (HTTP fallback)
+    setExportProgress('Querying backend service API...');
+    lines.push('-'.repeat(80));
+    lines.push('3b. BACKEND SERVICE API (via HTTP :8080)');
+    lines.push('-'.repeat(80));
+    const backendEndpoints = ['/info', '/env', '/system', '/network', '/processes'];
+    for (const endpoint of backendEndpoints) {
+      try {
+        const resp = await fetch(`http://localhost:8080${endpoint}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          lines.push(`\n--- ${endpoint} ---`);
+          lines.push(JSON.stringify(data, null, 2));
+        } else {
+          lines.push(`${endpoint}: HTTP ${resp.status}`);
+        }
+      } catch (e) {
+        lines.push(`${endpoint}: ERROR - ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    lines.push('');
+
     // 4. Host Binary Environment
     setExportProgress('Running host binary inspection...');
     lines.push('-'.repeat(80));
