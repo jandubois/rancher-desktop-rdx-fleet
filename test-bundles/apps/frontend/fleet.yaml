@@ -1,0 +1,15 @@
+# Frontend service - depends on backend AND external cert-manager
+# This tests EXTERNAL/BLOCKED dependency (cert-manager not in any repo)
+name: frontend
+defaultNamespace: app-frontend
+
+dependsOn:
+  # Same-repo dependency - should work
+  - name: test-bundles-apps-backend
+  # External dependency - NOT in any configured GitRepo
+  # This should BLOCK selection until cert-manager is available
+  - name: cert-manager
+
+helm:
+  releaseName: frontend
+  chart: ./charts/frontend

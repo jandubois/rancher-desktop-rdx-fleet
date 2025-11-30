@@ -21,16 +21,16 @@ interface AddRepoDialogProps {
 }
 
 export function AddRepoDialog({ open, onClose, onAdd }: AddRepoDialogProps) {
-  const [name, setName] = useState('fleet-examples');
-  const [url, setUrl] = useState('https://github.com/rancher/fleet-examples');
+  const [name, setName] = useState('test-bundles');
+  const [url, setUrl] = useState('https://github.com/jandubois/rancher-desktop-rdx-fleet');
   const [branch, setBranch] = useState('');
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Reset form to defaults when dialog opens
   const handleEnter = useCallback(() => {
-    setName('fleet-examples');
-    setUrl('https://github.com/rancher/fleet-examples');
+    setName('test-bundles');
+    setUrl('https://github.com/jandubois/rancher-desktop-rdx-fleet');
     setBranch('');
     setError(null);
   }, []);
@@ -89,7 +89,7 @@ export function AddRepoDialog({ open, onClose, onAdd }: AddRepoDialogProps) {
             label="Repository URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://github.com/rancher/fleet-examples"
+            placeholder="https://github.com/org/repo"
             helperText="Git repository URL (HTTPS)"
             required
             fullWidth
