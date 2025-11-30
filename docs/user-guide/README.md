@@ -96,23 +96,29 @@ Click the **Edit** button in the header bar to toggle edit mode.
 
 ### In Edit Mode You Can:
 
-1. **Reorder Cards**
+1. **Customize Branding Colors**
+   - Open the **Edit** tab in the edit panel
+   - Use the color pickers to customize header, body, and card colors
+   - Changes preview immediately
+   - Reset individual colors to defaults
+
+2. **Reorder Cards**
    - Drag cards using the handle that appears above each card
    - Drop to reposition
 
-2. **Add Cards**
+3. **Add Cards**
    - Click the "+" button that appears between cards
    - Select a card type from the menu
    - Configure the new card
 
-3. **Remove Cards**
+4. **Remove Cards**
    - Click the delete (trash) icon on any card
 
-4. **Toggle Visibility**
+5. **Toggle Visibility**
    - Click the eye icon to hide/show cards
    - Hidden cards are still configured but not displayed
 
-5. **Configure Cards**
+6. **Configure Cards**
    - Click the settings (gear) icon to edit card settings
    - Changes apply immediately
 

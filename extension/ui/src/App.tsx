@@ -36,6 +36,7 @@ import {
 
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
+import type { ColorPalette } from './theme';
 import { CardWrapper, getCardComponent } from './cards';
 import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel, EditableHeaderIcon, IconState } from './components';
 import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery } from './hooks';
@@ -205,6 +206,17 @@ function App() {
       app: {
         ...prev.app,
         name: title,
+      },
+    }));
+  }, []);
+
+  // Handle palette change from Edit tab
+  const handlePaletteChange = useCallback((palette: ColorPalette) => {
+    setManifest((prev) => ({
+      ...prev,
+      branding: {
+        ...prev.branding,
+        palette,
       },
     }));
   }, []);
@@ -911,7 +923,9 @@ function App() {
               cards={manifestCards}
               cardOrder={effectiveCardOrder}
               iconState={iconState}
+              resolvedPalette={palette}
               onConfigLoaded={handleConfigLoaded}
+              onPaletteChange={handlePaletteChange}
             />
           )}
 
