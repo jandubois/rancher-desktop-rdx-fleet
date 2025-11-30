@@ -11,6 +11,12 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Checkbox from '@mui/material/Checkbox';
 import FormGroup from '@mui/material/FormGroup';
 import Divider from '@mui/material/Divider';
+import Tooltip from '@mui/material/Tooltip';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogActions from '@mui/material/DialogActions';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -18,6 +24,8 @@ import AddIcon from '@mui/icons-material/Add';
 import SyncIcon from '@mui/icons-material/Sync';
 import EditIcon from '@mui/icons-material/Edit';
 import EditOffIcon from '@mui/icons-material/EditOff';
+import BlockIcon from '@mui/icons-material/Block';
+import LockIcon from '@mui/icons-material/Lock';
 import {
   DndContext,
   closestCenter,
@@ -39,9 +47,9 @@ import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardS
 import type { ColorPalette } from './theme';
 import { CardWrapper, getCardComponent } from './cards';
 import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel, EditableHeaderIcon, IconState } from './components';
-import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery } from './hooks';
+import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver } from './hooks';
 import { PathInfo } from './utils';
-import { GitRepo } from './types';
+import { GitRepo, BundleInfo } from './types';
 
 // =============================================================================
 // PATH DISCOVERY DESIGN NOTES
@@ -85,6 +93,14 @@ function App() {
     clearDiscoveryCache,
   } = usePathDiscovery();
 
+  // Dependency confirmation dialog state
+  const [dependencyDialog, setDependencyDialog] = useState<{
+    open: boolean;
+    gitRepoName: string;
+    path: string;
+    willAutoSelect: BundleInfo[];
+  }>({ open: false, gitRepoName: '', path: '', willAutoSelect: [] });
+
   // Fleet status hook
   const {
     fleetState,
@@ -107,6 +123,7 @@ function App() {
     addGitRepo,
     deleteGitRepo,
     toggleRepoPath,
+    updateGitRepoPaths,
     clearRepoError,
   } = useGitRepoManagement({
     fleetState,
@@ -119,6 +136,27 @@ function App() {
       });
     },
   });
+
+  // Dependency resolver
+  const {
+    getSelectionInfo,
+    getPathsToSelect,
+    canDeselect,
+  } = useDependencyResolver({
+    gitRepos,
+    repoPathsCache,
+  });
+
+  // Build currently selected paths map for dependency resolution
+  const currentlySelectedPaths = useMemo(() => {
+    const selected = new Map<string, Set<string>>();
+    for (const repo of gitRepos) {
+      if (repo.paths && repo.paths.length > 0) {
+        selected.set(repo.name, new Set(repo.paths));
+      }
+    }
+    return selected;
+  }, [gitRepos]);
 
   // DnD sensors
   const sensors = useSensors(
@@ -448,7 +486,7 @@ function App() {
             sx={{
               pl: 1,
               ...(availablePaths.length > maxVisiblePaths && {
-                maxHeight: maxVisiblePaths * 24,
+                maxHeight: maxVisiblePaths * 32,
                 overflowY: 'auto',
                 border: '1px solid',
                 borderColor: 'divider',
@@ -459,39 +497,110 @@ function App() {
           >
             <FormGroup sx={{ gap: 0 }}>
               {availablePaths.map((pathInfo) => {
-                const hasDeps = pathInfo.dependsOn && pathInfo.dependsOn.length > 0;
+                const isSelected = enabledPaths.includes(pathInfo.path);
+                const selectionInfo = getSelectionInfo(repo.name, pathInfo.path, currentlySelectedPaths);
+                const deselectionInfo = isSelected ? canDeselect(repo.name, pathInfo.path, currentlySelectedPaths) : null;
+
+                // Determine checkbox state
+                const isBlocked = !selectionInfo.canSelect;
+                const isProtected = !!(isSelected && deselectionInfo && !deselectionInfo.canDeselect);
+                const hasDepsToSelect = selectionInfo.willAutoSelect.length > 0;
+
+                // Build tooltip text
+                let tooltipText = '';
+                if (isBlocked) {
+                  tooltipText = `Blocked: requires ${selectionInfo.blockedBy.join(', ')} (not in any configured repository)`;
+                } else if (isProtected && deselectionInfo) {
+                  const requiredByNames = deselectionInfo.requiredBy.map((b) => b.path).join(', ');
+                  tooltipText = `Required by: ${requiredByNames}`;
+                } else if (hasDepsToSelect && !isSelected) {
+                  const depsToAdd = selectionInfo.willAutoSelect.map((b) => b.path).join(', ');
+                  tooltipText = `Will also enable: ${depsToAdd}`;
+                }
+
+                // Handle checkbox change with dependency awareness
+                const handleCheckboxChange = () => {
+                  if (isBlocked || isProtected) return;
+
+                  if (isSelected) {
+                    // Deselecting - simple toggle
+                    toggleRepoPath(repo, pathInfo.path);
+                  } else if (hasDepsToSelect) {
+                    // Selecting with dependencies - show confirmation dialog
+                    setDependencyDialog({
+                      open: true,
+                      gitRepoName: repo.name,
+                      path: pathInfo.path,
+                      willAutoSelect: selectionInfo.willAutoSelect,
+                    });
+                  } else {
+                    // Simple selection without dependencies
+                    toggleRepoPath(repo, pathInfo.path);
+                  }
+                };
+
                 return (
-                  <FormControlLabel
+                  <Tooltip
                     key={pathInfo.path}
-                    sx={{ my: -0.25 }}
-                    control={
-                      <Checkbox
-                        checked={enabledPaths.includes(pathInfo.path)}
-                        onChange={() => toggleRepoPath(repo, pathInfo.path)}
-                        size="small"
-                        disabled={isUpdating || hasDeps}
-                        sx={{ py: 0.5 }}
-                      />
-                    }
-                    label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            fontFamily: 'monospace',
-                            color: hasDeps ? 'text.disabled' : 'text.primary',
-                          }}
-                        >
-                          {pathInfo.path}
-                        </Typography>
-                        {hasDeps && (
-                          <Typography variant="caption" color="text.disabled">
-                            (depends on: {pathInfo.dependsOn!.join(', ')})
+                    title={tooltipText}
+                    placement="right"
+                    disableHoverListener={!tooltipText}
+                  >
+                    <FormControlLabel
+                      sx={{ my: -0.25 }}
+                      control={
+                        <Checkbox
+                          checked={isSelected}
+                          onChange={handleCheckboxChange}
+                          size="small"
+                          disabled={isUpdating || isBlocked || isProtected}
+                          sx={{ py: 0.5 }}
+                          icon={isBlocked ? <BlockIcon fontSize="small" color="error" /> : undefined}
+                          checkedIcon={isProtected ? <LockIcon fontSize="small" color="info" /> : undefined}
+                        />
+                      }
+                      label={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontFamily: 'monospace',
+                              color: isBlocked ? 'error.main' : isProtected ? 'info.main' : 'text.primary',
+                            }}
+                          >
+                            {pathInfo.path}
                           </Typography>
-                        )}
-                      </Box>
-                    }
-                  />
+                          {isProtected && deselectionInfo && (
+                            <Chip
+                              size="small"
+                              label={`required by ${deselectionInfo.requiredBy.length}`}
+                              color="info"
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {hasDepsToSelect && !isSelected && (
+                            <Chip
+                              size="small"
+                              label={`+${selectionInfo.willAutoSelect.length} deps`}
+                              color="warning"
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.7rem' }}
+                            />
+                          )}
+                          {isBlocked && (
+                            <Chip
+                              size="small"
+                              label="blocked"
+                              color="error"
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.7rem' }}
+                            />
+                          )}
+                        </Box>
+                      }
+                    />
+                  </Tooltip>
                 );
               })}
             </FormGroup>
@@ -963,6 +1072,64 @@ function App() {
         onClose={() => setAddDialogOpen(false)}
         onAdd={handleAddRepo}
       />
+
+      {/* Dependency Confirmation Dialog */}
+      <Dialog
+        open={dependencyDialog.open}
+        onClose={() => setDependencyDialog({ open: false, gitRepoName: '', path: '', willAutoSelect: [] })}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Enable Dependencies</DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 2 }}>
+            The path <strong>{dependencyDialog.path}</strong> has dependencies that will also be enabled:
+          </DialogContentText>
+          <Box sx={{ pl: 2 }}>
+            {dependencyDialog.willAutoSelect.map((dep) => (
+              <Box key={dep.bundleName} sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                  {dep.path}
+                </Typography>
+                {dep.gitRepoName !== dependencyDialog.gitRepoName && (
+                  <Chip size="small" label={dep.gitRepoName} variant="outlined" sx={{ height: 18, fontSize: '0.7rem' }} />
+                )}
+              </Box>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setDependencyDialog({ open: false, gitRepoName: '', path: '', willAutoSelect: [] })}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              // Get paths to select for each GitRepo
+              const pathsToSelect = getPathsToSelect(dependencyDialog.gitRepoName, dependencyDialog.path);
+
+              // Update each GitRepo with its new paths
+              for (const [repoName, pathsToAdd] of pathsToSelect) {
+                const repo = gitRepos.find((r) => r.name === repoName);
+                if (!repo) continue;
+
+                const currentPaths = repo.paths || [];
+                const newPaths = [...new Set([...currentPaths, ...pathsToAdd])];
+
+                if (newPaths.length > currentPaths.length) {
+                  updateGitRepoPaths(repo, newPaths);
+                }
+              }
+
+              setDependencyDialog({ open: false, gitRepoName: '', path: '', willAutoSelect: [] });
+            }}
+          >
+            Enable All
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

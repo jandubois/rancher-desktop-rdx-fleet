@@ -2,6 +2,22 @@
 
 export type FleetStatus = 'checking' | 'not-installed' | 'initializing' | 'running' | 'error';
 
+// Bundle information for dependency resolution
+export interface BundleInfo {
+  bundleName: string;       // Computed: gitRepoName-path.replace(/\//g, '-')
+  gitRepoName: string;      // GitRepo metadata.name (NOT the Git URL)
+  path: string;             // Path within repo
+  dependsOn: string[];      // Bundle names this path depends on (from fleet.yaml)
+}
+
+// Dependency resolution result
+export interface DependencyResolution {
+  canSelect: boolean;           // Whether this path can be selected
+  blockedBy: string[];          // External deps that block selection (not in any GitRepo)
+  willAutoSelect: BundleInfo[]; // Bundles that will be auto-selected (same-repo + cross-repo)
+  requiredBy: string[];         // Bundle names that depend on this one (for preventing deselection)
+}
+
 export interface FleetState {
   status: FleetStatus;
   version?: string;

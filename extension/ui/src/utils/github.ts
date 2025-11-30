@@ -1,10 +1,43 @@
 // GitHub API utilities for path discovery
 import yaml from 'js-yaml';
+import { BundleInfo } from '../types';
 
 // Path info with dependency data
 export interface PathInfo {
   path: string;
   dependsOn?: string[];  // Bundle names this path depends on
+}
+
+/**
+ * Compute Fleet bundle name from GitRepo name and path.
+ * Fleet creates bundle names as: <GitRepo-name>-<path-with-slashes-replaced-by-hyphens>
+ *
+ * IMPORTANT: The bundle name depends on GitRepo.metadata.name, NOT the Git URL.
+ */
+export function computeBundleName(gitRepoName: string, path: string): string {
+  // Normalize path: remove leading/trailing slashes, replace internal slashes with hyphens
+  const normalizedPath = path
+    .replace(/^\/+|\/+$/g, '')  // Remove leading/trailing slashes
+    .replace(/\//g, '-');        // Replace slashes with hyphens
+
+  // If path is empty or root, just return the gitrepo name
+  if (!normalizedPath || normalizedPath === '.') {
+    return gitRepoName;
+  }
+
+  return `${gitRepoName}-${normalizedPath}`;
+}
+
+/**
+ * Build BundleInfo from GitRepo name and PathInfo
+ */
+export function buildBundleInfo(gitRepoName: string, pathInfo: PathInfo): BundleInfo {
+  return {
+    bundleName: computeBundleName(gitRepoName, pathInfo.path),
+    gitRepoName,
+    path: pathInfo.path,
+    dependsOn: pathInfo.dependsOn || [],
+  };
 }
 
 /**
