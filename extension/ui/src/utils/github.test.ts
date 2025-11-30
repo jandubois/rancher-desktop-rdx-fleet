@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeAll, afterAll, afterEach } from 'vitest';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import { parseGitHubUrl, fetchFleetYamlDeps, fetchGitHubPaths } from './github';
+import { parseGitHubUrl, fetchFleetYamlDeps, fetchGitHubPaths, computeBundleName, buildBundleInfo } from './github';
 
 // Mock console.log/error to reduce noise in tests
 vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -314,5 +314,69 @@ dependsOn:
 
     await expect(fetchGitHubPaths('https://github.com/owner/repo'))
       .rejects.toThrow('Invalid response from GitHub API');
+  });
+});
+
+describe('computeBundleName', () => {
+  it('combines gitrepo name and path with hyphens', () => {
+    expect(computeBundleName('my-repo', 'apps/frontend')).toBe('my-repo-apps-frontend');
+  });
+
+  it('handles nested paths', () => {
+    expect(computeBundleName('fleet-examples', 'single-cluster/helm-multi-chart/rancher-monitoring'))
+      .toBe('fleet-examples-single-cluster-helm-multi-chart-rancher-monitoring');
+  });
+
+  it('removes leading slashes from path', () => {
+    expect(computeBundleName('my-repo', '/apps/frontend')).toBe('my-repo-apps-frontend');
+  });
+
+  it('removes trailing slashes from path', () => {
+    expect(computeBundleName('my-repo', 'apps/frontend/')).toBe('my-repo-apps-frontend');
+  });
+
+  it('handles empty path', () => {
+    expect(computeBundleName('my-repo', '')).toBe('my-repo');
+  });
+
+  it('handles root path (dot)', () => {
+    expect(computeBundleName('my-repo', '.')).toBe('my-repo');
+  });
+
+  it('handles single directory path', () => {
+    expect(computeBundleName('my-repo', 'simple')).toBe('my-repo-simple');
+  });
+});
+
+describe('buildBundleInfo', () => {
+  it('creates BundleInfo from gitrepo name and PathInfo', () => {
+    const pathInfo = { path: 'apps/frontend', dependsOn: ['dep1', 'dep2'] };
+    const result = buildBundleInfo('my-repo', pathInfo);
+
+    expect(result).toEqual({
+      bundleName: 'my-repo-apps-frontend',
+      gitRepoName: 'my-repo',
+      path: 'apps/frontend',
+      dependsOn: ['dep1', 'dep2'],
+    });
+  });
+
+  it('handles PathInfo without dependsOn', () => {
+    const pathInfo = { path: 'infra/database' };
+    const result = buildBundleInfo('my-repo', pathInfo);
+
+    expect(result).toEqual({
+      bundleName: 'my-repo-infra-database',
+      gitRepoName: 'my-repo',
+      path: 'infra/database',
+      dependsOn: [],
+    });
+  });
+
+  it('handles empty dependsOn array', () => {
+    const pathInfo = { path: 'simple', dependsOn: [] };
+    const result = buildBundleInfo('test', pathInfo);
+
+    expect(result.dependsOn).toEqual([]);
   });
 });
