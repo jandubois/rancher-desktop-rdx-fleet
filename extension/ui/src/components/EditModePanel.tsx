@@ -199,12 +199,31 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
   // Fetch color names when palette colors change
   useEffect(() => {
     const fetchColorNames = async () => {
-      const hexColors = colorFields
-        .map(field => getColorValue(field))
-        .filter(color => isValidHexColor(color));
+      // Extract colors directly from the palette to avoid dependency warnings
+      const palette = manifest.branding?.palette;
+      const hexColors: string[] = [];
 
-      if (hexColors.length > 0) {
-        const names = await getColorNames(hexColors);
+      // Collect all colors from the palette
+      if (palette?.header?.background) hexColors.push(palette.header.background);
+      if (palette?.header?.text) hexColors.push(palette.header.text);
+      if (palette?.body?.background) hexColors.push(palette.body.background);
+      if (palette?.card?.border) hexColors.push(palette.card.border);
+      if (palette?.card?.title) hexColors.push(palette.card.title);
+
+      // Add default values for any missing colors
+      if (hexColors.length === 0) {
+        hexColors.push(
+          defaultPalette.header.background,
+          defaultPalette.header.text,
+          defaultPalette.body.background,
+          defaultPalette.card.border,
+          defaultPalette.card.title,
+        );
+      }
+
+      const validHexColors = hexColors.filter(color => isValidHexColor(color));
+      if (validHexColors.length > 0) {
+        const names = await getColorNames(validHexColors);
         setColorNames(names);
       }
     };
