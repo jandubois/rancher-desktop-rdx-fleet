@@ -6,3 +6,4 @@ export { EditModePanel } from './EditModePanel';
 export { IconUpload } from './IconUpload';
 export { EditableHeaderIcon } from './EditableHeaderIcon';
 export type { CustomIcon } from './IconUpload';
+export type { IconState } from './EditableHeaderIcon';

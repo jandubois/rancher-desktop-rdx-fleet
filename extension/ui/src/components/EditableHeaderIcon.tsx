@@ -1,13 +1,17 @@
 import { useState, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { CustomIcon } from './IconUpload';
 
-// Default Fleet icon SVG as a data URL for comparison purposes
+// Icon state: null = default, CustomIcon = custom, 'deleted' = explicitly no icon
+export type IconState = CustomIcon | null | 'deleted';
+
+// Default Fleet icon SVG
 const DEFAULT_FLEET_ICON = (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135.97886 111.362" style={{ height: 40, width: 'auto' }}>
     <rect fill="#22ad5f" width="135.97886" height="111.362" rx="14.39243"/>
@@ -22,19 +26,24 @@ const DEFAULT_FLEET_ICON = (
 );
 
 interface EditableHeaderIconProps {
-  customIcon: CustomIcon | null;
-  onChange: (icon: CustomIcon | null) => void;
+  iconState: IconState;
+  onChange: (icon: IconState) => void;
   editMode: boolean;
 }
 
 const ACCEPTED_TYPES = ['image/png', 'image/svg+xml', 'image/jpeg', 'image/gif', 'image/webp'];
 const MAX_SIZE = 512 * 1024; // 512KB max
 
-export function EditableHeaderIcon({ customIcon, onChange, editMode }: EditableHeaderIconProps) {
+export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHeaderIconProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Determine what to show
+  const hasCustomIcon = iconState !== null && iconState !== 'deleted';
+  const isDeleted = iconState === 'deleted';
+  const showDefaultIcon = iconState === null;
 
   const validateAndProcessFile = useCallback((file: File): Promise<CustomIcon | null> => {
     return new Promise((resolve) => {
@@ -124,13 +133,18 @@ export function EditableHeaderIcon({ customIcon, onChange, editMode }: EditableH
 
   const handleDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    onChange(null);
+    onChange('deleted');  // Explicitly delete the icon
   }, [onChange]);
 
   // Get the preview URL for custom icon
-  const customIconUrl = customIcon
-    ? `data:${customIcon.mimeType};base64,${customIcon.data}`
+  const customIconUrl = hasCustomIcon
+    ? `data:${(iconState as CustomIcon).mimeType};base64,${(iconState as CustomIcon).data}`
     : null;
+
+  // In non-edit mode with deleted icon, render nothing (title will shift left)
+  if (!editMode && isDeleted) {
+    return null;
+  }
 
   return (
     <Box
@@ -147,7 +161,7 @@ export function EditableHeaderIcon({ customIcon, onChange, editMode }: EditableH
       onDragLeave={handleDragLeave}
       onClick={handleClick}
     >
-      {/* Icon container */}
+      {/* Icon container - width adjusts to content, height is fixed */}
       <Box
         sx={{
           position: 'relative',
@@ -160,30 +174,42 @@ export function EditableHeaderIcon({ customIcon, onChange, editMode }: EditableH
           transition: 'all 0.2s ease',
           ...(editMode && {
             border: '2px dashed',
-            borderColor: isDragging ? 'warning.light' : isHovering ? 'rgba(255,255,255,0.5)' : 'transparent',
+            borderColor: isDragging ? 'warning.light' : isHovering ? 'rgba(255,255,255,0.5)' : isDeleted ? 'rgba(255,255,255,0.3)' : 'transparent',
             bgcolor: isDragging ? 'rgba(255,255,255,0.1)' : 'transparent',
             p: 0.5,
           }),
         }}
       >
-        {customIconUrl ? (
+        {/* Show custom icon - height fixed, width auto for aspect ratio */}
+        {customIconUrl && (
           <img
             src={customIconUrl}
             alt="Extension icon"
             style={{
               height: 40,
               width: 'auto',
-              maxWidth: 60,
               objectFit: 'contain',
               borderRadius: 4,
             }}
           />
-        ) : (
-          DEFAULT_FLEET_ICON
         )}
 
-        {/* Edit overlay - shown on hover in edit mode */}
-        {editMode && isHovering && !isDragging && (
+        {/* Show default Fleet icon */}
+        {showDefaultIcon && DEFAULT_FLEET_ICON}
+
+        {/* Show empty placeholder in edit mode when deleted */}
+        {editMode && isDeleted && !isDragging && (
+          <AddPhotoAlternateIcon
+            sx={{
+              color: isHovering ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)',
+              fontSize: 28,
+              transition: 'color 0.2s ease',
+            }}
+          />
+        )}
+
+        {/* Edit overlay - shown on hover in edit mode (only when there's an icon) */}
+        {editMode && isHovering && !isDragging && !isDeleted && (
           <Box
             sx={{
               position: 'absolute',
@@ -219,9 +245,9 @@ export function EditableHeaderIcon({ customIcon, onChange, editMode }: EditableH
         )}
       </Box>
 
-      {/* Delete button - shown when custom icon exists in edit mode */}
-      {editMode && customIcon && isHovering && (
-        <Tooltip title="Remove custom icon">
+      {/* Delete button - shown when there's an icon (custom or default) in edit mode */}
+      {editMode && !isDeleted && isHovering && (
+        <Tooltip title="Remove icon">
           <IconButton
             size="small"
             onClick={handleDelete}

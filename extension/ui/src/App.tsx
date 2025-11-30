@@ -37,7 +37,7 @@ import {
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
 import { CardWrapper, getCardComponent } from './cards';
-import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel, EditableHeaderIcon, CustomIcon } from './components';
+import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel, EditableHeaderIcon, IconState } from './components';
 import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery } from './hooks';
 import { PathInfo } from './utils';
 import { GitRepo } from './types';
@@ -68,8 +68,8 @@ function App() {
   // Titles for dynamic cards (fleet-status, gitrepo-*) that aren't in manifestCards
   const [dynamicCardTitles, setDynamicCardTitles] = useState<Record<string, string>>({});
 
-  // Custom icon for extension builder
-  const [customIcon, setCustomIcon] = useState<CustomIcon | null>(null);
+  // Icon state for extension builder: null = default, CustomIcon = custom, 'deleted' = no icon
+  const [iconState, setIconState] = useState<IconState>(null);
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -867,8 +867,8 @@ function App() {
         <Box sx={{ maxWidth: 900, margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <EditableHeaderIcon
-              customIcon={customIcon}
-              onChange={setCustomIcon}
+              iconState={iconState}
+              onChange={setIconState}
               editMode={editMode}
             />
             <Typography variant="h5" sx={{ fontWeight: 500 }}>
@@ -896,7 +896,7 @@ function App() {
               manifest={manifest}
               cards={manifestCards}
               cardOrder={effectiveCardOrder}
-              customIcon={customIcon}
+              iconState={iconState}
               onConfigLoaded={handleConfigLoaded}
             />
           )}

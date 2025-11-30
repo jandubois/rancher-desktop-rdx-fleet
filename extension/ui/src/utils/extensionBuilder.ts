@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { Manifest, CardDefinition } from '../manifest';
 import { ddClient } from '../lib/ddClient';
 import type { CustomIcon } from '../components/IconUpload';
+import type { IconState } from '../components/EditableHeaderIcon';
 
 // Fleet extension image info (from Docker labels)
 export interface FleetExtensionImage {
@@ -30,7 +31,7 @@ export interface ExtensionConfig {
   cards: CardDefinition[];
   cardOrder: string[];
   baseImage?: string;
-  customIcon?: CustomIcon | null;  // Custom icon for the extension
+  iconState?: IconState;  // null = default, CustomIcon = custom, 'deleted' = no icon
 }
 
 // Build result
@@ -131,26 +132,42 @@ export function generateManifestYaml(config: ExtensionConfig): string {
   });
 }
 
+// Helper to check if iconState is a custom icon object
+function isCustomIcon(iconState: IconState | undefined): iconState is CustomIcon {
+  return iconState !== null && iconState !== undefined && iconState !== 'deleted';
+}
+
 // Get the icon path for metadata.json based on config
-function getIconPath(config: ExtensionConfig): string {
-  if (config.customIcon) {
-    // Use the custom icon filename with appropriate extension
-    const ext = config.customIcon.mimeType === 'image/svg+xml' ? 'svg'
-      : config.customIcon.mimeType === 'image/png' ? 'png'
-      : config.customIcon.mimeType === 'image/jpeg' ? 'jpg'
-      : config.customIcon.mimeType === 'image/gif' ? 'gif'
-      : config.customIcon.mimeType === 'image/webp' ? 'webp'
+// Returns null if icon is explicitly deleted (no icon)
+function getIconPath(config: ExtensionConfig): string | null {
+  const { iconState } = config;
+
+  // Explicitly deleted = no icon
+  if (iconState === 'deleted') {
+    return null;
+  }
+
+  // Custom icon uploaded
+  if (isCustomIcon(iconState)) {
+    const ext = iconState.mimeType === 'image/svg+xml' ? 'svg'
+      : iconState.mimeType === 'image/png' ? 'png'
+      : iconState.mimeType === 'image/jpeg' ? 'jpg'
+      : iconState.mimeType === 'image/gif' ? 'gif'
+      : iconState.mimeType === 'image/webp' ? 'webp'
       : 'png';
     return `/icons/custom-icon.${ext}`;
   }
+
+  // Default = use base image's icon (don't override)
   return '/icons/fleet-icon.svg';
 }
 
 // Generate metadata.json for the extension
 // Inherits host binaries from base extension for kubectl/helm access
 export function generateMetadataJson(config: ExtensionConfig): string {
-  const metadata = {
-    icon: getIconPath(config),
+  const iconPath = getIconPath(config);
+  const metadata: Record<string, unknown> = {
+    ...(iconPath && { icon: iconPath }),  // Only include icon if not deleted
     ui: {
       'dashboard-tab': {
         title: config.name || 'My Fleet Extension',
@@ -191,7 +208,7 @@ export function generateMetadataJson(config: ExtensionConfig): string {
 export function generateDockerfile(config: ExtensionConfig): string {
   const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops:latest';
   const extensionName = config.name || 'My Fleet Extension';
-  const hasCustomIcon = !!config.customIcon;
+  const hasCustomIcon = isCustomIcon(config.iconState);
   const iconPath = getIconPath(config);
 
   let dockerfile = `# Custom Fleet GitOps Extension
@@ -203,8 +220,15 @@ FROM \${BASE_IMAGE}
 # Extension metadata - override base image labels
 LABEL org.opencontainers.image.title="${extensionName}"
 LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
-LABEL com.docker.desktop.extension.icon="${iconPath}"
+`;
 
+  // Only add icon label if there's an icon path
+  if (iconPath) {
+    dockerfile += `LABEL com.docker.desktop.extension.icon="${iconPath}"
+`;
+  }
+
+  dockerfile += `
 # Mark this as a custom Fleet extension (enables config extraction)
 LABEL io.rancher-desktop.fleet.type="custom"
 LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"
@@ -220,11 +244,6 @@ COPY metadata.json /metadata.json
     dockerfile += `
 # Add custom icon
 COPY icons/ /icons/
-`;
-  } else {
-    dockerfile += `
-# Add custom icon (optional - uncomment if you have a custom icon)
-# COPY icons/ /icons/
 `;
   }
 
@@ -300,20 +319,18 @@ export async function createExtensionZip(config: ExtensionConfig): Promise<Blob>
   // Add README
   zip.file('README.md', generateReadme(config));
 
-  // Add custom icon or placeholder
-  if (config.customIcon) {
+  // Add custom icon if present
+  if (isCustomIcon(config.iconState)) {
     // Decode base64 and add to icons directory
-    const iconFilename = getCustomIconFilename(config.customIcon);
-    const binaryData = atob(config.customIcon.data);
+    const iconFilename = getCustomIconFilename(config.iconState);
+    const binaryData = atob(config.iconState.data);
     const bytes = new Uint8Array(binaryData.length);
     for (let i = 0; i < binaryData.length; i++) {
       bytes[i] = binaryData.charCodeAt(i);
     }
     zip.file(`icons/${iconFilename}`, bytes);
-  } else {
-    // Add a placeholder icon directory with a note
-    zip.file('icons/.gitkeep', '# Add your custom icons here\n');
   }
+  // Note: If icon is deleted or default, no icons directory needed
 
   // Generate the ZIP blob
   return await zip.generateAsync({ type: 'blob' });
@@ -349,7 +366,8 @@ export async function buildExtension(
 ): Promise<BuildResult> {
   const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops:latest';
   const extensionTitle = config.name || 'My Fleet Extension';
-  const hasCustomIcon = !!config.customIcon;
+  const hasCustomIcon = isCustomIcon(config.iconState);
+  const isIconDeleted = config.iconState === 'deleted';
 
   // Generate the files
   const manifestYaml = generateManifestYaml(config);
@@ -360,14 +378,14 @@ export async function buildExtension(
   const metadataB64 = btoa(metadataJson);
 
   // Prepare icon data if present
-  const iconB64 = config.customIcon?.data || '';
-  const iconFilename = config.customIcon ? getCustomIconFilename(config.customIcon) : '';
+  const iconB64 = hasCustomIcon ? (config.iconState as CustomIcon).data : '';
+  const iconFilename = hasCustomIcon ? getCustomIconFilename(config.iconState as CustomIcon) : '';
 
   // Base64 encode the title to safely pass it (handles special characters)
   const titleB64 = btoa(extensionTitle);
 
-  // Determine the icon path for the label
-  const iconPath = hasCustomIcon ? `/icons/${iconFilename}` : '/icons/fleet-icon.svg';
+  // Determine the icon path for the label (empty string if deleted = no icon label)
+  const iconPath = isIconDeleted ? '' : (hasCustomIcon ? `/icons/${iconFilename}` : '/icons/fleet-icon.svg');
 
   onProgress?.('Preparing build context...');
 
@@ -397,12 +415,16 @@ ARG BASE_IMAGE=base-image-not-set
 FROM \\\${BASE_IMAGE}
 LABEL org.opencontainers.image.title="$EXT_TITLE_DECODED"
 LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
-LABEL com.docker.desktop.extension.icon="$ICON_PATH"
 LABEL io.rancher-desktop.fleet.type="custom"
 LABEL io.rancher-desktop.fleet.base-image="\\\${BASE_IMAGE}"
 COPY manifest.yaml /ui/manifest.yaml
 COPY metadata.json /metadata.json
 EOF
+
+# Add icon label only if ICON_PATH is set (not deleted)
+if [ -n "$ICON_PATH" ]; then
+  sed -i '/^LABEL org.opencontainers.image.description/a LABEL com.docker.desktop.extension.icon="'"$ICON_PATH"'"' Dockerfile
+fi
 
 # Add icon copy instruction if custom icon is present
 if [ "$HAS_CUSTOM_ICON" = "true" ]; then
