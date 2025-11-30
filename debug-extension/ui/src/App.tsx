@@ -392,6 +392,286 @@ echo "=== END VM DEBUG ==="
   );
 }
 
+// Panel for backend service API
+function BackendServicePanel() {
+  const [results, setResults] = useState<Record<string, { status: string; data: unknown; error?: string }>>({});
+  const [loading, setLoading] = useState(false);
+  const [selectedEndpoint, setSelectedEndpoint] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<'unknown' | 'available' | 'unavailable'>('unknown');
+  const [vmDiagnostics, setVmDiagnostics] = useState<string>('');
+  const [httpStatus, setHttpStatus] = useState<'unknown' | 'available' | 'unavailable'>('unknown');
+
+  const endpoints = [
+    { path: '/', name: 'API Discovery', description: 'List all available endpoints' },
+    { path: '/health', name: 'Health Check', description: 'Service health and uptime' },
+    { path: '/info', name: 'Container Info', description: 'Hostname, PID, user, Go runtime info' },
+    { path: '/env', name: 'Environment Variables', description: 'All environment variables in the container' },
+    { path: '/system', name: 'System Info', description: 'OS release, kernel, memory, CPU info' },
+    { path: '/filesystem?path=/', name: 'Filesystem (root)', description: 'Root directory contents and mounts' },
+    { path: '/filesystem?path=/ui', name: 'Filesystem (/ui)', description: 'UI directory contents' },
+    { path: '/processes', name: 'Processes', description: 'Running processes in the container' },
+    { path: '/network', name: 'Network', description: 'Network interfaces, DNS, hosts' },
+  ];
+
+  // Check backend availability on mount
+  useEffect(() => {
+    const checkBackend = async () => {
+      // Diagnostic info about vm object
+      const vm = ddClient.extension?.vm;
+      const vmInfo: string[] = [];
+      vmInfo.push(`ddClient.extension.vm exists: ${!!vm}`);
+      if (vm) {
+        vmInfo.push(`vm.service exists: ${!!vm.service}`);
+        vmInfo.push(`vm.cli exists: ${!!vm.cli}`);
+        if (vm.service) {
+          vmInfo.push(`vm.service.get exists: ${typeof vm.service.get}`);
+          vmInfo.push(`vm.service.post exists: ${typeof vm.service.post}`);
+        }
+        vmInfo.push(`vm keys: ${Object.keys(vm).join(', ')}`);
+      }
+      setVmDiagnostics(vmInfo.join('\n'));
+
+      // Try vm.service API
+      if (!vm?.service) {
+        setBackendStatus('unavailable');
+      } else {
+        try {
+          await vm.service.get('/health');
+          setBackendStatus('available');
+        } catch {
+          setBackendStatus('unavailable');
+        }
+      }
+
+      // Try direct HTTP fetch to localhost:8080
+      try {
+        const resp = await fetch('http://localhost:8080/health');
+        if (resp.ok) {
+          setHttpStatus('available');
+        } else {
+          setHttpStatus('unavailable');
+        }
+      } catch {
+        setHttpStatus('unavailable');
+      }
+    };
+    checkBackend();
+  }, []);
+
+  const queryEndpoint = useCallback(async (path: string) => {
+    setLoading(true);
+    setSelectedEndpoint(path);
+
+    // Try vm.service first, then fall back to HTTP
+    const vm = ddClient.extension?.vm;
+    if (vm?.service) {
+      try {
+        const result = await vm.service.get(path);
+        setResults(prev => ({
+          ...prev,
+          [path]: { status: 'ok', data: result }
+        }));
+        setBackendStatus('available');
+        setLoading(false);
+        return;
+      } catch (e) {
+        // Continue to try HTTP fallback
+        console.log('vm.service failed, trying HTTP fallback:', e);
+      }
+    }
+
+    // Try direct HTTP fetch
+    try {
+      const resp = await fetch(`http://localhost:8080${path}`);
+      const data = await resp.json();
+      setResults(prev => ({
+        ...prev,
+        [path]: { status: 'ok', data, error: 'via HTTP fallback' }
+      }));
+      setHttpStatus('available');
+    } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
+      setResults(prev => ({
+        ...prev,
+        [path]: { status: 'error', data: null, error: `vm.service unavailable, HTTP fallback failed: ${errorMsg}` }
+      }));
+    }
+
+    setLoading(false);
+  }, []);
+
+  const queryAllEndpoints = useCallback(async () => {
+    setLoading(true);
+
+    for (const ep of endpoints) {
+      // Try vm.service first, then fall back to HTTP
+      const vm = ddClient.extension?.vm;
+      let success = false;
+
+      if (vm?.service) {
+        try {
+          const result = await vm.service.get(ep.path);
+          setResults(prev => ({
+            ...prev,
+            [ep.path]: { status: 'ok', data: result }
+          }));
+          setBackendStatus('available');
+          success = true;
+        } catch {
+          // Continue to HTTP fallback
+        }
+      }
+
+      if (!success) {
+        // Try direct HTTP fetch
+        try {
+          const resp = await fetch(`http://localhost:8080${ep.path}`);
+          const data = await resp.json();
+          setResults(prev => ({
+            ...prev,
+            [ep.path]: { status: 'ok', data, error: 'via HTTP' }
+          }));
+          setHttpStatus('available');
+        } catch (e) {
+          const errorMsg = e instanceof Error ? e.message : JSON.stringify(e);
+          setResults(prev => ({
+            ...prev,
+            [ep.path]: { status: 'error', data: null, error: errorMsg }
+          }));
+        }
+      }
+    }
+
+    // Auto-select /info endpoint to show container details
+    setSelectedEndpoint('/info');
+    setLoading(false);
+  }, []);
+
+  return (
+    <Box>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Query the backend service running in the extension container via ddClient.extension.vm.service.
+        The backend exposes REST API endpoints for inspecting the container runtime environment.
+      </Typography>
+
+      {/* VM Diagnostics */}
+      <Paper sx={{ p: 1, mb: 2, bgcolor: '#1a1a1a' }}>
+        <Typography variant="caption" color="text.secondary">VM Object Diagnostics:</Typography>
+        <Typography variant="body2" component="pre" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', m: 0, whiteSpace: 'pre-wrap' }}>
+          {vmDiagnostics || 'Loading...'}
+        </Typography>
+      </Paper>
+
+      <Box sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Button
+          variant="contained"
+          startIcon={loading ? <CircularProgress size={20} /> : <RefreshIcon />}
+          onClick={queryAllEndpoints}
+          disabled={loading}
+        >
+          Query All Endpoints
+        </Button>
+        <Chip
+          label={`vm.service: ${backendStatus}`}
+          color={backendStatus === 'available' ? 'success' : backendStatus === 'unavailable' ? 'error' : 'default'}
+          size="small"
+        />
+        <Chip
+          label={`HTTP :8080: ${httpStatus}`}
+          color={httpStatus === 'available' ? 'success' : httpStatus === 'unavailable' ? 'error' : 'default'}
+          size="small"
+        />
+      </Box>
+
+      {backendStatus === 'unavailable' && httpStatus === 'available' && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            <strong>ddClient.extension.vm.service</strong> is not available, but HTTP fallback on port 8080 works.
+            Queries will use direct HTTP fetch to localhost:8080.
+          </Typography>
+        </Alert>
+      )}
+
+      {backendStatus === 'unavailable' && httpStatus === 'unavailable' && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          <Typography variant="body2">
+            Neither <code>vm.service</code> nor HTTP fallback is available.
+            The backend container may not be running or port 8080 may not be exposed.
+          </Typography>
+        </Alert>
+      )}
+
+      <TableContainer component={Paper} sx={{ mb: 2 }}>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Endpoint</TableCell>
+              <TableCell>Description</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Action</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {endpoints.map((ep) => {
+              const result = results[ep.path];
+              return (
+                <TableRow
+                  key={ep.path}
+                  selected={selectedEndpoint === ep.path}
+                  hover
+                  onClick={() => result && setSelectedEndpoint(ep.path)}
+                  sx={{ cursor: result ? 'pointer' : 'default' }}
+                >
+                  <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    {ep.path}
+                  </TableCell>
+                  <TableCell>{ep.description}</TableCell>
+                  <TableCell>
+                    {!result ? (
+                      <Chip label="Not queried" size="small" />
+                    ) : result.status === 'ok' ? (
+                      <Chip label="OK" color="success" size="small" />
+                    ) : (
+                      <Chip label="ERROR" color="error" size="small" />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="small"
+                      onClick={(e) => { e.stopPropagation(); queryEndpoint(ep.path); }}
+                      disabled={loading}
+                    >
+                      Query
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {selectedEndpoint && results[selectedEndpoint] && (
+        <Box>
+          <Typography variant="subtitle2" gutterBottom>
+            Response from {selectedEndpoint}:
+          </Typography>
+          {results[selectedEndpoint].status === 'error' ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {results[selectedEndpoint].error}
+            </Alert>
+          ) : (
+            <CodeBlock
+              content={JSON.stringify(results[selectedEndpoint].data, null, 2)}
+              maxHeight={500}
+            />
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 // Panel for host binary environment
 function HostBinaryEnvPanel() {
   const [result, setResult] = useState<CommandResult | null>(null);
@@ -1007,6 +1287,28 @@ export default function App() {
     }
     lines.push('');
 
+    // 3b. Backend Service API (HTTP fallback)
+    setExportProgress('Querying backend service API...');
+    lines.push('-'.repeat(80));
+    lines.push('3b. BACKEND SERVICE API (via HTTP :8080)');
+    lines.push('-'.repeat(80));
+    const backendEndpoints = ['/info', '/env', '/system', '/network', '/processes'];
+    for (const endpoint of backendEndpoints) {
+      try {
+        const resp = await fetch(`http://localhost:8080${endpoint}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          lines.push(`\n--- ${endpoint} ---`);
+          lines.push(JSON.stringify(data, null, 2));
+        } else {
+          lines.push(`${endpoint}: HTTP ${resp.status}`);
+        }
+      } catch (e) {
+        lines.push(`${endpoint}: ERROR - ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    lines.push('');
+
     // 4. Host Binary Environment
     setExportProgress('Running host binary inspection...');
     lines.push('-'.repeat(80));
@@ -1196,9 +1498,18 @@ export default function App() {
         </AccordionDetails>
       </Accordion>
 
+      <Accordion expanded={expanded === 'backend'} onChange={handleChange('backend')}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography variant="h6">3. Backend Service API</Typography>
+        </AccordionSummary>
+        <AccordionDetails>
+          <BackendServicePanel />
+        </AccordionDetails>
+      </Accordion>
+
       <Accordion expanded={expanded === 'hostBinary'} onChange={handleChange('hostBinary')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">3. Host Binary Environment</Typography>
+          <Typography variant="h6">4. Host Binary Environment</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <HostBinaryEnvPanel />
@@ -1207,7 +1518,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'stressTest'} onChange={handleChange('stressTest')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">4. Host Binary Stress Test (Bug Reproduction)</Typography>
+          <Typography variant="h6">5. Host Binary Stress Test (Bug Reproduction)</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <HostBinaryStressTestPanel />
@@ -1216,7 +1527,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'rdTools'} onChange={handleChange('rdTools')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">5. RD Tools Inventory</Typography>
+          <Typography variant="h6">6. RD Tools Inventory</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <RdToolsPanel />
@@ -1225,7 +1536,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'kubernetes'} onChange={handleChange('kubernetes')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">6. Kubernetes Context</Typography>
+          <Typography variant="h6">7. Kubernetes Context</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <KubernetesPanel />
@@ -1234,7 +1545,7 @@ export default function App() {
 
       <Accordion expanded={expanded === 'sdkMethods'} onChange={handleChange('sdkMethods')}>
         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-          <Typography variant="h6">7. SDK Method Compatibility</Typography>
+          <Typography variant="h6">8. SDK Method Compatibility</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <SdkMethodsPanel />
@@ -1242,12 +1553,19 @@ export default function App() {
       </Accordion>
 
       <Paper sx={{ p: 2, mt: 4, bgcolor: 'background.paper' }}>
-        <Typography variant="subtitle2" gutterBottom>Known Issues Being Investigated:</Typography>
+        <Typography variant="subtitle2" gutterBottom>Known Issues (Confirmed):</Typography>
         <Box component="ul" sx={{ m: 0, pl: 2 }}>
-          <li>ddClient.extension.image missing tag (returns name without :version)</li>
-          <li>Host binaries limited to ~2-3 scripts (4th binary fails with ENOENT)</li>
-          <li>Extension sidebar icon caching (requires full RD restart)</li>
-          <li>GUI uninstall fails silently (CLI works fine)</li>
+          <li><strong>extension.image missing tag</strong> - returns name without :version</li>
+          <li><strong>extension.id missing</strong> - returns undefined</li>
+          <li><strong>extension.version missing</strong> - returns undefined</li>
+          <li><strong>vm.service not implemented</strong> - use HTTP fallback via exposed port</li>
+          <li>Extension sidebar icon caching - requires full RD restart</li>
+          <li>GUI uninstall fails silently - CLI works fine</li>
+        </Box>
+        <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>Needs Verification:</Typography>
+        <Box component="ul" sx={{ m: 0, pl: 2 }}>
+          <li><em>vm.image not supported?</em> - RD may require vm.composefile</li>
+          <li><s>Host binaries limited to ~2-3</s> - all 5 passed in stress test</li>
         </Box>
       </Paper>
     </Container>
