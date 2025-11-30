@@ -11,6 +11,7 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import InputAdornment from '@mui/material/InputAdornment';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -22,7 +23,9 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RestoreIcon from '@mui/icons-material/Restore';
 import SettingsIcon from '@mui/icons-material/Settings';
+import PaletteIcon from '@mui/icons-material/Palette';
 import { Manifest, CardDefinition, DEFAULT_MANIFEST } from '../manifest';
+import { ColorPalette, defaultPalette } from '../theme/palette';
 import {
   downloadExtensionZip,
   buildExtension,
@@ -44,6 +47,21 @@ interface EditModePanelProps {
   cardOrder: string[];
   iconState: IconState;
   onConfigLoaded?: (manifest: Manifest, sourceName: string) => void;
+  onPaletteChange?: (palette: ColorPalette) => void;
+}
+
+// Validate hex color (3, 4, 6, or 8 digit hex with #)
+const isValidHexColor = (color: string): boolean => {
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(color);
+};
+
+// Color field configuration
+interface ColorFieldConfig {
+  id: string;
+  label: string;
+  group: 'header' | 'body' | 'card';
+  property: string;
+  defaultValue: string;
 }
 
 interface TabPanelProps {
@@ -66,7 +84,67 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigLoaded }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigLoaded, onPaletteChange }: EditModePanelProps) {
+  // Color field definitions
+  const colorFields: ColorFieldConfig[] = [
+    { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
+    { id: 'header-text', label: 'Header Text', group: 'header', property: 'text', defaultValue: defaultPalette.header.text },
+    { id: 'body-bg', label: 'Body Background', group: 'body', property: 'background', defaultValue: defaultPalette.body.background },
+    { id: 'card-border', label: 'Card Border', group: 'card', property: 'border', defaultValue: defaultPalette.card.border },
+    { id: 'card-title', label: 'Card Title', group: 'card', property: 'title', defaultValue: defaultPalette.card.title },
+  ];
+
+  // Get current color value from manifest palette
+  const getColorValue = (field: ColorFieldConfig): string => {
+    const palette = manifest.branding?.palette;
+    if (!palette) return field.defaultValue;
+    const group = palette[field.group];
+    if (!group) return field.defaultValue;
+    return (group as Record<string, string | undefined>)[field.property] ?? field.defaultValue;
+  };
+
+  // Handle color change
+  const handleColorChange = (field: ColorFieldConfig, value: string) => {
+    if (!onPaletteChange) return;
+
+    const currentPalette = manifest.branding?.palette || {};
+    const updatedPalette: ColorPalette = {
+      ...currentPalette,
+      [field.group]: {
+        ...(currentPalette[field.group] || {}),
+        [field.property]: value || undefined,
+      },
+    };
+
+    onPaletteChange(updatedPalette);
+  };
+
+  // Reset a color to default
+  const handleResetColor = (field: ColorFieldConfig) => {
+    if (!onPaletteChange) return;
+
+    const currentPalette = manifest.branding?.palette || {};
+    const groupData = { ...(currentPalette[field.group] || {}) };
+    delete (groupData as Record<string, string | undefined>)[field.property];
+
+    const updatedPalette: ColorPalette = {
+      ...currentPalette,
+      [field.group]: Object.keys(groupData).length > 0 ? groupData : undefined,
+    };
+
+    // Clean up empty groups
+    if (!updatedPalette.header || Object.keys(updatedPalette.header).length === 0) {
+      delete updatedPalette.header;
+    }
+    if (!updatedPalette.body || Object.keys(updatedPalette.body).length === 0) {
+      delete updatedPalette.body;
+    }
+    if (!updatedPalette.card || Object.keys(updatedPalette.card).length === 0) {
+      delete updatedPalette.card;
+    }
+
+    onPaletteChange(updatedPalette);
+  };
   const [expanded, setExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
@@ -494,12 +572,87 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
 
             {/* Edit Tab */}
             <TabPanel value={activeTab} index={2}>
+              {/* Branding Colors Section */}
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                <SettingsIcon color="action" />
-                <Typography variant="body2" color="text.secondary">
-                  Configure extension settings. More options coming soon.
+                <PaletteIcon color="action" />
+                <Typography variant="subtitle2">
+                  Branding Colors
                 </Typography>
               </Box>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Customize the extension appearance. Enter hex color values (e.g., #1976d2) or use the color picker.
+              </Typography>
+
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
+                {colorFields.map((field) => {
+                  const currentValue = getColorValue(field);
+                  const isDefault = currentValue === field.defaultValue;
+                  const isValid = field.property === 'title' && currentValue === 'inherit'
+                    ? true
+                    : isValidHexColor(currentValue);
+
+                  return (
+                    <Box key={field.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+                      <TextField
+                        label={field.label}
+                        value={currentValue}
+                        onChange={(e) => handleColorChange(field, e.target.value)}
+                        size="small"
+                        fullWidth
+                        error={!isValid}
+                        helperText={!isValid ? 'Invalid hex color' : (isDefault ? 'Default' : 'Custom')}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <Box
+                                  component="input"
+                                  type="color"
+                                  value={isValid && currentValue !== 'inherit' ? currentValue : '#000000'}
+                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChange(field, e.target.value)}
+                                  sx={{
+                                    width: 24,
+                                    height: 24,
+                                    p: 0,
+                                    border: '1px solid',
+                                    borderColor: 'divider',
+                                    borderRadius: 0.5,
+                                    cursor: 'pointer',
+                                    '&::-webkit-color-swatch-wrapper': { p: 0 },
+                                    '&::-webkit-color-swatch': { border: 'none', borderRadius: 0.5 },
+                                  }}
+                                />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                      {!isDefault && (
+                        <Button
+                          size="small"
+                          onClick={() => handleResetColor(field)}
+                          sx={{ minWidth: 'auto', px: 1, mt: 0.5 }}
+                          title="Reset to default"
+                        >
+                          <RestoreIcon fontSize="small" />
+                        </Button>
+                      )}
+                    </Box>
+                  );
+                })}
+              </Box>
+
+              {/* Additional Settings Placeholder */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 4, mb: 2 }}>
+                <SettingsIcon color="action" />
+                <Typography variant="subtitle2">
+                  Additional Settings
+                </Typography>
+              </Box>
+              <Typography variant="body2" color="text.secondary">
+                More configuration options coming soon.
+              </Typography>
             </TabPanel>
           </Box>
         </Collapse>
