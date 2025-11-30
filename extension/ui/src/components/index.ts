@@ -1,6 +1,7 @@
 // Component exports
 export { SortableCard } from './SortableCard';
 export { AddRepoDialog } from './AddRepoDialog';
+export { ConfirmDialog } from './ConfirmDialog';
 export { EditableTitle } from './EditableTitle';
 export { EditModePanel } from './EditModePanel';
 export { IconUpload } from './IconUpload';

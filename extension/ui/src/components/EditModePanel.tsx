@@ -7,11 +7,12 @@ import TextField from '@mui/material/TextField';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Collapse from '@mui/material/Collapse';
-import Divider from '@mui/material/Divider';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import DownloadIcon from '@mui/icons-material/Download';
 import BuildIcon from '@mui/icons-material/Build';
 import UploadIcon from '@mui/icons-material/Upload';
@@ -20,6 +21,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import RestoreIcon from '@mui/icons-material/Restore';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { Manifest, CardDefinition, DEFAULT_MANIFEST } from '../manifest';
 import {
   downloadExtensionZip,
@@ -34,6 +36,7 @@ import {
   ImportResult,
 } from '../utils/extensionBuilder';
 import type { IconState } from './EditableHeaderIcon';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface EditModePanelProps {
   manifest: Manifest;
@@ -43,8 +46,29 @@ interface EditModePanelProps {
   onConfigLoaded?: (manifest: Manifest, sourceName: string) => void;
 }
 
+interface TabPanelProps {
+  children?: React.ReactNode;
+  index: number;
+  value: number;
+}
+
+function TabPanel({ children, value, index }: TabPanelProps) {
+  return (
+    <Box
+      role="tabpanel"
+      hidden={value !== index}
+      id={`edit-mode-tabpanel-${index}`}
+      aria-labelledby={`edit-mode-tab-${index}`}
+      sx={{ pt: 2 }}
+    >
+      {value === index && children}
+    </Box>
+  );
+}
+
 export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigLoaded }: EditModePanelProps) {
   const [expanded, setExpanded] = useState(true);
+  const [activeTab, setActiveTab] = useState(0);
   const [extensionName, setExtensionName] = useState(manifest.app?.name || 'My Fleet Extension');
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
   const [baseImage, setBaseImage] = useState('');
@@ -62,6 +86,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Confirmation dialog state
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   // Try to detect the base image asynchronously (includes rdctl fallback for tag)
   useEffect(() => {
@@ -213,6 +240,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
   };
 
   const handleResetToDefaults = () => {
+    setConfirmResetOpen(false);
     setImportError(null);
     setImportSuccess('Configuration reset to defaults');
     setExtensionName(DEFAULT_MANIFEST.app?.name || 'Fleet GitOps');
@@ -226,245 +254,284 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, onConfigL
     return name;
   };
 
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setActiveTab(newValue);
+  };
+
   return (
-    <Paper
-      sx={{
-        mb: 2,
-        border: '2px solid',
-        borderColor: 'warning.main',
-        bgcolor: 'warning.light',
-        overflow: 'hidden',
-      }}
-    >
-      {/* Header - always visible */}
-      <Box
+    <>
+      <Paper
         sx={{
-          px: 2,
-          py: 1.5,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          cursor: 'pointer',
-          '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' },
+          mb: 2,
+          border: '2px solid',
+          borderColor: 'warning.main',
+          bgcolor: 'warning.light',
+          overflow: 'hidden',
         }}
-        onClick={() => setExpanded(!expanded)}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <BuildIcon sx={{ color: 'warning.dark' }} />
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'warning.dark' }}>
-            Edit Mode - Extension Builder
-          </Typography>
-        </Box>
-        {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-      </Box>
-
-      {/* Expandable content */}
-      <Collapse in={expanded}>
-        <Box sx={{ px: 2, pb: 2, bgcolor: 'background.paper' }}>
-          {/* Load Configuration Section */}
-          <Typography variant="subtitle2" sx={{ mt: 1, mb: 1, fontWeight: 600 }}>
-            Load Configuration
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Load an existing configuration from a custom extension image or a ZIP file.
-          </Typography>
-
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap', mb: 2 }}>
-            {/* Image selector */}
-            <FormControl size="small" sx={{ minWidth: 250, flex: 1 }}>
-              <InputLabel>Custom Extension Image</InputLabel>
-              <Select
-                value={selectedImage}
-                onChange={(e) => setSelectedImage(e.target.value)}
-                label="Custom Extension Image"
-                disabled={loadingImages || importing}
-              >
-                <MenuItem value="">
-                  <em>Select an image...</em>
-                </MenuItem>
-                {fleetImages.map((img) => (
-                  <MenuItem key={`${img.repository}:${img.tag}`} value={`${img.repository}:${img.tag}`}>
-                    {getImageDisplayName(img)}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={refreshFleetImages}
-              disabled={loadingImages}
-              sx={{ minWidth: 40, px: 1 }}
-              title="Refresh image list"
-            >
-              {loadingImages ? <CircularProgress size={20} /> : <RefreshIcon />}
-            </Button>
-
-            <Button
-              variant="contained"
-              startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
-              onClick={handleLoadFromImage}
-              disabled={!selectedImage || importing}
-            >
-              Load
-            </Button>
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-            <Typography variant="body2" color="text.secondary">
-              Or upload a ZIP file:
+        {/* Header - always visible */}
+        <Box
+          sx={{
+            px: 2,
+            py: 1.5,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            '&:hover': { bgcolor: 'rgba(0,0,0,0.04)' },
+          }}
+          onClick={() => setExpanded(!expanded)}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <BuildIcon sx={{ color: 'warning.dark' }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, color: 'warning.dark' }}>
+              Edit Mode - Extension Builder
             </Typography>
-            <input
-              type="file"
-              accept=".zip"
-              ref={fileInputRef}
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-            />
-            <Button
-              variant="outlined"
-              startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <FolderOpenIcon />}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={importing}
-            >
-              Browse...
-            </Button>
-            <Box sx={{ flex: 1 }} />
-            <Button
-              variant="text"
-              color="secondary"
-              startIcon={<RestoreIcon />}
-              onClick={handleResetToDefaults}
-              disabled={importing}
-            >
-              Reset to Defaults
-            </Button>
           </Box>
-
-          {/* Import status messages */}
-          {importSuccess && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setImportSuccess(null)}>
-              {importSuccess}
-            </Alert>
-          )}
-          {importError && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setImportError(null)}>
-              {importError}
-            </Alert>
-          )}
-
-          <Divider sx={{ my: 2 }} />
-
-          {/* Build Extension Section */}
-          <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
-            Build Extension
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Customize the extension layout above, then build or download your custom extension.
-          </Typography>
-
-          {/* Extension name input */}
-          <TextField
-            label="Extension Name"
-            value={extensionName}
-            onChange={(e) => setExtensionName(e.target.value)}
-            size="small"
-            fullWidth
-            sx={{ mb: 2 }}
-            helperText="The name shown in Rancher Desktop"
-          />
-
-          {/* Base image input */}
-          <TextField
-            label="Base Image"
-            value={baseImage}
-            onChange={(e) => {
-              setBaseImage(e.target.value);
-              setBaseImageStatus('Manually set');
-            }}
-            size="small"
-            fullWidth
-            sx={{ mb: 2 }}
-            placeholder="e.g., fleet-gitops-extension:next"
-            helperText={baseImageStatus}
-          />
-
-          {/* Output image name input */}
-          <TextField
-            label="Output Image Name"
-            value={imageName}
-            onChange={(e) => setImageName(e.target.value)}
-            size="small"
-            fullWidth
-            sx={{ mb: 2 }}
-            helperText="Tag for the built Docker image"
-          />
-
-          {/* Action buttons */}
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <Button
-              variant="contained"
-              color="primary"
-              startIcon={downloading ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
-              onClick={handleDownload}
-              disabled={downloading}
-            >
-              {downloading ? 'Downloading...' : 'Download ZIP'}
-            </Button>
-            <Button
-              variant="outlined"
-              color="primary"
-              startIcon={building ? <CircularProgress size={16} color="inherit" /> : <BuildIcon />}
-              onClick={handleBuild}
-              disabled={building || !baseImage}
-              title={!baseImage ? 'Base image is required for building' : undefined}
-            >
-              {building ? 'Building...' : 'Build'}
-            </Button>
-          </Box>
-
-          {/* Build output */}
-          {buildOutput && (
-            <Alert severity="info" sx={{ mt: 2 }}>
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  fontFamily: 'monospace',
-                  fontSize: '0.8rem',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  maxHeight: 300,
-                  overflow: 'auto',
-                }}
-              >
-                {buildOutput}
-              </Box>
-            </Alert>
-          )}
-
-          {/* Build error */}
-          {buildError && (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              <Box
-                component="pre"
-                sx={{
-                  m: 0,
-                  fontFamily: 'monospace',
-                  fontSize: '0.8rem',
-                  whiteSpace: 'pre-wrap',
-                  wordBreak: 'break-word',
-                  maxHeight: 200,
-                  overflow: 'auto',
-                }}
-              >
-                {buildError}
-              </Box>
-            </Alert>
-          )}
+          {expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
         </Box>
-      </Collapse>
-    </Paper>
+
+        {/* Expandable content */}
+        <Collapse in={expanded}>
+          <Box sx={{ px: 2, pb: 2, bgcolor: 'background.paper' }}>
+            {/* Tabs */}
+            <Tabs
+              value={activeTab}
+              onChange={handleTabChange}
+              aria-label="Edit mode tabs"
+              sx={{ borderBottom: 1, borderColor: 'divider' }}
+            >
+              <Tab label="Load" id="edit-mode-tab-0" aria-controls="edit-mode-tabpanel-0" />
+              <Tab label="Build" id="edit-mode-tab-1" aria-controls="edit-mode-tabpanel-1" />
+              <Tab label="Edit" id="edit-mode-tab-2" aria-controls="edit-mode-tabpanel-2" />
+            </Tabs>
+
+            {/* Import status messages - shown across all tabs */}
+            {(importSuccess || importError) && (
+              <Box sx={{ mt: 2 }}>
+                {importSuccess && (
+                  <Alert severity="success" onClose={() => setImportSuccess(null)}>
+                    {importSuccess}
+                  </Alert>
+                )}
+                {importError && (
+                  <Alert severity="error" onClose={() => setImportError(null)}>
+                    {importError}
+                  </Alert>
+                )}
+              </Box>
+            )}
+
+            {/* Load Tab */}
+            <TabPanel value={activeTab} index={0}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Load an existing configuration from a custom extension image or a ZIP file.
+              </Typography>
+
+              <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap', mb: 2 }}>
+                {/* Image selector */}
+                <FormControl size="small" sx={{ minWidth: 250, flex: 1 }}>
+                  <InputLabel>Custom Extension Image</InputLabel>
+                  <Select
+                    value={selectedImage}
+                    onChange={(e) => setSelectedImage(e.target.value)}
+                    label="Custom Extension Image"
+                    disabled={loadingImages || importing}
+                  >
+                    <MenuItem value="">
+                      <em>Select an image...</em>
+                    </MenuItem>
+                    {fleetImages.map((img) => (
+                      <MenuItem key={`${img.repository}:${img.tag}`} value={`${img.repository}:${img.tag}`}>
+                        {getImageDisplayName(img)}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={refreshFleetImages}
+                  disabled={loadingImages}
+                  sx={{ minWidth: 40, px: 1 }}
+                  title="Refresh image list"
+                >
+                  {loadingImages ? <CircularProgress size={20} /> : <RefreshIcon />}
+                </Button>
+
+                <Button
+                  variant="contained"
+                  startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
+                  onClick={handleLoadFromImage}
+                  disabled={!selectedImage || importing}
+                >
+                  Load
+                </Button>
+              </Box>
+
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
+                <Typography variant="body2" color="text.secondary">
+                  Or upload a ZIP file:
+                </Typography>
+                <input
+                  type="file"
+                  accept=".zip"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  style={{ display: 'none' }}
+                />
+                <Button
+                  variant="outlined"
+                  startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <FolderOpenIcon />}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={importing}
+                >
+                  Browse...
+                </Button>
+                <Box sx={{ flex: 1 }} />
+                <Button
+                  variant="text"
+                  color="secondary"
+                  startIcon={<RestoreIcon />}
+                  onClick={() => setConfirmResetOpen(true)}
+                  disabled={importing}
+                >
+                  Reset to Defaults
+                </Button>
+              </Box>
+            </TabPanel>
+
+            {/* Build Tab */}
+            <TabPanel value={activeTab} index={1}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Build or download your custom extension as a Docker image or ZIP file.
+              </Typography>
+
+              {/* Output image name input */}
+              <TextField
+                label="Output Image Name"
+                value={imageName}
+                onChange={(e) => setImageName(e.target.value)}
+                size="small"
+                fullWidth
+                sx={{ mb: 2 }}
+                helperText="Tag for the built Docker image"
+              />
+
+              {/* Action buttons */}
+              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={downloading ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
+                  onClick={handleDownload}
+                  disabled={downloading}
+                >
+                  {downloading ? 'Downloading...' : 'Download ZIP'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  startIcon={building ? <CircularProgress size={16} color="inherit" /> : <BuildIcon />}
+                  onClick={handleBuild}
+                  disabled={building || !baseImage}
+                  title={!baseImage ? 'Base image is required for building' : undefined}
+                >
+                  {building ? 'Building...' : 'Build Image'}
+                </Button>
+              </Box>
+
+              {/* Build output */}
+              {buildOutput && (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  <Box
+                    component="pre"
+                    sx={{
+                      m: 0,
+                      fontFamily: 'monospace',
+                      fontSize: '0.8rem',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: 300,
+                      overflow: 'auto',
+                    }}
+                  >
+                    {buildOutput}
+                  </Box>
+                </Alert>
+              )}
+
+              {/* Build error */}
+              {buildError && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  <Box
+                    component="pre"
+                    sx={{
+                      m: 0,
+                      fontFamily: 'monospace',
+                      fontSize: '0.8rem',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: 200,
+                      overflow: 'auto',
+                    }}
+                  >
+                    {buildError}
+                  </Box>
+                </Alert>
+              )}
+            </TabPanel>
+
+            {/* Edit Tab */}
+            <TabPanel value={activeTab} index={2}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                <SettingsIcon color="action" />
+                <Typography variant="body2" color="text.secondary">
+                  Configure extension settings and build options.
+                </Typography>
+              </Box>
+
+              {/* Extension name input */}
+              <TextField
+                label="Extension Name"
+                value={extensionName}
+                onChange={(e) => setExtensionName(e.target.value)}
+                size="small"
+                fullWidth
+                sx={{ mb: 2 }}
+                helperText="The name shown in Rancher Desktop"
+              />
+
+              {/* Base image input */}
+              <TextField
+                label="Base Image"
+                value={baseImage}
+                onChange={(e) => {
+                  setBaseImage(e.target.value);
+                  setBaseImageStatus('Manually set');
+                }}
+                size="small"
+                fullWidth
+                sx={{ mb: 2 }}
+                placeholder="e.g., fleet-gitops-extension:next"
+                helperText={baseImageStatus}
+              />
+            </TabPanel>
+          </Box>
+        </Collapse>
+      </Paper>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmResetOpen}
+        title="Reset to Defaults"
+        message="This will reset all configuration to the default values. Any unsaved changes will be lost."
+        confirmLabel="Reset"
+        confirmColor="warning"
+        onConfirm={handleResetToDefaults}
+        onCancel={() => setConfirmResetOpen(false)}
+      />
+    </>
   );
 }
