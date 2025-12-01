@@ -19,6 +19,20 @@ A stock chart widget that displays real-time stock data from Yahoo Finance.
 2. Copy the contents of `stock-chart.html` into the card
 3. Modify the `SYMBOL` variable to track a different stock
 
+### weather-widget.html
+
+A weather widget that displays current conditions for a specified location.
+
+**Features:**
+- Uses weatherwidget.io service
+- Customizable location and theme
+- Responsive design
+
+**Usage:**
+1. Create an HTML card in the extension
+2. Copy the contents of `weather-widget.html` into the card
+3. Visit https://weatherwidget.io/ to get a custom URL for your location
+
 ## Notes on HTML Card Limitations
 
 Due to Content Security Policy (CSP) restrictions in Rancher Desktop extensions:

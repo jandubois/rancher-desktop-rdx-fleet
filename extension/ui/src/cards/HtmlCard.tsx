@@ -17,6 +17,25 @@ import { registerCard } from './registry';
  * - Weather widgets
  * - Third-party embed scripts
  * - Interactive visualizations
+ *
+ * SECURITY MODEL:
+ * ---------------
+ * This component intentionally allows arbitrary JavaScript execution.
+ * The iframe shares the parent's origin (via document.write), meaning scripts
+ * can access parent.document, localStorage, and make authenticated requests.
+ *
+ * This is acceptable because:
+ * 1. Users explicitly create HTML cards and provide their own content
+ * 2. Content comes from the manifest (controlled by extension author) or
+ *    is entered by the user in edit mode
+ * 3. It's analogous to pasting code into browser devtools
+ *
+ * LIMITATIONS (due to Rancher Desktop CSP):
+ * - External <script src="..."> tags are blocked
+ * - Workaround: Load scripts via fetch().then(eval) pattern
+ * - External iframes may be blocked by the target site's X-Frame-Options
+ *
+ * See examples/html-card-snippets/ for working examples.
  */
 export const HtmlCard: React.FC<CardProps<HtmlCardSettings>> = ({
   definition,
