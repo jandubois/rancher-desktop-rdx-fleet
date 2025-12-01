@@ -1,31 +1,34 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useFleetStatus } from './useFleetStatus';
+import { KubernetesService, FleetStatusCheckResult } from '../services';
 
 // Suppress console.error in tests
 vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-// Create a mock exec function that we can control using hoisted
-const { mockExec } = vi.hoisted(() => ({
-  mockExec: vi.fn(),
-}));
-
-// Mock the ddClient module
-vi.mock('../lib/ddClient', () => ({
-  ddClient: {
-    extension: {
-      host: {
-        cli: {
-          exec: mockExec,
-        },
-      },
-    },
-  },
-}));
+// Create a mock KubernetesService
+function createMockKubernetesService() {
+  return {
+    checkFleetStatus: vi.fn<[], Promise<FleetStatusCheckResult>>(),
+    installFleet: vi.fn<[], Promise<void>>(),
+    createFleetNamespace: vi.fn<[], Promise<void>>(),
+    checkFleetCrdExists: vi.fn<[], Promise<boolean>>(),
+    checkFleetPodRunning: vi.fn<[], Promise<boolean>>(),
+    checkFleetNamespaceExists: vi.fn<[], Promise<boolean>>(),
+    getFleetVersion: vi.fn<[], Promise<string>>(),
+    fetchGitRepos: vi.fn(),
+    applyGitRepo: vi.fn(),
+    deleteGitRepo: vi.fn(),
+  } as unknown as KubernetesService;
+}
 
 describe('useFleetStatus', () => {
+  let mockService: KubernetesService;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockService = createMockKubernetesService();
   });
 
   afterEach(() => {
@@ -33,38 +36,20 @@ describe('useFleetStatus', () => {
   });
 
   it('starts with "checking" status', async () => {
-    // Mock CRD check to hang
-    mockExec.mockReturnValue(new Promise(() => {}));
+    // Mock checkFleetStatus to hang
+    vi.mocked(mockService.checkFleetStatus).mockReturnValue(new Promise(() => {}));
 
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     expect(result.current.fleetState.status).toBe('checking');
   });
 
-  it('detects Fleet when CRD exists, controller is running, and namespace exists', async () => {
-    mockExec
-      // CRD check
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      // Pod check
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      // Namespace check
-      .mockResolvedValueOnce({
-        stdout: 'fleet-local',
-        stderr: '',
-      } as never)
-      // Helm list for version
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify([{ app_version: '0.10.0' }]),
-        stderr: '',
-      } as never);
+  it('detects Fleet when status is running', async () => {
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'running', version: '0.10.0' },
+    });
 
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('running');
@@ -73,153 +58,38 @@ describe('useFleetStatus', () => {
     expect(result.current.fleetState.version).toBe('0.10.0');
   });
 
-  it('returns "not-installed" when CRD does not exist', async () => {
-    mockExec
-      // CRD check returns empty/no match
-      .mockResolvedValueOnce({
-        stdout: '',
-        stderr: '',
-      } as never);
+  it('returns "not-installed" when checkFleetStatus returns not-installed', async () => {
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'not-installed' },
+    });
 
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('not-installed');
     });
   });
 
-  it('returns "not-installed" when CRD check throws NotFound error', async () => {
-    mockExec
-      // CRD check throws NotFound
-      .mockRejectedValueOnce(new Error('Error: gitrepos.fleet.cattle.io NotFound'));
-
-    const { result } = renderHook(() => useFleetStatus());
-
-    await waitFor(() => {
-      expect(result.current.fleetState.status).toBe('not-installed');
+  it('extracts Fleet version from status result', async () => {
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'running', version: '0.9.1' },
     });
-  });
 
-  it('returns "not-installed" when pod is not running', async () => {
-    mockExec
-      // CRD check
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      // Pod check - not Running
-      .mockResolvedValueOnce({
-        stdout: 'Pending',
-        stderr: '',
-      } as never);
-
-    const { result } = renderHook(() => useFleetStatus());
-
-    await waitFor(() => {
-      expect(result.current.fleetState.status).toBe('not-installed');
-    });
-  });
-
-  it('extracts Fleet version from helm list', async () => {
-    mockExec
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'fleet-local',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify([{ app_version: '0.9.1', chart: 'fleet-0.9.1' }]),
-        stderr: '',
-      } as never);
-
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.version).toBe('0.9.1');
     });
   });
 
-  it('uses chart name when app_version is missing', async () => {
-    mockExec
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'fleet-local',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify([{ chart: 'fleet-0.8.0' }]),
-        stderr: '',
-      } as never);
-
-    const { result } = renderHook(() => useFleetStatus());
-
-    await waitFor(() => {
-      expect(result.current.fleetState.version).toBe('fleet-0.8.0');
-    });
-  });
-
-  it('sets version to "unknown" when helm list fails to parse', async () => {
-    mockExec
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'fleet-local',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'invalid json',
-        stderr: '',
-      } as never);
-
-    const { result } = renderHook(() => useFleetStatus());
-
-    await waitFor(() => {
-      expect(result.current.fleetState.version).toBe('unknown');
-    });
-  });
-
   it('calls onFleetReady callback when Fleet is running', async () => {
     const onFleetReady = vi.fn();
 
-    mockExec
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'fleet-local',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify([{ app_version: '0.10.0' }]),
-        stderr: '',
-      } as never);
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'running', version: '0.10.0' },
+    });
 
-    renderHook(() => useFleetStatus({ onFleetReady }));
+    renderHook(() => useFleetStatus({ kubernetesService: mockService, onFleetReady }));
 
     await waitFor(() => {
       expect(onFleetReady).toHaveBeenCalled();
@@ -227,15 +97,9 @@ describe('useFleetStatus', () => {
   });
 
   it('returns error status when check throws unexpected error', async () => {
-    mockExec
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      // Pod check throws unexpected error
-      .mockRejectedValueOnce(new Error('Connection refused'));
+    vi.mocked(mockService.checkFleetStatus).mockRejectedValueOnce(new Error('Connection refused'));
 
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('error');
@@ -243,92 +107,36 @@ describe('useFleetStatus', () => {
     });
   });
 
-  it('installFleet calls helm commands in correct order and creates namespace', async () => {
+  it('installFleet calls service.installFleet and rechecks status', async () => {
     // Initial check - not installed
-    mockExec.mockResolvedValueOnce({
-      stdout: '',
-      stderr: '',
-    } as never);
+    vi.mocked(mockService.checkFleetStatus)
+      .mockResolvedValueOnce({ state: { status: 'not-installed' } })
+      // After install, recheck returns running
+      .mockResolvedValueOnce({ state: { status: 'running', version: '0.10.0' } });
 
-    const { result } = renderHook(() => useFleetStatus());
+    vi.mocked(mockService.installFleet).mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('not-installed');
     });
 
-    // Setup mocks for install
-    mockExec
-      // helm repo add
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-      // helm repo update
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-      // helm install fleet-crd
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-      // helm install fleet
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-      // kubectl create namespace fleet-local
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-      // checkFleetStatus after install - CRD check
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      // Pod check
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      // Namespace check
-      .mockResolvedValueOnce({
-        stdout: 'fleet-local',
-        stderr: '',
-      } as never)
-      // Helm list for version
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify([{ app_version: '0.10.0' }]),
-        stderr: '',
-      } as never);
-
     await act(async () => {
       await result.current.installFleet();
     });
 
-    // Verify helm commands were called in order
-    const calls = mockExec.mock.calls;
-
-    // Find the helm calls after the initial check
-    const helmCalls = calls.filter(call => call[0] === 'helm');
-
-    expect(helmCalls[0]).toContain('helm');
-    expect(helmCalls[0][1]).toContain('repo');
-    expect(helmCalls[0][1]).toContain('add');
-
-    expect(helmCalls[1][1]).toContain('repo');
-    expect(helmCalls[1][1]).toContain('update');
-
-    expect(helmCalls[2][1]).toContain('install');
-    expect(helmCalls[2][1]).toContain('fleet-crd');
-
-    expect(helmCalls[3][1]).toContain('install');
-    expect(helmCalls[3][1]).toContain('fleet');
-    expect(helmCalls[3][1]).not.toContain('fleet-crd');
-
-    // Verify namespace creation was called
-    const kubectlCalls = calls.filter(call => call[0] === 'kubectl');
-    const createNsCalls = kubectlCalls.filter(call =>
-      call[1]?.includes('create') && call[1]?.includes('namespace')
-    );
-    expect(createNsCalls.length).toBeGreaterThan(0);
+    expect(mockService.installFleet).toHaveBeenCalled();
+    expect(result.current.fleetState.status).toBe('running');
   });
 
   it('sets installing to true during installation', async () => {
     // Initial check - not installed
-    mockExec.mockResolvedValueOnce({
-      stdout: '',
-      stderr: '',
-    } as never);
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'not-installed' },
+    });
 
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('not-installed');
@@ -342,7 +150,10 @@ describe('useFleetStatus', () => {
       resolveInstall = resolve;
     });
 
-    mockExec.mockImplementationOnce(() => installPromise as never);
+    vi.mocked(mockService.installFleet).mockReturnValueOnce(installPromise);
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'running', version: '0.10.0' },
+    });
 
     // Start install (don't await)
     act(() => {
@@ -354,32 +165,26 @@ describe('useFleetStatus', () => {
     // Complete installation
     await act(async () => {
       resolveInstall!();
-      // Add remaining mock responses
-      mockExec
-        .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-        .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-        .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-        .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-        .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
-        .mockResolvedValueOnce({ stdout: '', stderr: '' } as never);
+      await installPromise;
     });
+
+    expect(result.current.installing).toBe(false);
   });
 
   it('sets error status when installation fails', async () => {
     // Initial check - not installed
-    mockExec.mockResolvedValueOnce({
-      stdout: '',
-      stderr: '',
-    } as never);
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'not-installed' },
+    });
 
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('not-installed');
     });
 
-    // helm repo add fails
-    mockExec.mockRejectedValueOnce(new Error('Network unreachable'));
+    // Install fails
+    vi.mocked(mockService.installFleet).mockRejectedValueOnce(new Error('Network unreachable'));
 
     await act(async () => {
       await result.current.installFleet();
@@ -392,35 +197,16 @@ describe('useFleetStatus', () => {
 
   it('checkFleetStatus can be called manually', async () => {
     // Initial check - not installed
-    mockExec.mockResolvedValueOnce({
-      stdout: '',
-      stderr: '',
-    } as never);
+    vi.mocked(mockService.checkFleetStatus)
+      .mockResolvedValueOnce({ state: { status: 'not-installed' } })
+      // Manual re-check - now running
+      .mockResolvedValueOnce({ state: { status: 'running', version: '0.10.0' } });
 
-    const { result } = renderHook(() => useFleetStatus());
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('not-installed');
     });
-
-    // Manual re-check - now running
-    mockExec
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: 'fleet-local',
-        stderr: '',
-      } as never)
-      .mockResolvedValueOnce({
-        stdout: JSON.stringify([{ app_version: '0.10.0' }]),
-        stderr: '',
-      } as never);
 
     await act(async () => {
       await result.current.checkFleetStatus();
@@ -429,37 +215,23 @@ describe('useFleetStatus', () => {
     expect(result.current.fleetState.status).toBe('running');
   });
 
-  it('handles CRD check with stderr error', async () => {
-    mockExec.mockResolvedValueOnce({
-      stdout: '',
-      stderr: 'Error from server (NotFound): gitrepos.fleet.cattle.io not found',
-    } as never);
-
-    const { result } = renderHook(() => useFleetStatus());
-
-    await waitFor(() => {
-      expect(result.current.fleetState.status).toBe('not-installed');
+  it('returns initializing status when namespace needs to be created', async () => {
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: {
+        status: 'initializing',
+        message: 'Creating the "fleet-local" namespace...',
+      },
+      needsNamespaceCreation: true,
     });
-  });
 
-  it('returns initializing status and creates namespace when namespace does not exist', async () => {
-    mockExec
-      // CRD check
-      .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      // Pod check
-      .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      // Namespace check - throws NotFound
-      .mockRejectedValueOnce(new Error('Error from server (NotFound): namespaces "fleet-local" not found'))
-      // Create namespace
-      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never);
+    vi.mocked(mockService.createFleetNamespace).mockResolvedValueOnce(undefined);
 
-    const { result } = renderHook(() => useFleetStatus());
+    // After namespace creation, recheck returns running
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'running', version: '0.10.0' },
+    });
+
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('initializing');
@@ -467,35 +239,70 @@ describe('useFleetStatus', () => {
     });
 
     // Verify namespace creation was attempted
-    const calls = mockExec.mock.calls;
-    const createNsCalls = calls.filter(call =>
-      call[0] === 'kubectl' && call[1]?.includes('create') && call[1]?.includes('namespace')
-    );
-    expect(createNsCalls.length).toBe(1);
+    expect(mockService.createFleetNamespace).toHaveBeenCalled();
   });
 
-  it('ignores already exists error when creating namespace', async () => {
-    mockExec
-      // CRD check
+  it('handles namespace creation error gracefully', async () => {
+    vi.mocked(mockService.checkFleetStatus)
       .mockResolvedValueOnce({
-        stdout: 'gitrepos.fleet.cattle.io',
-        stderr: '',
-      } as never)
-      // Pod check
+        state: {
+          status: 'initializing',
+          message: 'Creating the "fleet-local" namespace...',
+        },
+        needsNamespaceCreation: true,
+      })
+      // After retry, still initializing
       .mockResolvedValueOnce({
-        stdout: 'Running',
-        stderr: '',
-      } as never)
-      // Namespace check - throws NotFound
-      .mockRejectedValueOnce(new Error('Error from server (NotFound): namespaces "fleet-local" not found'))
-      // Create namespace - throws already exists (race condition)
-      .mockRejectedValueOnce(new Error('namespaces "fleet-local" already exists'));
+        state: { status: 'initializing', message: 'Waiting...' },
+      });
 
-    const { result } = renderHook(() => useFleetStatus());
+    // Namespace creation throws (race condition - already exists)
+    vi.mocked(mockService.createFleetNamespace).mockRejectedValueOnce(
+      new Error('namespaces "fleet-local" already exists')
+    );
+
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     // Should still show initializing (will re-check after setTimeout)
     await waitFor(() => {
       expect(result.current.fleetState.status).toBe('initializing');
+    });
+  });
+
+  it('does not call onFleetReady when status is not running', async () => {
+    const onFleetReady = vi.fn();
+
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'not-installed' },
+    });
+
+    renderHook(() => useFleetStatus({ kubernetesService: mockService, onFleetReady }));
+
+    await waitFor(() => {
+      expect(mockService.checkFleetStatus).toHaveBeenCalled();
+    });
+
+    expect(onFleetReady).not.toHaveBeenCalled();
+  });
+
+  it('handles service not being configured', async () => {
+    const { result } = renderHook(() => useFleetStatus({}));
+
+    await waitFor(() => {
+      expect(result.current.fleetState.status).toBe('error');
+      expect(result.current.fleetState.error).toBe('Service not configured');
+    });
+  });
+
+  it('handles version being unknown', async () => {
+    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
+      state: { status: 'running', version: 'unknown' },
+    });
+
+    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
+
+    await waitFor(() => {
+      expect(result.current.fleetState.version).toBe('unknown');
     });
   });
 });

@@ -1,52 +1,54 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useGitRepoManagement } from './useGitRepoManagement';
-import { FleetState } from '../types';
+import { FleetState, GitRepo } from '../types';
+import { KubernetesService } from '../services';
 
 // Suppress console.error in tests
 vi.spyOn(console, 'error').mockImplementation(() => {});
 
-// Create a mock exec function
-const { mockExec } = vi.hoisted(() => ({
-  mockExec: vi.fn(),
-}));
-
-// Mock the ddClient module
-vi.mock('../lib/ddClient', () => ({
-  ddClient: {
-    extension: {
-      host: {
-        cli: {
-          exec: mockExec,
-        },
-      },
-    },
-  },
-}));
+// Create a mock KubernetesService
+function createMockKubernetesService() {
+  return {
+    fetchGitRepos: vi.fn<[], Promise<GitRepo[]>>(),
+    applyGitRepo: vi.fn<[string, string, string?, string[]?], Promise<void>>(),
+    deleteGitRepo: vi.fn<[string], Promise<void>>(),
+    checkFleetStatus: vi.fn(),
+    installFleet: vi.fn(),
+    createFleetNamespace: vi.fn(),
+    checkFleetCrdExists: vi.fn(),
+    checkFleetPodRunning: vi.fn(),
+    checkFleetNamespaceExists: vi.fn(),
+    getFleetVersion: vi.fn(),
+  } as unknown as KubernetesService;
+}
 
 // Sample GitRepo data for tests
-const sampleGitRepoResponse = {
-  items: [
-    {
-      metadata: { name: 'my-repo' },
-      spec: { repo: 'https://github.com/owner/repo', branch: 'main', paths: ['app1'] },
-      status: {
-        conditions: [{ type: 'Ready', status: 'True' }],
-        display: { state: 'Active', message: '' },
-        desiredReadyClusters: 1,
-        readyClusters: 1,
-        resources: [{ kind: 'Deployment', name: 'my-app', state: 'Ready' }],
-      },
+const sampleGitRepos: GitRepo[] = [
+  {
+    name: 'my-repo',
+    repo: 'https://github.com/owner/repo',
+    branch: 'main',
+    paths: ['app1'],
+    status: {
+      ready: true,
+      display: { state: 'Active', message: '' },
+      desiredReadyClusters: 1,
+      readyClusters: 1,
+      resources: [{ kind: 'Deployment', name: 'my-app', state: 'Ready' }],
+      conditions: [{ type: 'Ready', status: 'True' }],
     },
-  ],
-};
+  },
+];
 
 describe('useGitRepoManagement', () => {
   const defaultFleetState: FleetState = { status: 'running', version: '0.10.0' };
+  let mockService: KubernetesService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    mockService = createMockKubernetesService();
   });
 
   afterEach(() => {
@@ -55,10 +57,10 @@ describe('useGitRepoManagement', () => {
   });
 
   it('initializes with empty repos and no error', () => {
-    mockExec.mockResolvedValue({ stdout: '{"items":[]}', stderr: '' });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     expect(result.current.gitRepos).toEqual([]);
@@ -66,38 +68,27 @@ describe('useGitRepoManagement', () => {
     expect(result.current.loadingRepos).toBe(false);
   });
 
-  it('fetches GitRepos via kubectl', async () => {
-    mockExec.mockResolvedValueOnce({
-      stdout: JSON.stringify(sampleGitRepoResponse),
-      stderr: '',
-    });
+  it('fetches GitRepos via service', async () => {
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
       await result.current.fetchGitRepos();
     });
 
-    expect(mockExec).toHaveBeenCalledWith('kubectl', expect.arrayContaining([
-      '--context', 'rancher-desktop',
-      'get', 'gitrepos', '-n', 'fleet-local',
-      '-o', 'json',
-    ]));
-
+    expect(mockService.fetchGitRepos).toHaveBeenCalled();
     expect(result.current.gitRepos).toHaveLength(1);
     expect(result.current.gitRepos[0].name).toBe('my-repo');
   });
 
   it('parses GitRepo status correctly', async () => {
-    mockExec.mockResolvedValueOnce({
-      stdout: JSON.stringify(sampleGitRepoResponse),
-      stderr: '',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -115,13 +106,10 @@ describe('useGitRepoManagement', () => {
 
   it('only updates state when data changes', async () => {
     const onReposLoaded = vi.fn();
-    mockExec.mockResolvedValue({
-      stdout: JSON.stringify(sampleGitRepoResponse),
-      stderr: '',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValue(sampleGitRepos);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState, onReposLoaded })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService, onReposLoaded })
     );
 
     // First fetch
@@ -142,13 +130,10 @@ describe('useGitRepoManagement', () => {
 
   it('calls onReposLoaded callback when repos change', async () => {
     const onReposLoaded = vi.fn();
-    mockExec.mockResolvedValueOnce({
-      stdout: JSON.stringify(sampleGitRepoResponse),
-      stderr: '',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState, onReposLoaded })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService, onReposLoaded })
     );
 
     await act(async () => {
@@ -160,14 +145,15 @@ describe('useGitRepoManagement', () => {
     ]));
   });
 
-  it('addGitRepo creates resource via kubectl', async () => {
-    mockExec
-      .mockResolvedValueOnce({ stdout: '{"items":[]}', stderr: '' }) // Initial fetch returns empty
-      .mockResolvedValueOnce({ stdout: '', stderr: '' }) // kubectl apply
-      .mockResolvedValueOnce({ stdout: JSON.stringify(sampleGitRepoResponse), stderr: '' }); // Refresh
+  it('addGitRepo creates resource via service', async () => {
+    vi.mocked(mockService.fetchGitRepos)
+      .mockResolvedValueOnce([]) // Initial fetch returns empty
+      .mockResolvedValueOnce(sampleGitRepos); // Refresh after add
+
+    vi.mocked(mockService.applyGitRepo).mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -180,19 +166,14 @@ describe('useGitRepoManagement', () => {
     });
 
     expect(addResult!.success).toBe(true);
-    expect(mockExec).toHaveBeenCalledWith('kubectl', expect.arrayContaining([
-      '--apply-json',
-    ]));
+    expect(mockService.applyGitRepo).toHaveBeenCalledWith('my-repo', 'https://github.com/owner/repo', 'main');
   });
 
   it('addGitRepo rejects duplicate names', async () => {
-    mockExec.mockResolvedValueOnce({
-      stdout: JSON.stringify(sampleGitRepoResponse),
-      stderr: '',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -209,13 +190,12 @@ describe('useGitRepoManagement', () => {
     expect(result.current.repoError).toContain('already exists');
   });
 
-  it('addGitRepo returns error result on kubectl failure', async () => {
-    mockExec
-      .mockResolvedValueOnce({ stdout: '{"items":[]}', stderr: '' })
-      .mockRejectedValueOnce(new Error('kubectl apply failed'));
+  it('addGitRepo returns error result on service failure', async () => {
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce([]);
+    vi.mocked(mockService.applyGitRepo).mockRejectedValueOnce(new Error('kubectl apply failed'));
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -234,7 +214,7 @@ describe('useGitRepoManagement', () => {
 
   it('addGitRepo returns error result when name is empty', async () => {
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     let addResult: { success: boolean; error?: string };
@@ -246,14 +226,15 @@ describe('useGitRepoManagement', () => {
     expect(addResult!.error).toBe('Name and URL are required');
   });
 
-  it('deleteGitRepo removes resource via kubectl', async () => {
-    mockExec
-      .mockResolvedValueOnce({ stdout: JSON.stringify(sampleGitRepoResponse), stderr: '' })
-      .mockResolvedValueOnce({ stdout: '', stderr: '' }) // kubectl delete
-      .mockResolvedValueOnce({ stdout: '{"items":[]}', stderr: '' }); // Refresh
+  it('deleteGitRepo removes resource via service', async () => {
+    vi.mocked(mockService.fetchGitRepos)
+      .mockResolvedValueOnce(sampleGitRepos)
+      .mockResolvedValueOnce([]); // Refresh after delete
+
+    vi.mocked(mockService.deleteGitRepo).mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -264,21 +245,15 @@ describe('useGitRepoManagement', () => {
       await result.current.deleteGitRepo('my-repo');
     });
 
-    expect(mockExec).toHaveBeenCalledWith('kubectl', expect.arrayContaining([
-      'delete', 'gitrepo', 'my-repo', '-n', 'fleet-local',
-    ]));
-
+    expect(mockService.deleteGitRepo).toHaveBeenCalledWith('my-repo');
     expect(result.current.gitRepos).toHaveLength(0);
   });
 
   it('updateGitRepoPaths updates optimistically', async () => {
-    mockExec.mockResolvedValueOnce({
-      stdout: JSON.stringify(sampleGitRepoResponse),
-      stderr: '',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -287,12 +262,12 @@ describe('useGitRepoManagement', () => {
 
     const repo = result.current.gitRepos[0];
 
-    // Mock the kubectl apply to be slow
+    // Mock the applyGitRepo to be slow
     let resolveApply: () => void;
     const applyPromise = new Promise<void>((resolve) => {
       resolveApply = resolve;
     });
-    mockExec.mockReturnValueOnce(applyPromise);
+    vi.mocked(mockService.applyGitRepo).mockReturnValueOnce(applyPromise);
 
     // Start update (don't await)
     act(() => {
@@ -313,13 +288,14 @@ describe('useGitRepoManagement', () => {
   });
 
   it('updateGitRepoPaths sets error on failure', async () => {
-    mockExec
-      .mockResolvedValueOnce({ stdout: JSON.stringify(sampleGitRepoResponse), stderr: '' })
-      .mockRejectedValueOnce(new Error('Apply failed'))
-      .mockResolvedValueOnce({ stdout: JSON.stringify(sampleGitRepoResponse), stderr: '' });
+    vi.mocked(mockService.fetchGitRepos)
+      .mockResolvedValueOnce(sampleGitRepos)
+      .mockResolvedValueOnce(sampleGitRepos); // Revert fetch
+
+    vi.mocked(mockService.applyGitRepo).mockRejectedValueOnce(new Error('Apply failed'));
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -338,12 +314,11 @@ describe('useGitRepoManagement', () => {
   });
 
   it('toggleRepoPath adds path when missing', async () => {
-    mockExec
-      .mockResolvedValueOnce({ stdout: JSON.stringify(sampleGitRepoResponse), stderr: '' })
-      .mockResolvedValueOnce({ stdout: '', stderr: '' }); // kubectl apply
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
+    vi.mocked(mockService.applyGitRepo).mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -360,12 +335,11 @@ describe('useGitRepoManagement', () => {
   });
 
   it('toggleRepoPath removes path when present', async () => {
-    mockExec
-      .mockResolvedValueOnce({ stdout: JSON.stringify(sampleGitRepoResponse), stderr: '' })
-      .mockResolvedValueOnce({ stdout: '', stderr: '' }); // kubectl apply
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
+    vi.mocked(mockService.applyGitRepo).mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -382,12 +356,11 @@ describe('useGitRepoManagement', () => {
   });
 
   it('clearRepoError clears the error', async () => {
-    mockExec
-      .mockResolvedValueOnce({ stdout: '{"items":[]}', stderr: '' })
-      .mockRejectedValueOnce(new Error('Some error'));
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce([]);
+    vi.mocked(mockService.applyGitRepo).mockRejectedValueOnce(new Error('Some error'));
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -408,14 +381,14 @@ describe('useGitRepoManagement', () => {
   });
 
   it('sets loadingRepos to true while fetching', async () => {
-    let resolveFetch: () => void;
-    const fetchPromise = new Promise<{ stdout: string; stderr: string }>((resolve) => {
-      resolveFetch = () => resolve({ stdout: '{"items":[]}', stderr: '' });
+    let resolveFetch: (repos: GitRepo[]) => void;
+    const fetchPromise = new Promise<GitRepo[]>((resolve) => {
+      resolveFetch = (repos) => resolve(repos);
     });
-    mockExec.mockReturnValueOnce(fetchPromise);
+    vi.mocked(mockService.fetchGitRepos).mockReturnValueOnce(fetchPromise);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     expect(result.current.loadingRepos).toBe(false);
@@ -427,7 +400,7 @@ describe('useGitRepoManagement', () => {
     expect(result.current.loadingRepos).toBe(true);
 
     await act(async () => {
-      resolveFetch!();
+      resolveFetch!([]);
       await fetchPromise;
     });
 
@@ -435,10 +408,10 @@ describe('useGitRepoManagement', () => {
   });
 
   it('handles "No resources found" error gracefully', async () => {
-    mockExec.mockRejectedValueOnce(new Error('No resources found in fleet-local namespace'));
+    vi.mocked(mockService.fetchGitRepos).mockRejectedValueOnce(new Error('No resources found in fleet-local namespace'));
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -450,13 +423,10 @@ describe('useGitRepoManagement', () => {
   });
 
   it('handles fetch error and sets repoError', async () => {
-    mockExec.mockResolvedValueOnce({
-      stdout: '',
-      stderr: 'Connection refused',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockRejectedValueOnce(new Error('Connection refused'));
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -467,28 +437,24 @@ describe('useGitRepoManagement', () => {
   });
 
   it('sets up refresh interval for unready repos', async () => {
-    const unreadyRepoResponse = {
-      items: [
-        {
-          metadata: { name: 'my-repo' },
-          spec: { repo: 'https://github.com/owner/repo' },
-          status: {
-            conditions: [{ type: 'Ready', status: 'False' }],
-            desiredReadyClusters: 1,
-            readyClusters: 0,
-            resources: [],
-          },
+    const unreadyRepos: GitRepo[] = [
+      {
+        name: 'my-repo',
+        repo: 'https://github.com/owner/repo',
+        status: {
+          ready: false,
+          desiredReadyClusters: 1,
+          readyClusters: 0,
+          resources: [],
+          conditions: [{ type: 'Ready', status: 'False' }],
         },
-      ],
-    };
+      },
+    ];
 
-    mockExec.mockResolvedValue({
-      stdout: JSON.stringify(unreadyRepoResponse),
-      stderr: '',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValue(unreadyRepos);
 
     const { result, unmount } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     // Initial fetch to populate repos
@@ -503,26 +469,10 @@ describe('useGitRepoManagement', () => {
   });
 
   it('detects ready status correctly', async () => {
-    const readyRepoResponse = {
-      items: [{
-        metadata: { name: 'my-repo' },
-        spec: { repo: 'https://github.com/owner/repo' },
-        status: {
-          conditions: [{ type: 'Ready', status: 'True' }],
-          desiredReadyClusters: 1,
-          readyClusters: 1,
-          resources: [],
-        },
-      }],
-    };
-
-    mockExec.mockResolvedValueOnce({
-      stdout: JSON.stringify(readyRepoResponse),
-      stderr: '',
-    });
+    vi.mocked(mockService.fetchGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
+      useGitRepoManagement({ fleetState: defaultFleetState, kubernetesService: mockService })
     );
 
     await act(async () => {
@@ -530,5 +480,19 @@ describe('useGitRepoManagement', () => {
     });
 
     expect(result.current.gitRepos[0].status?.ready).toBe(true);
+  });
+
+  it('handles service not being configured gracefully', async () => {
+    const { result } = renderHook(() =>
+      useGitRepoManagement({ fleetState: defaultFleetState })
+    );
+
+    // Should not throw, but fetchGitRepos will log error
+    await act(async () => {
+      await result.current.fetchGitRepos();
+    });
+
+    // gitRepos should remain empty
+    expect(result.current.gitRepos).toEqual([]);
   });
 });
