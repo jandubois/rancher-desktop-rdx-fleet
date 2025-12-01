@@ -2,6 +2,7 @@ import express from 'express';
 import os from 'os';
 import { healthRouter } from './routes/health';
 import { identityRouter } from './routes/identity';
+import { initRouter } from './routes/init';
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -29,6 +30,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/health', healthRouter);
 app.use('/identity', identityRouter);
+app.use('/api/init', initRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {

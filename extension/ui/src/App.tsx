@@ -49,11 +49,12 @@ import {
   IconState,
   GitRepoCard,
   FleetStatusCard,
+  BackendStatusCard,
   DependencyConfirmationDialog,
   INITIAL_DEPENDENCY_DIALOG_STATE,
   DependencyDialogState,
 } from './components';
-import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver } from './hooks';
+import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver, useBackendStatus } from './hooks';
 import { useServices } from './context';
 
 // Cache the initial state load so all useState initializers see the same value
@@ -161,6 +162,13 @@ function App() {
     gitRepos,
     repoPathsCache,
   });
+
+  // Backend status (for debugging)
+  const {
+    status: backendStatus,
+    loading: backendLoading,
+    refresh: refreshBackend,
+  } = useBackendStatus({ pollInterval: 30000 });
 
   // Build currently selected paths map for dependency resolution
   const currentlySelectedPaths = useMemo(() => {
@@ -752,6 +760,13 @@ function App() {
               onPaletteChange={handlePaletteChange}
             />
           )}
+
+          {/* Backend Status Card - debug info */}
+          <BackendStatusCard
+            status={backendStatus}
+            loading={backendLoading}
+            onRefresh={refreshBackend}
+          />
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={effectiveCardOrder} strategy={verticalListSortingStrategy}>
