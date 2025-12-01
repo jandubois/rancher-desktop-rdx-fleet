@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -10,7 +10,7 @@ import { registerCard } from './registry';
  * HtmlCard - Renders raw HTML content including <script> elements
  *
  * Unlike MarkdownCard which sanitizes HTML, this card uses an iframe with
- * srcdoc to safely sandbox the content while allowing scripts to execute.
+ * a blob URL to allow scripts to execute with full network access.
  *
  * Use cases:
  * - Stock tickers
@@ -27,29 +27,6 @@ export const HtmlCard: React.FC<CardProps<HtmlCardSettings>> = ({
   const content = settings?.content || '';
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState<number>(200);
-
-  // Auto-resize iframe based on content
-  useEffect(() => {
-    const iframe = iframeRef.current;
-    if (!iframe || !content) return;
-
-    const handleLoad = () => {
-      try {
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (doc) {
-          // Get the content height and add some padding
-          const height = doc.body.scrollHeight || 200;
-          setIframeHeight(Math.max(height + 20, 100));
-        }
-      } catch {
-        // Cross-origin restrictions may prevent access
-        setIframeHeight(200);
-      }
-    };
-
-    iframe.addEventListener('load', handleLoad);
-    return () => iframe.removeEventListener('load', handleLoad);
-  }, [content]);
 
   // Build the full HTML document for the iframe
   const buildIframeDocument = (htmlContent: string): string => {
@@ -83,6 +60,46 @@ ${htmlContent}
 </body>
 </html>`;
   };
+
+  // Create blob URL for the iframe content
+  const blobUrl = useMemo(() => {
+    if (!content) return null;
+    const html = buildIframeDocument(content);
+    const blob = new Blob([html], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  }, [content]);
+
+  // Clean up blob URL on unmount or content change
+  useEffect(() => {
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [blobUrl]);
+
+  // Auto-resize iframe based on content
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || !content) return;
+
+    const handleLoad = () => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          // Get the content height and add some padding
+          const height = doc.body.scrollHeight || 200;
+          setIframeHeight(Math.max(height + 20, 100));
+        }
+      } catch {
+        // Cross-origin restrictions may prevent access
+        setIframeHeight(200);
+      }
+    };
+
+    iframe.addEventListener('load', handleLoad);
+    return () => iframe.removeEventListener('load', handleLoad);
+  }, [content]);
 
   if (editMode && onSettingsChange) {
     return (
@@ -119,14 +136,13 @@ ${htmlContent}
             <Box
               component="iframe"
               ref={iframeRef}
-              srcDoc={buildIframeDocument(content)}
+              src={blobUrl || 'about:blank'}
               sx={{
                 width: '100%',
                 height: iframeHeight,
                 border: 'none',
                 display: 'block',
               }}
-              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox"
               title={definition.title || 'HTML preview'}
             />
           </Box>
@@ -149,7 +165,7 @@ ${htmlContent}
       <Box
         component="iframe"
         ref={iframeRef}
-        srcDoc={buildIframeDocument(content)}
+        src={blobUrl || 'about:blank'}
         sx={{
           width: '100%',
           height: iframeHeight,
@@ -157,7 +173,6 @@ ${htmlContent}
           display: 'block',
           borderRadius: 1,
         }}
-        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox"
         title={definition.title || 'HTML content'}
       />
     </Box>
