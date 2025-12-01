@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -46,7 +46,11 @@ export const HtmlCard: React.FC<CardProps<HtmlCardSettings>> = ({
   const content = settings?.content || '';
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState<number>(200);
-  const [iframeKey, setIframeKey] = useState(0);
+
+  // Generate a unique key when content or editMode changes to force iframe recreation
+  const iframeKey = useMemo(() => {
+    return `${editMode}-${content.length}-${content.slice(0, 50)}`;
+  }, [content, editMode]);
 
   // Build the full HTML document for the iframe
   const buildIframeDocument = (htmlContent: string): string => {
@@ -119,11 +123,6 @@ ${htmlContent}
     const timer = setTimeout(writeContent, 50);
     return () => clearTimeout(timer);
   }, [content, iframeKey, editMode]);
-
-  // Force iframe recreation when content or editMode changes
-  useEffect(() => {
-    setIframeKey((k) => k + 1);
-  }, [content, editMode]);
 
   if (editMode && onSettingsChange) {
     return (
