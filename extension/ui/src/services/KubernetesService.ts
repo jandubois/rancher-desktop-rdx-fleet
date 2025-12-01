@@ -32,11 +32,19 @@ export class KubernetesService {
   constructor(private executor: CommandExecutor) {}
 
   /**
+   * Execute a command via rd-exec, which ensures ~/.rd/bin is in PATH.
+   * This is used for kubectl, helm, and other Rancher Desktop CLI tools.
+   */
+  private rdExec(command: string, args: string[]) {
+    return this.executor.exec('rd-exec', [command, ...args]);
+  }
+
+  /**
    * Check if Fleet CRD exists in the cluster
    */
   async checkFleetCrdExists(): Promise<boolean> {
     try {
-      const result = await this.executor.exec('kubectl', [
+      const result = await this.rdExec('kubectl', [
         '--context', KUBE_CONTEXT,
         'get', 'crd', 'gitrepos.fleet.cattle.io',
         '-o', 'jsonpath={.metadata.name}',
@@ -55,7 +63,7 @@ export class KubernetesService {
    * Check if Fleet controller pod is running
    */
   async checkFleetPodRunning(): Promise<boolean> {
-    const result = await this.executor.exec('kubectl', [
+    const result = await this.rdExec('kubectl', [
       '--context', KUBE_CONTEXT,
       'get', 'pods', '-n', 'cattle-fleet-system',
       '-l', 'app=fleet-controller',
@@ -69,7 +77,7 @@ export class KubernetesService {
    */
   async checkFleetNamespaceExists(): Promise<boolean> {
     try {
-      const result = await this.executor.exec('kubectl', [
+      const result = await this.rdExec('kubectl', [
         '--context', KUBE_CONTEXT,
         'get', 'namespace', FLEET_NAMESPACE,
         '-o', 'jsonpath={.metadata.name}',
@@ -89,7 +97,7 @@ export class KubernetesService {
    */
   async createFleetNamespace(): Promise<void> {
     try {
-      await this.executor.exec('kubectl', [
+      await this.rdExec('kubectl', [
         '--context', KUBE_CONTEXT,
         'create', 'namespace', FLEET_NAMESPACE,
       ]);
@@ -106,7 +114,7 @@ export class KubernetesService {
    */
   async getFleetVersion(): Promise<string> {
     try {
-      const result = await this.executor.exec('helm', [
+      const result = await this.rdExec('helm', [
         '--kube-context', KUBE_CONTEXT,
         'list', '-n', 'cattle-fleet-system',
         '-f', 'fleet',
@@ -160,19 +168,19 @@ export class KubernetesService {
    */
   async installFleet(): Promise<void> {
     // Add Helm repo
-    await this.executor.exec('helm', [
+    await this.rdExec('helm', [
       '--kube-context', KUBE_CONTEXT,
       'repo', 'add', 'fleet', 'https://rancher.github.io/fleet-helm-charts/',
     ]);
 
     // Update repos
-    await this.executor.exec('helm', [
+    await this.rdExec('helm', [
       '--kube-context', KUBE_CONTEXT,
       'repo', 'update',
     ]);
 
     // Install Fleet CRD
-    await this.executor.exec('helm', [
+    await this.rdExec('helm', [
       '--kube-context', KUBE_CONTEXT,
       'install', '--create-namespace', '-n', 'cattle-fleet-system',
       'fleet-crd', 'fleet/fleet-crd',
@@ -180,7 +188,7 @@ export class KubernetesService {
     ]);
 
     // Install Fleet controller
-    await this.executor.exec('helm', [
+    await this.rdExec('helm', [
       '--kube-context', KUBE_CONTEXT,
       'install', '--create-namespace', '-n', 'cattle-fleet-system',
       'fleet', 'fleet/fleet',
@@ -195,7 +203,7 @@ export class KubernetesService {
    * Fetch all GitRepos from the cluster
    */
   async fetchGitRepos(): Promise<GitRepo[]> {
-    const result = await this.executor.exec('kubectl', [
+    const result = await this.rdExec('kubectl', [
       '--context', KUBE_CONTEXT,
       'get', 'gitrepos', '-n', FLEET_NAMESPACE,
       '-o', 'json',
@@ -233,8 +241,8 @@ export class KubernetesService {
     };
 
     const jsonStr = JSON.stringify(gitRepoYaml);
-    await this.executor.exec('kubectl', [
-      '--apply-json', jsonStr,
+    await this.executor.exec('kubectl-apply-json', [
+      jsonStr,
       '--context', KUBE_CONTEXT,
     ]);
   }
@@ -243,7 +251,7 @@ export class KubernetesService {
    * Delete a GitRepo from the cluster
    */
   async deleteGitRepo(name: string): Promise<void> {
-    await this.executor.exec('kubectl', [
+    await this.rdExec('kubectl', [
       '--context', KUBE_CONTEXT,
       'delete', 'gitrepo', name, '-n', FLEET_NAMESPACE,
     ]);
