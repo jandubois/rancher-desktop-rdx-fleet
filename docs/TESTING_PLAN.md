@@ -19,13 +19,13 @@ This document tracks the testing implementation plan and progress.
 |----------|-------|------------|----------|
 | **Utilities** | 6 | 4 | 67% (errors, github, colorExtractor, paletteGenerator) |
 | **Hooks** | 5 | 5 | 100% ✅ |
-| **Components** | 7 | 3 | 43% (EditableTitle, SortableCard, AddRepoDialog) |
-| **Cards** | 7 | 5 | 71% (CardWrapper, Divider, Image, Markdown, Video) |
+| **Components** | 7 | 6 | 86% (EditableTitle, SortableCard, AddRepoDialog, ConfirmDialog, IconUpload, EditableHeaderIcon) |
+| **Cards** | 7 | 7 | 100% ✅ |
 | **Theme** | 2 | 1 | 50% (palette) |
 | **Main App** | 1 | 0 | 0% ❌ |
 
-**Total Test Files:** 18
-**Total Test Cases:** 339 tests
+**Total Test Files:** 23
+**Total Test Cases:** 452 tests
 
 ---
 
@@ -209,7 +209,7 @@ This document tracks the testing implementation plan and progress.
 
 ## Outstanding Test Coverage (TODO)
 
-### Phase 10: Card Type Tests ⏳ IN PROGRESS
+### Phase 10: Card Type Tests ✅ COMPLETE
 Priority: **HIGH** - Cards are the core UI components
 
 #### CardWrapper.tsx (Base wrapper for all cards) ✅ COMPLETE
@@ -237,16 +237,16 @@ Priority: **HIGH** - Cards are the core UI components
   - [x] Test: renders links, lists, headers correctly
   - [x] Test: renders bold, italic, inline code
 
-#### HtmlCard.tsx ⏳ NOT STARTED
-- [ ] Write `cards/HtmlCard.test.tsx`
-  - [ ] Test: renders HTML content in iframe
-  - [ ] Test: shows HTML editor in edit mode
-  - [ ] Test: calculates iframe height dynamically
-  - [ ] Test: handles scripts in HTML content
-  - [ ] Test: sanitizes dangerous HTML (security)
-  - [ ] Test: resizes iframe on content change
-  - [ ] Test: handles empty content
-  - [ ] Test: shows preview in edit mode
+#### HtmlCard.tsx ✅ COMPLETE
+- [x] Write `cards/HtmlCard.test.tsx` (17 tests)
+  - [x] Test: renders iframe when content provided
+  - [x] Test: returns null when content is empty
+  - [x] Test: shows HTML editor in edit mode
+  - [x] Test: shows preview section when content provided
+  - [x] Test: sets iframe title from definition
+  - [x] Test: handles empty content
+  - [x] Test: shows preview in edit mode
+  - [x] Test: calls onSettingsChange when content edited
 
 #### ImageCard.tsx ✅ COMPLETE
 - [x] Write `cards/ImageCard.test.tsx` (24 tests)
@@ -271,17 +271,17 @@ Priority: **HIGH** - Cards are the core UI components
   - [x] Test: handles empty URL
   - [x] Test: iframe attributes (allowFullScreen, allow)
 
-#### LinkCard.tsx ⏳ NOT STARTED
-- [ ] Write `cards/LinkCard.test.tsx`
-  - [ ] Test: renders links as buttons (default)
-  - [ ] Test: renders links as list when configured
-  - [ ] Test: shows add link button in edit mode
-  - [ ] Test: allows editing link URL
-  - [ ] Test: allows editing link label
-  - [ ] Test: allows removing links
-  - [ ] Test: handles empty links array
-  - [ ] Test: validates URL format
-  - [ ] Test: opens links in new tab
+#### LinkCard.tsx ✅ COMPLETE
+- [x] Write `cards/LinkCard.test.tsx` (30 tests)
+  - [x] Test: renders links as buttons (default)
+  - [x] Test: renders links as list when configured
+  - [x] Test: shows add link button in edit mode
+  - [x] Test: allows editing link URL
+  - [x] Test: allows editing link label
+  - [x] Test: allows removing links
+  - [x] Test: handles empty links array
+  - [x] Test: filters invalid links (missing label/url)
+  - [x] Test: opens links in new tab with noopener noreferrer
 
 #### DividerCard.tsx ✅ COMPLETE
 - [x] Write `cards/DividerCard.test.tsx` (25 tests)
@@ -295,42 +295,43 @@ Priority: **HIGH** - Cards are the core UI components
   - [x] Test: calls onSettingsChange when label changed
   - [x] Test: shows preview in edit mode
 
-### Phase 11: Additional Component Tests ⏳ NOT STARTED
+### Phase 11: Additional Component Tests ⏳ IN PROGRESS
 Priority: **MEDIUM** - Support components for edit functionality
 
-#### ConfirmDialog.tsx
-- [ ] Write `components/ConfirmDialog.test.tsx`
-  - [ ] Test: renders dialog title
-  - [ ] Test: renders dialog message
-  - [ ] Test: renders confirm button with label
-  - [ ] Test: renders cancel button with label
-  - [ ] Test: calls onConfirm when confirm clicked
-  - [ ] Test: calls onCancel when cancel clicked
-  - [ ] Test: applies confirm button color
-  - [ ] Test: does not render when open is false
+#### ConfirmDialog.tsx ✅ COMPLETE
+- [x] Write `components/ConfirmDialog.test.tsx` (15 tests)
+  - [x] Test: renders dialog title
+  - [x] Test: renders dialog message
+  - [x] Test: renders confirm button with label
+  - [x] Test: renders cancel button with label
+  - [x] Test: calls onConfirm when confirm clicked
+  - [x] Test: calls onCancel when cancel clicked
+  - [x] Test: applies confirm button color (primary, error, warning, success)
+  - [x] Test: does not render when open is false
 
-#### IconUpload.tsx
-- [ ] Write `components/IconUpload.test.tsx`
-  - [ ] Test: renders upload button
-  - [ ] Test: accepts PNG, SVG, JPEG, GIF, WebP files
-  - [ ] Test: rejects invalid file types
-  - [ ] Test: validates file size (512KB max)
-  - [ ] Test: converts file to base64
-  - [ ] Test: calls onUpload with base64 data
-  - [ ] Test: shows error for oversized files
-  - [ ] Test: supports drag and drop
+#### IconUpload.tsx ✅ COMPLETE
+- [x] Write `components/IconUpload.test.tsx` (17 tests)
+  - [x] Test: renders Extension Icon label and upload instructions
+  - [x] Test: accepts PNG, SVG, JPEG, GIF, WebP files
+  - [x] Test: rejects invalid file types
+  - [x] Test: validates file size (512KB max)
+  - [x] Test: shows preview of current/default icon
+  - [x] Test: shows delete button when custom icon exists
+  - [x] Test: shows error for oversized files
+  - [x] Test: supports drag and drop
 
-#### EditableHeaderIcon.tsx
-- [ ] Write `components/EditableHeaderIcon.test.tsx`
-  - [ ] Test: renders default icon when no custom icon
-  - [ ] Test: renders custom icon when provided
-  - [ ] Test: shows upload button in edit mode
-  - [ ] Test: shows delete button when custom icon exists
-  - [ ] Test: calls onIconChange when new icon uploaded
-  - [ ] Test: calls onIconChange with null when deleted
-  - [ ] Test: hides edit controls in view mode
+#### EditableHeaderIcon.tsx ✅ COMPLETE
+- [x] Write `components/EditableHeaderIcon.test.tsx` (22 tests)
+  - [x] Test: renders default Fleet icon when no custom icon
+  - [x] Test: renders custom icon when provided
+  - [x] Test: returns null in view mode when deleted
+  - [x] Test: shows delete button on hover in edit mode
+  - [x] Test: shows add icon placeholder when deleted in edit mode
+  - [x] Test: calls onChange with "deleted" when delete clicked
+  - [x] Test: validates file types and sizes
+  - [x] Test: supports drag and drop in edit mode
 
-#### EditModePanel.tsx (Large, complex component)
+#### EditModePanel.tsx ⏳ NOT STARTED (Large, complex component)
 - [ ] Write `components/EditModePanel.test.tsx`
   - [ ] Test: renders card list
   - [ ] Test: shows card type icons
@@ -374,12 +375,12 @@ Priority: **LOW** - Requires significant setup
 
 | Priority | Phase | Component Count | Status |
 |----------|-------|-----------------|--------|
-| **HIGH** | Phase 10: Card Types | 7 cards | 5/7 complete (133 tests) |
-| **MEDIUM** | Phase 11: Components | 4 components | 0/4 complete |
+| **HIGH** | Phase 10: Card Types | 7 cards | ✅ 7/7 complete (180 tests) |
+| **MEDIUM** | Phase 11: Components | 4 components | 3/4 complete (54 tests) |
 | **LOW** | Phase 12: extensionBuilder | 1 utility | 0/1 complete |
 | **LOW** | Phase 13: App Integration | 1 main app | 0/1 complete |
 
-**Remaining:** HtmlCard, LinkCard, 4 components, extensionBuilder, App integration
+**Remaining:** EditModePanel (complex), extensionBuilder, App integration
 
 ---
 
@@ -421,21 +422,26 @@ extension/ui/
 │   │   ├── SortableCard.test.tsx        ✅
 │   │   ├── EditableTitle.tsx
 │   │   ├── EditableTitle.test.tsx       ✅
-│   │   ├── ConfirmDialog.tsx            ❌ NEEDS TESTS
-│   │   ├── EditModePanel.tsx            ❌ NEEDS TESTS
-│   │   ├── IconUpload.tsx               ❌ NEEDS TESTS
-│   │   └── EditableHeaderIcon.tsx       ❌ NEEDS TESTS
+│   │   ├── ConfirmDialog.tsx
+│   │   ├── ConfirmDialog.test.tsx       ✅
+│   │   ├── IconUpload.tsx
+│   │   ├── IconUpload.test.tsx          ✅
+│   │   ├── EditableHeaderIcon.tsx
+│   │   ├── EditableHeaderIcon.test.tsx  ✅
+│   │   └── EditModePanel.tsx            ❌ NEEDS TESTS
 │   ├── cards/
 │   │   ├── CardWrapper.tsx
 │   │   ├── CardWrapper.test.tsx         ✅
 │   │   ├── MarkdownCard.tsx
 │   │   ├── MarkdownCard.test.tsx        ✅
-│   │   ├── HtmlCard.tsx                 ❌ NEEDS TESTS
+│   │   ├── HtmlCard.tsx
+│   │   ├── HtmlCard.test.tsx            ✅
 │   │   ├── ImageCard.tsx
 │   │   ├── ImageCard.test.tsx           ✅
 │   │   ├── VideoCard.tsx
 │   │   ├── VideoCard.test.tsx           ✅
-│   │   ├── LinkCard.tsx                 ❌ NEEDS TESTS
+│   │   ├── LinkCard.tsx
+│   │   ├── LinkCard.test.tsx            ✅
 │   │   ├── DividerCard.tsx
 │   │   ├── DividerCard.test.tsx         ✅
 │   │   ├── registry.ts
