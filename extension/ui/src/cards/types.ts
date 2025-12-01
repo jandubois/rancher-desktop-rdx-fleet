@@ -7,6 +7,7 @@ export interface CardProps<T extends CardSettings = CardSettings> {
   settings: T;
   editMode?: boolean;
   onSettingsChange?: (settings: T) => void;
+  paletteColors?: CardPaletteColors;
 }
 
 // Card component type

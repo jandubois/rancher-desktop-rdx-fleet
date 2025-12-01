@@ -19,10 +19,20 @@ export const CardWrapper: React.FC<CardWrapperProps> = ({
 }) => {
   const isVisible = definition.visible !== false;
   const isEnabled = definition.enabled !== false;
+  const isDivider = definition.type === 'divider';
 
   // In edit mode, show card even if not visible (but with reduced opacity)
   if (!isVisible && !editMode) {
     return null;
+  }
+
+  // Divider cards in view mode: render without card wrapper, just the divider line
+  if (isDivider && !editMode) {
+    return (
+      <Box sx={{ mb: 2, opacity: isVisible ? 1 : 0.5, ...(isEnabled ? {} : { pointerEvents: 'none', opacity: 0.7 }) }}>
+        {children}
+      </Box>
+    );
   }
 
   return (
