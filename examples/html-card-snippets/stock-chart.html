@@ -1,0 +1,114 @@
+<!--
+  Stock Chart Widget for HTML Card
+
+  Features:
+  - Fetches real-time stock data from Yahoo Finance
+  - Configurable time periods (1 day to max history)
+  - Toggle between linear and logarithmic scale
+  - Uses Chart.js for rendering (loaded via fetch+eval to bypass CSP)
+
+  Usage:
+  1. Create an HTML card in the extension
+  2. Paste this content into the card
+  3. Modify the stock symbol (AAPL) as needed
+-->
+<div style="margin-bottom: 10px;">
+  <label for="range">Period: </label>
+  <select id="range" onchange="updateChart()">
+    <option value="1d">1 Day</option>
+    <option value="5d">5 Days</option>
+    <option value="1mo" selected>1 Month</option>
+    <option value="3mo">3 Months</option>
+    <option value="6mo">6 Months</option>
+    <option value="1y">1 Year</option>
+    <option value="2y">2 Years</option>
+    <option value="5y">5 Years</option>
+    <option value="max">Max</option>
+  </select>
+  <label style="margin-left: 15px;">
+    <input type="checkbox" id="logScale" onchange="updateChart()"> Log scale
+  </label>
+  <span id="price" style="margin-left: 15px; font-weight: bold;"></span>
+</div>
+<canvas id="chart" width="400" height="200"></canvas>
+<script>
+  let chart = null;
+  let cachedData = null;
+  let lastRange = null;
+
+  // Stock symbol - change this to track a different stock
+  const SYMBOL = 'AAPL';
+
+  function renderChart() {
+    if (!cachedData) return;
+    const result = cachedData.chart.result[0];
+    const meta = result.meta;
+    const range = document.getElementById('range').value;
+    const useLog = document.getElementById('logScale').checked;
+
+    const timestamps = result.timestamp.map(t => {
+      const d = new Date(t * 1000);
+      if (range === '1d') return d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      if (range === '5d') return (d.getMonth()+1) + '/' + d.getDate() + ' ' + d.getHours() + ':00';
+      return (d.getMonth()+1) + '/' + d.getDate() + '/' + (d.getFullYear() % 100);
+    });
+    const prices = result.indicators.quote[0].close;
+
+    document.getElementById('price').textContent =
+      SYMBOL + ': $' + meta.regularMarketPrice.toFixed(2);
+
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById('chart'), {
+      type: 'line',
+      data: {
+        labels: timestamps,
+        datasets: [{
+          label: SYMBOL,
+          data: prices,
+          borderColor: 'rgb(75, 192, 192)',
+          tension: 0.1,
+          fill: false,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: true, ticks: { maxTicksLimit: 6, font: { size: 10 } } },
+          y: {
+            type: useLog ? 'logarithmic' : 'linear',
+            display: true,
+            ticks: { font: { size: 10 } }
+          }
+        }
+      }
+    });
+  }
+
+  function updateChart() {
+    const range = document.getElementById('range').value;
+
+    // Only fetch if range changed, otherwise just re-render
+    if (range === lastRange && cachedData) {
+      renderChart();
+      return;
+    }
+
+    lastRange = range;
+    const interval = range === '1d' ? '5m' : range === '5d' ? '15m' : '1d';
+
+    fetch('https://query1.finance.yahoo.com/v8/finance/chart/' + SYMBOL + '?interval=' + interval + '&range=' + range)
+      .then(r => r.json())
+      .then(data => {
+        cachedData = data;
+        renderChart();
+      })
+      .catch(err => console.error('Error:', err));
+  }
+
+  // Load Chart.js via fetch+eval (bypasses CSP script-src restrictions)
+  fetch('https://cdn.jsdelivr.net/npm/chart.js')
+    .then(r => r.text())
+    .then(code => { eval(code); updateChart(); });
+</script>
