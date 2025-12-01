@@ -27,6 +27,7 @@ Technical documentation for implementation:
 | [Extension Architecture](reference/extension-architecture.md) | Docker/Rancher Desktop extension SDK, host binaries, backend service |
 | [Fleet Local Mode](reference/fleet-local-mode.md) | Fleet installation, GitRepo CRD, authentication secrets, local cluster setup |
 | [Helm Controller](reference/helm-controller-integration.md) | HelmChart CRD, alternative to Fleet for simple cases |
+| [License Compatibility](reference/license-compatibility.md) | Dependency licenses, Apache 2.0 compatibility verification |
 
 ## Background Materials
 
