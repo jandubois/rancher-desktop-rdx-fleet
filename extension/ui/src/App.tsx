@@ -7,7 +7,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
-import EditOffIcon from '@mui/icons-material/EditOff';
+import CheckIcon from '@mui/icons-material/Check';
+import CloseIcon from '@mui/icons-material/Close';
 import {
   DndContext,
   closestCenter,
@@ -64,6 +65,15 @@ function App() {
 
   // Icon state for extension builder: null = default, CustomIcon = custom, 'deleted' = no icon
   const [iconState, setIconState] = useState<IconState>(null);
+
+  // Edit mode snapshot for undo/cancel functionality
+  const [editModeSnapshot, setEditModeSnapshot] = useState<{
+    manifest: Manifest;
+    manifestCards: CardDefinition[];
+    cardOrder: string[];
+    iconState: IconState;
+    dynamicCardTitles: Record<string, string>;
+  } | null>(null);
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -282,11 +292,37 @@ function App() {
   // Check if edit mode is allowed
   const editModeAllowed = manifest.layout?.edit_mode !== false;
 
-  // Handle exiting edit mode - remove placeholder cards
-  const handleExitEditMode = () => {
+  // Handle entering edit mode - save snapshot for undo
+  const handleEnterEditMode = useCallback(() => {
+    setEditModeSnapshot({
+      manifest,
+      manifestCards,
+      cardOrder,
+      iconState,
+      dynamicCardTitles,
+    });
+    setEditMode(true);
+  }, [manifest, manifestCards, cardOrder, iconState, dynamicCardTitles]);
+
+  // Handle applying edit mode changes - clear snapshot and exit
+  const handleApplyEditMode = useCallback(() => {
     setManifestCards((prev) => prev.filter((c) => c.type !== 'placeholder'));
+    setEditModeSnapshot(null);
     setEditMode(false);
-  };
+  }, []);
+
+  // Handle canceling edit mode - restore snapshot and exit
+  const handleCancelEditMode = useCallback(() => {
+    if (editModeSnapshot) {
+      setManifest(editModeSnapshot.manifest);
+      setManifestCards(editModeSnapshot.manifestCards);
+      setCardOrder(editModeSnapshot.cardOrder);
+      setIconState(editModeSnapshot.iconState);
+      setDynamicCardTitles(editModeSnapshot.dynamicCardTitles);
+    }
+    setEditModeSnapshot(null);
+    setEditMode(false);
+  }, [editModeSnapshot]);
 
   // Insert a placeholder card after a given card ID
   const insertCardAfter = (afterCardId: string) => {
@@ -603,13 +639,32 @@ function App() {
             />
           </Box>
           {editModeAllowed && (
-            <IconButton
-              onClick={() => editMode ? handleExitEditMode() : setEditMode(true)}
-              title={editMode ? 'Exit edit mode' : 'Enter edit mode'}
-              sx={{ color: editMode ? 'warning.light' : palette.header.text }}
-            >
-              {editMode ? <EditOffIcon /> : <EditIcon />}
-            </IconButton>
+            editMode ? (
+              <Box sx={{ display: 'flex', gap: 1 }}>
+                <IconButton
+                  onClick={handleCancelEditMode}
+                  title="Cancel changes"
+                  sx={{ color: 'error.light' }}
+                >
+                  <CloseIcon />
+                </IconButton>
+                <IconButton
+                  onClick={handleApplyEditMode}
+                  title="Apply changes"
+                  sx={{ color: 'success.light' }}
+                >
+                  <CheckIcon />
+                </IconButton>
+              </Box>
+            ) : (
+              <IconButton
+                onClick={handleEnterEditMode}
+                title="Enter edit mode"
+                sx={{ color: palette.header.text }}
+              >
+                <EditIcon />
+              </IconButton>
+            )
           )}
         </Box>
       </Box>
