@@ -144,6 +144,37 @@ The `debug-extension/` provides detailed diagnostics. Key findings:
 
 ---
 
+## 6. Extension metadata cached after rebuild and reinstall
+
+**Expected:** After rebuilding a Docker extension image with updated `metadata.json` and reinstalling, the new metadata should take effect.
+
+**Actual:** The old metadata is still used even after:
+1. Rebuilding the extension image with updated `metadata.json`
+2. Uninstalling the extension
+3. Reinstalling the extension
+
+A factory reset of Rancher Desktop was required to pick up the new metadata.
+
+**Reproduction case (2025-12-01):**
+- Extension `metadata.json` was updated to remove `helm` and `kubectl` host binaries (replaced with `rd-exec`)
+- Image was rebuilt, extension uninstalled and reinstalled
+- Installation still failed with: `Could not copy host binary /host/darwin/helm`
+- The error referenced binaries that no longer existed in the new image's metadata
+- Factory reset resolved the issue
+
+**Impact:** Makes iterative extension development difficult - metadata changes may not take effect without factory reset.
+
+**Investigation notes:**
+- This may be related to bug #3 (icon caching) - suggests RD caches extension metadata aggressively
+- The caching may occur at the image layer, extension layer, or in the extensions registry
+- Need to investigate where extension metadata is stored and when it's refreshed
+
+**Workaround:** Factory reset Rancher Desktop after making metadata.json changes.
+
+**Status:** Needs investigation - likely a metadata caching issue
+
+---
+
 ## Notes
 
 - Rancher Desktop source: https://github.com/rancher-sandbox/rancher-desktop
