@@ -101,6 +101,10 @@ Click the **Edit** button in the header bar to toggle edit mode.
    - Use the color pickers to customize header, body, and card colors
    - Changes preview immediately
    - Reset individual colors to defaults
+   - **Auto Palette**: Click to generate a coordinated color scheme from your icon
+     - Hover over harmony types to preview how they look before applying
+     - Click outside the menu to cancel and revert to previous colors
+     - If you've set a custom header background, palettes will be based on that color
 
 2. **Reorder Cards**
    - Drag cards using the handle that appears above each card
