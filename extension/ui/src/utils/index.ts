@@ -14,3 +14,14 @@ export {
   detectCurrentExtensionImageAsync,
 } from './extensionBuilder';
 export type { ExtensionConfig, BuildResult, DetectionResult } from './extensionBuilder';
+export {
+  buildEffectiveCardOrder,
+  insertCardAfter,
+  removeCardFromOrder,
+  moveCardInOrder,
+  getGitRepoCardId,
+  getRepoNameFromCardId,
+  isGitRepoCardId,
+  isPlaceholderCardId,
+  isFleetStatusCardId,
+} from './cardOrdering';

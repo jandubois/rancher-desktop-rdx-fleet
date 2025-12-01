@@ -1,11 +1,16 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { ddClient } from '../lib/ddClient';
-import { getErrorMessage, KUBE_CONTEXT, FLEET_NAMESPACE } from '../utils';
+import { KubernetesService } from '../services';
+import { getErrorMessage } from '../utils';
 import { GitRepo, FleetState } from '../types';
 
 interface UseGitRepoManagementOptions {
   fleetState: FleetState;
   onReposLoaded?: (repos: GitRepo[]) => void;
+  /**
+   * Optional KubernetesService for dependency injection.
+   * If not provided, the hook must be used within a ServiceProvider.
+   */
+  kubernetesService?: KubernetesService;
 }
 
 interface AddGitRepoResult {
@@ -26,68 +31,52 @@ interface UseGitRepoManagementResult {
   clearRepoError: () => void;
 }
 
+/**
+ * Hook for managing GitRepo resources.
+ *
+ * Can be used in two ways:
+ * 1. With injected service (for testing):
+ *    ```ts
+ *    const mockService = new KubernetesService(mockExecutor);
+ *    useGitRepoManagement({ fleetState, kubernetesService: mockService });
+ *    ```
+ *
+ * 2. With ServiceProvider context (for production):
+ *    ```tsx
+ *    <ServiceProvider>
+ *      <ComponentUsingGitRepoManagement />
+ *    </ServiceProvider>
+ *    ```
+ */
 export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseGitRepoManagementResult {
-  const { fleetState, onReposLoaded } = options;
+  const { fleetState, onReposLoaded, kubernetesService } = options;
   const [gitRepos, setGitRepos] = useState<GitRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [repoError, setRepoError] = useState<string | null>(null);
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
 
   const onReposLoadedRef = useRef(onReposLoaded);
+  const serviceRef = useRef(kubernetesService);
+
   useEffect(() => {
     onReposLoadedRef.current = onReposLoaded;
   }, [onReposLoaded]);
 
+  useEffect(() => {
+    serviceRef.current = kubernetesService;
+  }, [kubernetesService]);
+
   const fetchGitRepos = useCallback(async () => {
+    const service = serviceRef.current;
+    if (!service) {
+      console.error('KubernetesService not available');
+      return;
+    }
+
     setLoadingRepos(true);
     setRepoError(null);
     try {
-      const result = await ddClient.extension.host?.cli.exec('kubectl', [
-        '--context', KUBE_CONTEXT,
-        'get', 'gitrepos', '-n', FLEET_NAMESPACE,
-        '-o', 'json',
-      ]);
-
-      if (result?.stderr) {
-        throw new Error(result.stderr);
-      }
-
-      const data = JSON.parse(result?.stdout || '{"items":[]}');
-      const repos: GitRepo[] = data.items.map((item: Record<string, unknown>) => {
-        const spec = item.spec as Record<string, unknown> || {};
-        const status = item.status as Record<string, unknown> || {};
-        const metadata = item.metadata as Record<string, unknown> || {};
-        const conditions = (status.conditions as Array<Record<string, unknown>>) || [];
-        const display = status.display as Record<string, unknown> | undefined;
-        const resources = (status.resources as Array<Record<string, unknown>>) || [];
-
-        return {
-          name: metadata.name as string,
-          repo: spec.repo as string,
-          branch: spec.branch as string | undefined,
-          paths: spec.paths as string[] | undefined,
-          status: {
-            ready: conditions.some((c) => c.type === 'Ready' && c.status === 'True'),
-            display: display ? {
-              state: display.state as string | undefined,
-              message: display.message as string | undefined,
-              error: display.error as boolean | undefined,
-            } : undefined,
-            desiredReadyClusters: (status.desiredReadyClusters as number) || 0,
-            readyClusters: (status.readyClusters as number) || 0,
-            resources: resources.map((r) => ({
-              kind: r.kind as string,
-              name: r.name as string,
-              state: r.state as string,
-            })),
-            conditions: conditions.map((c) => ({
-              type: c.type as string,
-              status: c.status as string,
-              message: c.message as string | undefined,
-            })),
-          },
-        };
-      });
+      const repos = await service.fetchGitRepos();
 
       // Only update state if data actually changed (prevents scroll reset)
       setGitRepos((prevRepos) => {
@@ -114,6 +103,12 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
 
   // Update GitRepo paths
   const updateGitRepoPaths = useCallback(async (repo: GitRepo, newPaths: string[]) => {
+    const service = serviceRef.current;
+    if (!service) {
+      console.error('KubernetesService not available');
+      return;
+    }
+
     setUpdatingRepo(repo.name);
 
     // Optimistic update - update local state immediately to prevent scroll jump
@@ -124,26 +119,7 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     );
 
     try {
-      const gitRepoYaml = {
-        apiVersion: 'fleet.cattle.io/v1alpha1',
-        kind: 'GitRepo',
-        metadata: {
-          name: repo.name,
-          namespace: FLEET_NAMESPACE,
-        },
-        spec: {
-          repo: repo.repo,
-          ...(repo.branch && { branch: repo.branch }),
-          ...(newPaths.length > 0 && { paths: newPaths }),
-        },
-      };
-
-      const jsonStr = JSON.stringify(gitRepoYaml);
-      await ddClient.extension.host?.cli.exec('kubectl', [
-        '--apply-json', jsonStr,
-        '--context', KUBE_CONTEXT,
-      ]);
-
+      await service.applyGitRepo(repo.name, repo.repo, repo.branch, newPaths);
       // Don't call fetchGitRepos() - optimistic update is sufficient
       // The periodic refresh will sync any server-side changes
     } catch (err) {
@@ -167,6 +143,11 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
 
   // Add a new GitRepo
   const addGitRepo = useCallback(async (name: string, repoUrl: string, branch?: string): Promise<AddGitRepoResult> => {
+    const service = serviceRef.current;
+    if (!service) {
+      return { success: false, error: 'Service not configured' };
+    }
+
     if (!name || !repoUrl) return { success: false, error: 'Name and URL are required' };
 
     // Check if a repo with this name already exists
@@ -177,27 +158,7 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     }
 
     try {
-      // Create GitRepo with empty paths - user will select paths on the card
-      const gitRepoYaml = {
-        apiVersion: 'fleet.cattle.io/v1alpha1',
-        kind: 'GitRepo',
-        metadata: {
-          name: name,
-          namespace: FLEET_NAMESPACE,
-        },
-        spec: {
-          repo: repoUrl,
-          ...(branch && { branch }),
-          // No paths initially - paths are selected on the card after discovery
-        },
-      };
-
-      const jsonStr = JSON.stringify(gitRepoYaml);
-      await ddClient.extension.host?.cli.exec('kubectl', [
-        '--apply-json', jsonStr,
-        '--context', KUBE_CONTEXT,
-      ]);
-
+      await service.applyGitRepo(name, repoUrl, branch);
       await fetchGitRepos();
       return { success: true };
     } catch (err) {
@@ -210,11 +171,14 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
 
   // Delete a GitRepo
   const deleteGitRepo = useCallback(async (name: string) => {
+    const service = serviceRef.current;
+    if (!service) {
+      console.error('KubernetesService not available');
+      return;
+    }
+
     try {
-      await ddClient.extension.host?.cli.exec('kubectl', [
-        '--context', KUBE_CONTEXT,
-        'delete', 'gitrepo', name, '-n', FLEET_NAMESPACE,
-      ]);
+      await service.deleteGitRepo(name);
       await fetchGitRepos();
     } catch (err) {
       console.error('Failed to delete GitRepo:', err);

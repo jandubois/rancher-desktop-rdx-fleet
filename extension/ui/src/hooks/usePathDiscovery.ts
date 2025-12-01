@@ -1,5 +1,14 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { fetchGitHubPaths, getErrorMessage, PathInfo } from '../utils';
+import { GitHubService, PathInfo } from '../services';
+import { getErrorMessage } from '../utils';
+
+interface UsePathDiscoveryOptions {
+  /**
+   * Optional GitHubService for dependency injection.
+   * If not provided, the hook will create a default instance.
+   */
+  gitHubService?: GitHubService;
+}
 
 interface UsePathDiscoveryResult {
   repoPathsCache: Record<string, PathInfo[]>;
@@ -10,20 +19,42 @@ interface UsePathDiscoveryResult {
   clearDiscoveryCache: (repoUrl: string) => void;
 }
 
-export function usePathDiscovery(): UsePathDiscoveryResult {
+/**
+ * Hook for discovering Fleet bundle paths in Git repositories.
+ *
+ * Can be used in two ways:
+ * 1. With injected service (for testing):
+ *    ```ts
+ *    const mockService = new GitHubService(mockHttpClient);
+ *    usePathDiscovery({ gitHubService: mockService });
+ *    ```
+ *
+ * 2. Without service (creates default):
+ *    ```ts
+ *    usePathDiscovery();
+ *    ```
+ */
+export function usePathDiscovery(options: UsePathDiscoveryOptions = {}): UsePathDiscoveryResult {
+  const { gitHubService } = options;
+
   // Cache of available paths per repo URL
   const [repoPathsCache, setRepoPathsCache] = useState<Record<string, PathInfo[]>>({});
   const repoPathsCacheRef = useRef<Record<string, PathInfo[]>>({});
   const loadingRepoPathsRef = useRef<Set<string>>(new Set());
+  const serviceRef = useRef(gitHubService);
 
   // Track discovery start time for timeout handling (30s)
   const [discoveryStartTimes, setDiscoveryStartTimes] = useState<Record<string, number>>({});
   const [discoveryErrors, setDiscoveryErrors] = useState<Record<string, string>>({});
 
-  // Keep ref in sync with state
+  // Keep refs in sync
   useEffect(() => {
     repoPathsCacheRef.current = repoPathsCache;
   }, [repoPathsCache]);
+
+  useEffect(() => {
+    serviceRef.current = gitHubService;
+  }, [gitHubService]);
 
   // Check if paths are loading for a repo
   const isLoadingPaths = useCallback((repoUrl: string): boolean => {
@@ -52,6 +83,9 @@ export function usePathDiscovery(): UsePathDiscoveryResult {
       return;
     }
 
+    // Get or create service
+    const service = serviceRef.current ?? new GitHubService();
+
     loadingRepoPathsRef.current.add(repoUrl);
 
     // Track start time for timeout display
@@ -64,7 +98,7 @@ export function usePathDiscovery(): UsePathDiscoveryResult {
     });
 
     try {
-      const paths = await fetchGitHubPaths(repoUrl, branch);
+      const paths = await service.fetchGitHubPaths(repoUrl, branch);
       // Update both ref and state immediately
       repoPathsCacheRef.current[repoUrl] = paths;
       setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: paths }));

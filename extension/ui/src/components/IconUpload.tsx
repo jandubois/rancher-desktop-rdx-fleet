@@ -1,3 +1,7 @@
+/**
+ * IconUpload component - Upload area for extension icon.
+ */
+
 import { useState, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -6,6 +10,7 @@ import Paper from '@mui/material/Paper';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ImageIcon from '@mui/icons-material/Image';
+import { useFileUpload, DEFAULT_ACCEPTED_TYPES, DEFAULT_MAX_SIZE } from '../hooks/useFileUpload';
 
 export interface CustomIcon {
   data: string;  // Base64 encoded image data
@@ -19,51 +24,15 @@ interface IconUploadProps {
   defaultIconPath?: string;  // Path to show when no custom icon is set
 }
 
-const ACCEPTED_TYPES = ['image/png', 'image/svg+xml', 'image/jpeg', 'image/gif', 'image/webp'];
-const MAX_SIZE = 512 * 1024; // 512KB max
-
 export function IconUpload({ value, onChange, defaultIconPath }: IconUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const validateAndProcessFile = useCallback((file: File): Promise<CustomIcon | null> => {
-    return new Promise((resolve) => {
-      setError(null);
-
-      // Validate type
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError('Invalid file type. Please use PNG, SVG, JPEG, GIF, or WebP.');
-        resolve(null);
-        return;
-      }
-
-      // Validate size
-      if (file.size > MAX_SIZE) {
-        setError('File too large. Maximum size is 512KB.');
-        resolve(null);
-        return;
-      }
-
-      // Read file as base64
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string;
-        // Remove the data:mime/type;base64, prefix to store just the data
-        const base64Data = base64.split(',')[1];
-        resolve({
-          data: base64Data,
-          filename: file.name,
-          mimeType: file.type,
-        });
-      };
-      reader.onerror = () => {
-        setError('Failed to read file.');
-        resolve(null);
-      };
-      reader.readAsDataURL(file);
-    });
-  }, []);
+  // Use the shared file upload hook
+  const { error, validateAndProcessFile, clearError } = useFileUpload({
+    acceptedTypes: DEFAULT_ACCEPTED_TYPES,
+    maxSize: DEFAULT_MAX_SIZE,
+  });
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -72,9 +41,9 @@ export function IconUpload({ value, onChange, defaultIconPath }: IconUploadProps
 
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      const icon = await validateAndProcessFile(files[0]);
-      if (icon) {
-        onChange(icon);
+      const result = await validateAndProcessFile(files[0]);
+      if (result) {
+        onChange(result as CustomIcon);
       }
     }
   }, [onChange, validateAndProcessFile]);
@@ -94,9 +63,9 @@ export function IconUpload({ value, onChange, defaultIconPath }: IconUploadProps
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const icon = await validateAndProcessFile(files[0]);
-      if (icon) {
-        onChange(icon);
+      const result = await validateAndProcessFile(files[0]);
+      if (result) {
+        onChange(result as CustomIcon);
       }
     }
     // Reset input so the same file can be selected again
@@ -107,8 +76,8 @@ export function IconUpload({ value, onChange, defaultIconPath }: IconUploadProps
 
   const handleDelete = useCallback(() => {
     onChange(null);
-    setError(null);
-  }, [onChange]);
+    clearError();
+  }, [onChange, clearError]);
 
   const handleClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -206,7 +175,7 @@ export function IconUpload({ value, onChange, defaultIconPath }: IconUploadProps
         <input
           ref={fileInputRef}
           type="file"
-          accept={ACCEPTED_TYPES.join(',')}
+          accept={DEFAULT_ACCEPTED_TYPES.join(',')}
           style={{ display: 'none' }}
           onChange={handleFileSelect}
           onClick={(e) => e.stopPropagation()}

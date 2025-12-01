@@ -1,10 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { ddClient } from '../lib/ddClient';
-import { getErrorMessage, KUBE_CONTEXT, FLEET_NAMESPACE } from '../utils';
+import { KubernetesService } from '../services';
+import { getErrorMessage } from '../utils';
 import { FleetState } from '../types';
 
 interface UseFleetStatusOptions {
   onFleetReady?: () => void;
+  /**
+   * Optional KubernetesService for dependency injection.
+   * If not provided, the hook must be used within a ServiceProvider.
+   */
+  kubernetesService?: KubernetesService;
 }
 
 interface UseFleetStatusResult {
@@ -14,113 +19,67 @@ interface UseFleetStatusResult {
   installFleet: () => Promise<void>;
 }
 
+/**
+ * Hook for managing Fleet installation status.
+ *
+ * Can be used in two ways:
+ * 1. With injected service (for testing):
+ *    ```ts
+ *    const mockService = new KubernetesService(mockExecutor);
+ *    useFleetStatus({ kubernetesService: mockService });
+ *    ```
+ *
+ * 2. With ServiceProvider context (for production):
+ *    ```tsx
+ *    <ServiceProvider>
+ *      <ComponentUsingFleetStatus />
+ *    </ServiceProvider>
+ *    ```
+ */
 export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetStatusResult {
-  const { onFleetReady } = options;
+  const { onFleetReady, kubernetesService } = options;
   const [fleetState, setFleetState] = useState<FleetState>({ status: 'checking' });
   const [installing, setInstalling] = useState(false);
   const onFleetReadyRef = useRef(onFleetReady);
+  const serviceRef = useRef(kubernetesService);
 
-  // Keep ref updated
+  // Keep refs updated
   useEffect(() => {
     onFleetReadyRef.current = onFleetReady;
   }, [onFleetReady]);
 
+  useEffect(() => {
+    serviceRef.current = kubernetesService;
+  }, [kubernetesService]);
+
   const checkFleetStatus = useCallback(async () => {
+    const service = serviceRef.current;
+    if (!service) {
+      console.error('KubernetesService not available');
+      setFleetState({ status: 'error', error: 'Service not configured' });
+      return;
+    }
+
     setFleetState({ status: 'checking' });
     try {
-      let crdExists = false;
-      try {
-        const result = await ddClient.extension.host?.cli.exec('kubectl', [
-          '--context', KUBE_CONTEXT,
-          'get', 'crd', 'gitrepos.fleet.cattle.io',
-          '-o', 'jsonpath={.metadata.name}',
-        ]);
-        crdExists = !result?.stderr && (result?.stdout?.includes('gitrepos.fleet.cattle.io') ?? false);
-      } catch (crdErr) {
-        const errMsg = getErrorMessage(crdErr);
-        if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
-          setFleetState({ status: 'not-installed' });
-          return;
-        }
-        throw crdErr;
-      }
+      const result = await service.checkFleetStatus();
 
-      if (!crdExists) {
-        setFleetState({ status: 'not-installed' });
+      if (result.needsNamespaceCreation) {
+        setFleetState(result.state);
+        try {
+          await service.createFleetNamespace();
+        } catch (createErr) {
+          // Log but don't fail - namespace might already exist
+          console.warn('Namespace creation warning:', createErr);
+        }
+        // Re-check status after creating namespace
+        setTimeout(() => checkFleetStatus(), 500);
         return;
       }
 
-      const podResult = await ddClient.extension.host?.cli.exec('kubectl', [
-        '--context', KUBE_CONTEXT,
-        'get', 'pods', '-n', 'cattle-fleet-system',
-        '-l', 'app=fleet-controller',
-        '-o', 'jsonpath={.items[0].status.phase}',
-      ]);
-
-      if (podResult?.stdout === 'Running') {
-        // Check if fleet-local namespace exists (created by Fleet controller)
-        let namespaceExists = false;
-        try {
-          const nsResult = await ddClient.extension.host?.cli.exec('kubectl', [
-            '--context', KUBE_CONTEXT,
-            'get', 'namespace', FLEET_NAMESPACE,
-            '-o', 'jsonpath={.metadata.name}',
-          ]);
-          namespaceExists = !nsResult?.stderr && nsResult?.stdout === FLEET_NAMESPACE;
-        } catch (nsErr) {
-          // Namespace doesn't exist yet - this is expected during initialization
-          const errMsg = getErrorMessage(nsErr);
-          if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
-            namespaceExists = false;
-          } else {
-            throw nsErr; // Re-throw unexpected errors
-          }
-        }
-
-        if (!namespaceExists) {
-          // Fleet controller is running but hasn't created fleet-local namespace yet
-          // Create it ourselves since Fleet doesn't seem to do it reliably
-          setFleetState({
-            status: 'initializing',
-            message: `Creating the "${FLEET_NAMESPACE}" namespace...`,
-          });
-          try {
-            await ddClient.extension.host?.cli.exec('kubectl', [
-              '--context', KUBE_CONTEXT,
-              'create', 'namespace', FLEET_NAMESPACE,
-            ]);
-          } catch (createErr) {
-            // Ignore "already exists" error (race condition)
-            const errMsg = getErrorMessage(createErr);
-            if (!errMsg.includes('already exists')) {
-              throw createErr;
-            }
-          }
-          // Re-check status now that namespace should exist
-          // Use setTimeout to avoid immediate recursion
-          setTimeout(() => checkFleetStatus(), 500);
-          return;
-        }
-
-        const versionResult = await ddClient.extension.host?.cli.exec('helm', [
-          '--kube-context', KUBE_CONTEXT,
-          'list', '-n', 'cattle-fleet-system',
-          '-f', 'fleet',
-          '-o', 'json',
-        ]);
-        let version = 'unknown';
-        try {
-          const releases = JSON.parse(versionResult?.stdout || '[]');
-          if (releases.length > 0) {
-            version = releases[0].app_version || releases[0].chart;
-          }
-        } catch {
-          // Ignore parse errors
-        }
-        setFleetState({ status: 'running', version });
+      setFleetState(result.state);
+      if (result.state.status === 'running') {
         onFleetReadyRef.current?.();
-      } else {
-        setFleetState({ status: 'not-installed' });
       }
     } catch (err) {
       console.error('Fleet status check error:', err);
@@ -132,47 +91,16 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
   }, []);
 
   const installFleet = useCallback(async () => {
+    const service = serviceRef.current;
+    if (!service) {
+      console.error('KubernetesService not available');
+      setFleetState({ status: 'error', error: 'Service not configured' });
+      return;
+    }
+
     setInstalling(true);
     try {
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'repo', 'add', 'fleet', 'https://rancher.github.io/fleet-helm-charts/',
-      ]);
-
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'repo', 'update',
-      ]);
-
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'install', '--create-namespace', '-n', 'cattle-fleet-system',
-        'fleet-crd', 'fleet/fleet-crd',
-        '--wait',
-      ]);
-
-      await ddClient.extension.host?.cli.exec('helm', [
-        '--kube-context', KUBE_CONTEXT,
-        'install', '--create-namespace', '-n', 'cattle-fleet-system',
-        'fleet', 'fleet/fleet',
-        '--wait',
-      ]);
-
-      // Create fleet-local namespace for GitRepo resources
-      // Fleet should create this automatically, but we ensure it exists
-      try {
-        await ddClient.extension.host?.cli.exec('kubectl', [
-          '--context', KUBE_CONTEXT,
-          'create', 'namespace', FLEET_NAMESPACE,
-        ]);
-      } catch (nsErr) {
-        // Ignore "already exists" error
-        const errMsg = getErrorMessage(nsErr);
-        if (!errMsg.includes('already exists')) {
-          throw nsErr;
-        }
-      }
-
+      await service.installFleet();
       await checkFleetStatus();
     } catch (err) {
       console.error('Fleet install error:', err);

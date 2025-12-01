@@ -263,7 +263,7 @@ describe('EditableHeaderIcon', () => {
       fireEvent.change(input, { target: { files: [invalidFile] } });
 
       await waitFor(() => {
-        expect(screen.getByText('Invalid file type')).toBeInTheDocument();
+        expect(screen.getByText('Invalid file type. Please use PNG, SVG, JPEG, GIF, or WebP.')).toBeInTheDocument();
       });
 
       expect(onChange).not.toHaveBeenCalled();
@@ -282,7 +282,7 @@ describe('EditableHeaderIcon', () => {
       fireEvent.change(input, { target: { files: [largeFile] } });
 
       await waitFor(() => {
-        expect(screen.getByText('File too large (max 512KB)')).toBeInTheDocument();
+        expect(screen.getByText('File too large. Maximum size is 512KB.')).toBeInTheDocument();
       });
 
       expect(onChange).not.toHaveBeenCalled();

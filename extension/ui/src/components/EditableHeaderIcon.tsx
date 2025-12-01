@@ -1,3 +1,7 @@
+/**
+ * EditableHeaderIcon component - Header icon with edit mode support.
+ */
+
 import { useState, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -7,6 +11,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { CustomIcon } from './IconUpload';
+import { useFileUpload, DEFAULT_ACCEPTED_TYPES, DEFAULT_MAX_SIZE } from '../hooks/useFileUpload';
 
 // Icon state: null = default, CustomIcon = custom, 'deleted' = explicitly no icon
 export type IconState = CustomIcon | null | 'deleted';
@@ -31,56 +36,22 @@ interface EditableHeaderIconProps {
   editMode: boolean;
 }
 
-const ACCEPTED_TYPES = ['image/png', 'image/svg+xml', 'image/jpeg', 'image/gif', 'image/webp'];
-const MAX_SIZE = 512 * 1024; // 512KB max
-
 export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHeaderIconProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Use the shared file upload hook with auto-clearing errors
+  const { error, validateAndProcessFile } = useFileUpload({
+    acceptedTypes: DEFAULT_ACCEPTED_TYPES,
+    maxSize: DEFAULT_MAX_SIZE,
+    errorAutoClearMs: 3000,
+  });
 
   // Determine what to show
   const hasCustomIcon = iconState !== null && iconState !== 'deleted';
   const isDeleted = iconState === 'deleted';
   const showDefaultIcon = iconState === null;
-
-  const validateAndProcessFile = useCallback((file: File): Promise<CustomIcon | null> => {
-    return new Promise((resolve) => {
-      setError(null);
-
-      if (!ACCEPTED_TYPES.includes(file.type)) {
-        setError('Invalid file type');
-        setTimeout(() => setError(null), 3000);
-        resolve(null);
-        return;
-      }
-
-      if (file.size > MAX_SIZE) {
-        setError('File too large (max 512KB)');
-        setTimeout(() => setError(null), 3000);
-        resolve(null);
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string;
-        const base64Data = base64.split(',')[1];
-        resolve({
-          data: base64Data,
-          filename: file.name,
-          mimeType: file.type,
-        });
-      };
-      reader.onerror = () => {
-        setError('Failed to read file');
-        setTimeout(() => setError(null), 3000);
-        resolve(null);
-      };
-      reader.readAsDataURL(file);
-    });
-  }, []);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -91,9 +62,9 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
 
     const files = e.dataTransfer.files;
     if (files.length > 0) {
-      const icon = await validateAndProcessFile(files[0]);
-      if (icon) {
-        onChange(icon);
+      const result = await validateAndProcessFile(files[0]);
+      if (result) {
+        onChange(result as CustomIcon);
       }
     }
   }, [editMode, onChange, validateAndProcessFile]);
@@ -121,9 +92,9 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const icon = await validateAndProcessFile(files[0]);
-      if (icon) {
-        onChange(icon);
+      const result = await validateAndProcessFile(files[0]);
+      if (result) {
+        onChange(result as CustomIcon);
       }
     }
     if (fileInputRef.current) {
@@ -296,7 +267,7 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
       <input
         ref={fileInputRef}
         type="file"
-        accept={ACCEPTED_TYPES.join(',')}
+        accept={DEFAULT_ACCEPTED_TYPES.join(',')}
         style={{ display: 'none' }}
         onChange={handleFileSelect}
       />

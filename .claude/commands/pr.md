@@ -7,12 +7,13 @@ Before starting, create a todo list with ALL of the following items:
 2. Check test coverage for code changes
 3. Verify test comment headers are up-to-date
 4. Check for library reimplementations
-5. Check for new dependencies and license compatibility
-6. Check if documentation needs updates
-7. Run tests, lint, and build
-8. Rebase on main branch
-9. Push changes
-10. Generate `gh pr create` command for user
+5. Check for historical/refactoring comments in code
+6. Check for new dependencies and license compatibility
+7. Check if documentation needs updates
+8. Run tests, lint, and build
+9. Rebase on main branch
+10. Push changes
+11. Generate `gh pr create` command for user
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
@@ -123,7 +124,38 @@ If you find reimplementations:
 
 **Rationale**: See `.claude/instructions.md` Development Guidelines for more details.
 
-## 4. Check for New Dependencies and License Compatibility
+## 4. Check for Historical/Refactoring Comments in Code
+
+**IMPORTANT: Code comments should only describe the current state of the code, not its history.**
+
+Search for comments that reference refactoring, previous implementations, API changes, or backwards compatibility:
+
+```bash
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | xargs grep -l -i -E '(refactor|previous|formerly|used to|was changed|backwards.?compat|migrat|deprecat)' 2>/dev/null || echo "No matches found"
+```
+
+**Comments to avoid in code:**
+- "Refactored to use..." or "Refactored from..."
+- "Previously this was..." or "This used to..."
+- "Changed from X to Y for..."
+- "Migrated from..." or "Migration note..."
+- "For backwards compatibility with..."
+- "Deprecated: use X instead"
+- Any reference to a previous state of the software
+
+**Where historical context belongs:**
+- ✅ Commit messages
+- ✅ Pull request descriptions
+- ✅ CHANGELOG.md entries
+- ❌ Code comments (should only describe current behavior)
+
+If you find such comments, remove or rewrite them to describe only the current behavior.
+
+**Decision Required**: After checking, explicitly state your conclusion:
+- If historical comments found: List which files and what changes you made to fix them.
+- If no issues found: Confirm you searched for historical comments and none were found.
+
+## 5. Check for New Dependencies and License Compatibility
 
 **IMPORTANT: Verify that any newly added dependencies are compatible with our Apache 2.0 license.**
 
@@ -159,7 +191,7 @@ For each new dependency:
 - If dependencies were removed: Note this and update `docs/reference/license-compatibility.md` to remove them.
 - If no dependency changes: State that no dependency files were modified.
 
-## 5. Check Documentation
+## 6. Check Documentation
 Review if any documentation needs updates based on the changes:
 
 ### Developer Documentation
@@ -184,7 +216,7 @@ Review if any documentation needs updates based on the changes:
 
 If docs need updates, make the changes and commit before proceeding.
 
-## 6. Run Tests, Linting, and Build
+## 7. Run Tests, Linting, and Build
 Run the checks from the extension/ui directory:
 
 ```bash
@@ -198,7 +230,7 @@ This will:
 
 If any step fails, fix the issues and commit before proceeding.
 
-## 7. Rebase on Main
+## 8. Rebase on Main
 Rebase your branch on the latest main:
 
 ```bash
@@ -210,14 +242,14 @@ If conflicts occur, resolve them, then:
 git add . && git rebase --continue
 ```
 
-## 8. Push Changes
+## 9. Push Changes
 Push your rebased branch:
 
 ```bash
 git push -f
 ```
 
-## 9. Create PR Command
+## 10. Create PR Command
 Provide a copyable `gh pr create` command using HEREDOC format:
 
 ```bash

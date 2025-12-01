@@ -1,36 +1,18 @@
+/**
+ * EditModePanel - Extension builder panel with tabs for editing, loading, and building.
+ */
+
 import { useState, useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
-import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import Collapse from '@mui/material/Collapse';
-import FormControl from '@mui/material/FormControl';
-import InputLabel from '@mui/material/InputLabel';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
-import InputAdornment from '@mui/material/InputAdornment';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
-import Menu from '@mui/material/Menu';
-import ListItemText from '@mui/material/ListItemText';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import Divider from '@mui/material/Divider';
-import Tooltip from '@mui/material/Tooltip';
-import DownloadIcon from '@mui/icons-material/Download';
 import BuildIcon from '@mui/icons-material/Build';
-import UploadIcon from '@mui/icons-material/Upload';
-import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import RestoreIcon from '@mui/icons-material/Restore';
-import SettingsIcon from '@mui/icons-material/Settings';
-import PaletteIcon from '@mui/icons-material/Palette';
-import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
-import CheckIcon from '@mui/icons-material/Check';
 import { Manifest, CardDefinition, DEFAULT_MANIFEST } from '../manifest';
 import { ColorPalette, defaultPalette } from '../theme/palette';
 import {
@@ -46,11 +28,12 @@ import {
   ImportResult,
 } from '../utils/extensionBuilder';
 import type { IconState } from './EditableHeaderIcon';
-import type { CustomIcon } from './IconUpload';
 import { ConfirmDialog } from './ConfirmDialog';
+import { EditModeLoadTab } from './EditModeLoadTab';
+import { EditModeBuildTab } from './EditModeBuildTab';
+import { EditModeEditTab, ColorFieldConfig } from './EditModeEditTab';
 import {
   generatePaletteFromColor,
-  HARMONY_TYPES,
   type HarmonyType,
 } from '../utils/paletteGenerator';
 import { extractColorsFromSvg, hexToRgb, getColorNames } from '../utils/colorExtractor';
@@ -67,7 +50,7 @@ interface EditModePanelProps {
   cardOrder: string[];
   iconState: IconState;
   resolvedPalette?: ReturnType<typeof import('../hooks/usePalette').usePalette>;
-  onConfigLoaded?: (manifest: Manifest, sourceName: string) => void;
+  onConfigLoaded?: (manifest: Manifest) => void;
   onPaletteChange?: (palette: ColorPalette) => void;
 }
 
@@ -75,15 +58,6 @@ interface EditModePanelProps {
 const isValidHexColor = (color: string): boolean => {
   return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(color);
 };
-
-// Color field configuration
-interface ColorFieldConfig {
-  id: string;
-  label: string;
-  group: 'header' | 'body' | 'card';
-  property: string;
-  defaultValue: string;
-}
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -122,6 +96,22 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     const group = palette[field.group];
     if (!group) return field.defaultValue;
     return (group as Record<string, string | undefined>)[field.property] ?? field.defaultValue;
+  };
+
+  // Get picker value for color input
+  const getPickerValue = (field: ColorFieldConfig, currentValue: string): string => {
+    const isHexColor = isValidHexColor(currentValue);
+    if (isHexColor) return currentValue;
+
+    // For non-hex values (like "inherit"), try resolved palette
+    if (resolvedPalette) {
+      const group = resolvedPalette[field.group as keyof typeof resolvedPalette];
+      if (group && typeof group === 'object') {
+        const value = (group as Record<string, string>)[field.property];
+        if (value && isValidHexColor(value)) return value;
+      }
+    }
+    return field.defaultValue !== 'inherit' ? field.defaultValue : '#212121';
   };
 
   // Handle color change
@@ -166,8 +156,12 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
 
     onPaletteChange(updatedPalette);
   };
+
+  // UI state
   const [expanded, setExpanded] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
+
+  // Build tab state
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
   const [baseImage, setBaseImage] = useState('');
   const [baseImageStatus, setBaseImageStatus] = useState('Detecting...');
@@ -176,7 +170,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
   const [buildOutput, setBuildOutput] = useState<string | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
 
-  // Load config state
+  // Load tab state
   const [fleetImages, setFleetImages] = useState<FleetExtensionImage[]>([]);
   const [selectedImage, setSelectedImage] = useState('');
   const [loadingImages, setLoadingImages] = useState(false);
@@ -193,24 +187,21 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
   const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
   const [generatingPalette, setGeneratingPalette] = useState(false);
 
-  // Color names state - maps hex values to human-readable names
+  // Color names state
   const [colorNames, setColorNames] = useState<Map<string, string>>(new Map());
 
   // Fetch color names when palette colors change
   useEffect(() => {
     const fetchColorNames = async () => {
-      // Extract colors directly from the palette to avoid dependency warnings
       const palette = manifest.branding?.palette;
       const hexColors: string[] = [];
 
-      // Collect all colors from the palette
       if (palette?.header?.background) hexColors.push(palette.header.background);
       if (palette?.header?.text) hexColors.push(palette.header.text);
       if (palette?.body?.background) hexColors.push(palette.body.background);
       if (palette?.card?.border) hexColors.push(palette.card.border);
       if (palette?.card?.title) hexColors.push(palette.card.title);
 
-      // Add default values for any missing colors
       if (hexColors.length === 0) {
         hexColors.push(
           defaultPalette.header.background,
@@ -242,30 +233,25 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
       let dominantColor;
 
       if (iconState === 'deleted') {
-        // No icon, use default blue
         dominantColor = {
           hex: defaultPalette.header.background,
           rgb: hexToRgb(defaultPalette.header.background)!,
         };
       } else if (iconState === null) {
-        // Default Fleet icon - extract from SVG
         const colors = extractColorsFromSvg(DEFAULT_FLEET_ICON_SVG);
         dominantColor = colors[0] || {
           hex: '#22ad5f',
           rgb: { r: 34, g: 173, b: 95 },
         };
       } else {
-        // Custom icon - need to extract colors
-        const customIcon = iconState as CustomIcon;
+        const customIcon = iconState;
         const dataUrl = `data:${customIcon.mimeType};base64,${customIcon.data}`;
 
         if (customIcon.mimeType === 'image/svg+xml') {
-          // For SVG, decode and parse
           const svgContent = atob(customIcon.data);
           const colors = extractColorsFromSvg(svgContent);
           dominantColor = colors[0];
         } else {
-          // For raster images, use ColorThief via dynamic import
           const { extractDominantColor } = await import('../utils/colorExtractor');
           dominantColor = await extractDominantColor(dataUrl);
         }
@@ -279,12 +265,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
         }
       }
 
-      // Generate palette using the selected harmony
       const result = generatePaletteFromColor(dominantColor, { harmony });
-
-      // Apply the generated UI palette
       onPaletteChange(result.uiPalette);
-      setImportSuccess(`Palette generated using ${HARMONY_TYPES.find(h => h.value === harmony)?.label || harmony} harmony`);
+      setImportSuccess(`Palette generated using ${harmony} harmony`);
     } catch (err) {
       console.error('Failed to generate palette:', err);
       setImportError('Failed to generate palette from icon');
@@ -293,7 +276,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     }
   };
 
-  // Try to detect the base image asynchronously (includes rdctl fallback for tag)
+  // Detect base image on mount
   useEffect(() => {
     if (!baseImage) {
       detectCurrentExtensionImageAsync()
@@ -389,9 +372,8 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     if (result.success && result.manifest) {
       setImportError(null);
       setImportSuccess(`Configuration loaded from ${sourceName}`);
-      // Notify parent of loaded config (which includes the extension name)
       if (onConfigLoaded) {
-        onConfigLoaded(result.manifest, sourceName);
+        onConfigLoaded(result.manifest);
       }
     } else {
       setImportSuccess(null);
@@ -431,7 +413,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
       setImportError(err instanceof Error ? err.message : 'Failed to load from ZIP');
     } finally {
       setImporting(false);
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -443,13 +424,12 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     setImportError(null);
     setImportSuccess('Configuration reset to defaults');
     if (onConfigLoaded) {
-      onConfigLoaded(DEFAULT_MANIFEST, 'defaults');
+      onConfigLoaded(DEFAULT_MANIFEST);
     }
   };
 
   const getImageDisplayName = (img: FleetExtensionImage): string => {
-    const name = img.title || `${img.repository}:${img.tag}`;
-    return name;
+    return img.title || `${img.repository}:${img.tag}`;
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
@@ -467,7 +447,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
           overflow: 'hidden',
         }}
       >
-        {/* Header - always visible */}
+        {/* Header */}
         <Box
           sx={{
             px: 2,
@@ -504,7 +484,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
               <Tab label="Build" id="edit-mode-tab-2" aria-controls="edit-mode-tabpanel-2" />
             </Tabs>
 
-            {/* Import status messages - shown across all tabs */}
+            {/* Status messages */}
             {(importSuccess || importError) && (
               <Box sx={{ mt: 2 }}>
                 {importSuccess && (
@@ -520,337 +500,59 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
               </Box>
             )}
 
+            {/* Edit Tab */}
+            <TabPanel value={activeTab} index={0}>
+              <EditModeEditTab
+                colorFields={colorFields}
+                getColorValue={getColorValue}
+                getPickerValue={getPickerValue}
+                colorNames={colorNames}
+                selectedHarmony={selectedHarmony}
+                generatingPalette={generatingPalette}
+                canChangePalette={!!onPaletteChange}
+                paletteMenuAnchor={paletteMenuAnchor}
+                onColorChange={handleColorChange}
+                onResetColor={handleResetColor}
+                onGeneratePalette={handleGeneratePalette}
+                onOpenPaletteMenu={(e) => setPaletteMenuAnchor(e.currentTarget)}
+                onClosePaletteMenu={() => setPaletteMenuAnchor(null)}
+              />
+            </TabPanel>
+
             {/* Load Tab */}
             <TabPanel value={activeTab} index={1}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Load an existing configuration from a custom extension image or a ZIP file.
-              </Typography>
-
-              <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start', flexWrap: 'wrap', mb: 2 }}>
-                {/* Image selector */}
-                <FormControl size="small" sx={{ minWidth: 250, flex: 1 }}>
-                  <InputLabel>Custom Extension Image</InputLabel>
-                  <Select
-                    value={selectedImage}
-                    onChange={(e) => setSelectedImage(e.target.value)}
-                    label="Custom Extension Image"
-                    disabled={loadingImages || importing}
-                  >
-                    <MenuItem value="">
-                      <em>Select an image...</em>
-                    </MenuItem>
-                    {fleetImages.map((img) => (
-                      <MenuItem key={`${img.repository}:${img.tag}`} value={`${img.repository}:${img.tag}`}>
-                        {getImageDisplayName(img)}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={refreshFleetImages}
-                  disabled={loadingImages}
-                  sx={{ minWidth: 40, px: 1 }}
-                  title="Refresh image list"
-                >
-                  {loadingImages ? <CircularProgress size={20} /> : <RefreshIcon />}
-                </Button>
-
-                <Button
-                  variant="contained"
-                  startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <UploadIcon />}
-                  onClick={handleLoadFromImage}
-                  disabled={!selectedImage || importing}
-                >
-                  Load
-                </Button>
-              </Box>
-
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-                <Typography variant="body2" color="text.secondary">
-                  Or upload a ZIP file:
-                </Typography>
-                <input
-                  type="file"
-                  accept=".zip"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  style={{ display: 'none' }}
-                />
-                <Button
-                  variant="outlined"
-                  startIcon={importing ? <CircularProgress size={16} color="inherit" /> : <FolderOpenIcon />}
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={importing}
-                >
-                  Browse...
-                </Button>
-                <Box sx={{ flex: 1 }} />
-                <Button
-                  variant="text"
-                  color="secondary"
-                  startIcon={<RestoreIcon />}
-                  onClick={() => setConfirmResetOpen(true)}
-                  disabled={importing}
-                >
-                  Reset to Defaults
-                </Button>
-              </Box>
+              <EditModeLoadTab
+                fleetImages={fleetImages}
+                selectedImage={selectedImage}
+                loadingImages={loadingImages}
+                importing={importing}
+                onSelectedImageChange={setSelectedImage}
+                onRefreshImages={refreshFleetImages}
+                onLoadFromImage={handleLoadFromImage}
+                onFileUpload={handleFileUpload}
+                onResetToDefaults={() => setConfirmResetOpen(true)}
+                getImageDisplayName={getImageDisplayName}
+              />
             </TabPanel>
 
             {/* Build Tab */}
             <TabPanel value={activeTab} index={2}>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Build or download your custom extension as a Docker image or ZIP file.
-              </Typography>
-
-              {/* Base image input */}
-              <TextField
-                label="Base Image"
-                value={baseImage}
-                onChange={(e) => {
-                  setBaseImage(e.target.value);
+              <EditModeBuildTab
+                baseImage={baseImage}
+                baseImageStatus={baseImageStatus}
+                imageName={imageName}
+                downloading={downloading}
+                building={building}
+                buildOutput={buildOutput}
+                buildError={buildError}
+                onBaseImageChange={(value) => {
+                  setBaseImage(value);
                   setBaseImageStatus('Manually set');
                 }}
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                placeholder="e.g., fleet-gitops-extension:next"
-                helperText={baseImageStatus}
+                onImageNameChange={setImageName}
+                onDownload={handleDownload}
+                onBuild={handleBuild}
               />
-
-              {/* Output image name input */}
-              <TextField
-                label="Output Image Name"
-                value={imageName}
-                onChange={(e) => setImageName(e.target.value)}
-                size="small"
-                fullWidth
-                sx={{ mb: 2 }}
-                helperText="Tag for the built Docker image"
-              />
-
-              {/* Action buttons */}
-              <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={downloading ? <CircularProgress size={16} color="inherit" /> : <DownloadIcon />}
-                  onClick={handleDownload}
-                  disabled={downloading}
-                >
-                  {downloading ? 'Downloading...' : 'Download ZIP'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  startIcon={building ? <CircularProgress size={16} color="inherit" /> : <BuildIcon />}
-                  onClick={handleBuild}
-                  disabled={building || !baseImage}
-                  title={!baseImage ? 'Base image is required for building' : undefined}
-                >
-                  {building ? 'Building...' : 'Build Image'}
-                </Button>
-              </Box>
-
-              {/* Build output */}
-              {buildOutput && (
-                <Alert severity="info" sx={{ mt: 2 }}>
-                  <Box
-                    component="pre"
-                    sx={{
-                      m: 0,
-                      fontFamily: 'monospace',
-                      fontSize: '0.8rem',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      maxHeight: 300,
-                      overflow: 'auto',
-                    }}
-                  >
-                    {buildOutput}
-                  </Box>
-                </Alert>
-              )}
-
-              {/* Build error */}
-              {buildError && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  <Box
-                    component="pre"
-                    sx={{
-                      m: 0,
-                      fontFamily: 'monospace',
-                      fontSize: '0.8rem',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                      maxHeight: 200,
-                      overflow: 'auto',
-                    }}
-                  >
-                    {buildError}
-                  </Box>
-                </Alert>
-              )}
-            </TabPanel>
-
-            {/* Edit Tab */}
-            <TabPanel value={activeTab} index={0}>
-              {/* Branding Colors Section */}
-              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <PaletteIcon color="action" />
-                  <Typography variant="subtitle2">
-                    Branding Colors
-                  </Typography>
-                </Box>
-                <Tooltip title="Generate color palette from icon">
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={generatingPalette ? <CircularProgress size={16} /> : <AutoFixHighIcon />}
-                    onClick={(e) => setPaletteMenuAnchor(e.currentTarget)}
-                    disabled={generatingPalette || !onPaletteChange}
-                  >
-                    Auto Palette
-                  </Button>
-                </Tooltip>
-                <Menu
-                  anchorEl={paletteMenuAnchor}
-                  open={Boolean(paletteMenuAnchor)}
-                  onClose={() => setPaletteMenuAnchor(null)}
-                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                >
-                  <Box sx={{ px: 2, py: 1 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Generate palette from icon using:
-                    </Typography>
-                  </Box>
-                  <Divider />
-                  {HARMONY_TYPES.map((harmony) => (
-                    <MenuItem
-                      key={harmony.value}
-                      onClick={() => handleGeneratePalette(harmony.value)}
-                      selected={selectedHarmony === harmony.value}
-                    >
-                      {selectedHarmony === harmony.value && (
-                        <ListItemIcon>
-                          <CheckIcon fontSize="small" />
-                        </ListItemIcon>
-                      )}
-                      <ListItemText
-                        inset={selectedHarmony !== harmony.value}
-                        primary={harmony.label}
-                        secondary={harmony.description}
-                        secondaryTypographyProps={{ variant: 'caption' }}
-                      />
-                    </MenuItem>
-                  ))}
-                </Menu>
-              </Box>
-
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Customize the extension appearance. Enter hex color values (e.g., #1976d2) or use the color picker.
-              </Typography>
-
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
-                {colorFields.map((field) => {
-                  const currentValue = getColorValue(field);
-                  const isDefault = currentValue === field.defaultValue;
-                  const isHexColor = isValidHexColor(currentValue);
-                  const isInherit = currentValue === 'inherit';
-                  const isValid = isHexColor || isInherit;
-
-                  // For color picker: use actual value if hex, otherwise use resolved palette value
-                  // This ensures "inherit" fields show the actual color that would be used
-                  const getPickerFallback = (): string => {
-                    if (resolvedPalette) {
-                      const group = resolvedPalette[field.group as keyof typeof resolvedPalette];
-                      if (group && typeof group === 'object') {
-                        const value = (group as Record<string, string>)[field.property];
-                        if (value && isValidHexColor(value)) return value;
-                      }
-                    }
-                    return field.defaultValue !== 'inherit' ? field.defaultValue : '#212121';
-                  };
-                  const pickerValue = isHexColor ? currentValue : getPickerFallback();
-
-                  // Helper text based on state, including color name
-                  const colorName = isHexColor ? colorNames.get(currentValue) : null;
-                  const helperText = !isValid
-                    ? 'Enter hex color (e.g., #1976d2) or "inherit"'
-                    : isInherit
-                    ? 'Inherits from parent'
-                    : colorName
-                    ? `${colorName}${isDefault ? ' (default)' : ''}`
-                    : isDefault
-                    ? 'Default'
-                    : 'Custom';
-
-                  return (
-                    <Box key={field.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                      <TextField
-                        label={field.label}
-                        value={currentValue}
-                        onChange={(e) => handleColorChange(field, e.target.value)}
-                        size="small"
-                        fullWidth
-                        error={!isValid}
-                        helperText={helperText}
-                        slotProps={{
-                          input: {
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                <Box
-                                  component="input"
-                                  type="color"
-                                  value={pickerValue}
-                                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleColorChange(field, e.target.value)}
-                                  sx={{
-                                    width: 24,
-                                    height: 24,
-                                    p: 0,
-                                    border: '1px solid',
-                                    borderColor: 'divider',
-                                    borderRadius: 0.5,
-                                    cursor: 'pointer',
-                                    '&::-webkit-color-swatch-wrapper': { p: 0 },
-                                    '&::-webkit-color-swatch': { border: 'none', borderRadius: 0.5 },
-                                  }}
-                                />
-                              </InputAdornment>
-                            ),
-                          },
-                        }}
-                      />
-                      {!isDefault && (
-                        <Button
-                          size="small"
-                          onClick={() => handleResetColor(field)}
-                          sx={{ minWidth: 'auto', px: 1, mt: 0.5 }}
-                          title="Reset to default"
-                        >
-                          <RestoreIcon fontSize="small" />
-                        </Button>
-                      )}
-                    </Box>
-                  );
-                })}
-              </Box>
-
-              {/* Additional Settings Placeholder */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 4, mb: 2 }}>
-                <SettingsIcon color="action" />
-                <Typography variant="subtitle2">
-                  Additional Settings
-                </Typography>
-              </Box>
-              <Typography variant="body2" color="text.secondary">
-                More configuration options coming soon.
-              </Typography>
             </TabPanel>
           </Box>
         </Collapse>
