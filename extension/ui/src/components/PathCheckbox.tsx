@@ -85,7 +85,7 @@ export function PathCheckbox({
   return (
     <Tooltip
       title={tooltipText}
-      placement="right"
+      placement="top"
       disableHoverListener={!tooltipText}
     >
       <FormControlLabel
