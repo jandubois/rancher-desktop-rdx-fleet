@@ -47,5 +47,18 @@ if [ -d /icons ]; then
     done
 fi
 
+# Export bundled images
+if [ -d /images ]; then
+    for image in /images/*; do
+        if [ -f "$image" ]; then
+            if [ "$first" = false ]; then printf ','; fi
+            filename=$(basename "$image")
+            content=$(base64 -w 0 "$image" 2>/dev/null || base64 "$image" | tr -d '\n')
+            printf '"images/%s":"%s"' "$filename" "$content"
+            first=false
+        fi
+    done
+fi
+
 # Close JSON
 printf '}}\n'

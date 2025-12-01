@@ -1,16 +1,19 @@
 /**
  * Tests for ImageCard component
  *
- * ImageCard displays static images with configurable URL and alt text:
+ * ImageCard displays static images with configurable URL or uploaded image:
  * - View mode: renders image with src and alt attributes
- * - View mode: shows placeholder when no image URL configured
+ * - View mode: renders bundled image from base64 data
+ * - View mode: shows placeholder when no image configured
  * - View mode: optionally displays card title above image
- * - Edit mode: shows URL and alt text input fields
- * - Edit mode: shows live preview of the image
+ * - Edit mode: shows toggle between Upload and URL modes
+ * - Edit mode: Upload mode with drag-and-drop and click-to-upload
+ * - Edit mode: URL mode with URL input and live preview
+ * - Edit mode: alt text input available in both modes
  * - Handles image load errors by hiding broken images
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ImageCard } from './ImageCard';
 import { CardDefinition, ImageCardSettings } from '../manifest/types';
@@ -25,6 +28,20 @@ describe('ImageCard', () => {
     src: 'https://example.com/image.png',
     alt: 'Test image',
   };
+
+  const bundledImageSettings: ImageCardSettings = {
+    src: '/images/uploaded.png',
+    alt: 'Uploaded image',
+    bundledImage: {
+      data: 'base64imagedata',
+      filename: 'uploaded.png',
+      mimeType: 'image/png',
+    },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   describe('view mode (editMode=false)', () => {
     it('renders image with correct src', () => {
@@ -51,6 +68,19 @@ describe('ImageCard', () => {
 
       const img = screen.getByRole('img');
       expect(img).toHaveAttribute('alt', 'Test image');
+    });
+
+    it('renders bundled image from base64 data', () => {
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={false}
+        />
+      );
+
+      const img = screen.getByRole('img');
+      expect(img).toHaveAttribute('src', 'data:image/png;base64,base64imagedata');
     });
 
     it('shows placeholder when no src provided', () => {
@@ -124,7 +154,83 @@ describe('ImageCard', () => {
     });
   });
 
-  describe('edit mode (editMode=true)', () => {
+  describe('edit mode - mode toggle', () => {
+    it('shows upload and URL toggle buttons', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /Upload Image/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Image URL/i })).toBeInTheDocument();
+    });
+
+    it('defaults to upload mode for new cards', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByText('Drop or click to upload')).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Image URL/i)).not.toBeInTheDocument();
+    });
+
+    it('defaults to URL mode when card has external URL', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={defaultSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByLabelText(/Image URL/i)).toBeInTheDocument();
+    });
+
+    it('defaults to upload mode when card has bundled image', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByText(bundledImageSettings.bundledImage!.filename)).toBeInTheDocument();
+    });
+
+    it('switches to URL mode when URL button clicked', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Image URL/i }));
+
+      expect(screen.getByLabelText(/Image URL/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('edit mode - URL mode', () => {
     it('shows image URL input field', () => {
       const onSettingsChange = vi.fn();
       render(
@@ -200,6 +306,7 @@ describe('ImageCard', () => {
       expect(onSettingsChange).toHaveBeenCalledWith({
         src: 'https://new-url.com/img.jpg',
         alt: 'Test image',
+        bundledImage: undefined,
       });
     });
 
@@ -247,6 +354,9 @@ describe('ImageCard', () => {
           onSettingsChange={onSettingsChange}
         />
       );
+
+      // Switch to URL mode first
+      fireEvent.click(screen.getByRole('button', { name: /Image URL/i }));
 
       expect(screen.queryByText('Preview:')).not.toBeInTheDocument();
     });
@@ -296,6 +406,9 @@ describe('ImageCard', () => {
         />
       );
 
+      // Switch to URL mode
+      fireEvent.click(screen.getByRole('button', { name: /Image URL/i }));
+
       const urlInput = screen.getByLabelText(/Image URL/i);
       expect(urlInput).toHaveAttribute('placeholder', 'https://example.com/image.png');
     });
@@ -314,7 +427,197 @@ describe('ImageCard', () => {
       const altInput = screen.getByLabelText(/Alt Text/i);
       expect(altInput).toHaveAttribute('placeholder', 'Description of the image');
     });
+  });
 
+  describe('edit mode - upload mode', () => {
+    it('renders upload drop zone', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByText('Drop or click to upload')).toBeInTheDocument();
+    });
+
+    it('renders accepted file types hint', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByText('PNG, SVG, JPEG, GIF, WebP (max 2MB)')).toBeInTheDocument();
+    });
+
+    it('renders hidden file input', () => {
+      const onSettingsChange = vi.fn();
+      const { container } = render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      const input = container.querySelector('input[type="file"]');
+      expect(input).toBeInTheDocument();
+      expect(input).toHaveStyle({ display: 'none' });
+    });
+
+    it('shows uploaded image preview', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      const images = screen.getAllByRole('img');
+      expect(images.some(img => img.getAttribute('src') === 'data:image/png;base64,base64imagedata')).toBe(true);
+    });
+
+    it('shows filename when image is uploaded', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByText('uploaded.png')).toBeInTheDocument();
+    });
+
+    it('shows remove button when image is uploaded', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByRole('button', { name: /Remove image/i })).toBeInTheDocument();
+    });
+
+    it('calls onSettingsChange with cleared image when remove clicked', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Remove image/i }));
+
+      expect(onSettingsChange).toHaveBeenCalledWith({
+        src: '',
+        alt: 'Uploaded image',
+        bundledImage: undefined,
+      });
+    });
+
+    it('shows drag state on dragOver', () => {
+      const onSettingsChange = vi.fn();
+      const { container } = render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      // Find the Paper drop zone by its MuiPaper class
+      const dropZone = container.querySelector('.MuiPaper-root');
+      expect(dropZone).toBeInTheDocument();
+      if (dropZone) {
+        fireEvent.dragOver(dropZone);
+        expect(screen.getByText('Drop image here')).toBeInTheDocument();
+      }
+    });
+
+    it('reverts drag state on dragLeave', () => {
+      const onSettingsChange = vi.fn();
+      const { container } = render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={{ src: '', alt: '' }}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      // Find the Paper drop zone by its MuiPaper class
+      const dropZone = container.querySelector('.MuiPaper-root');
+      expect(dropZone).toBeInTheDocument();
+      if (dropZone) {
+        fireEvent.dragOver(dropZone);
+        expect(screen.getByText('Drop image here')).toBeInTheDocument();
+
+        fireEvent.dragLeave(dropZone);
+        expect(screen.getByText('Drop or click to upload')).toBeInTheDocument();
+      }
+    });
+
+    it('shows "Drop or click to replace" when image already uploaded', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      expect(screen.getByText('Drop or click to replace')).toBeInTheDocument();
+    });
+  });
+
+  describe('edit mode - mode switching', () => {
+    it('clears bundled image when switching to URL mode', () => {
+      const onSettingsChange = vi.fn();
+      render(
+        <ImageCard
+          definition={defaultDefinition}
+          settings={bundledImageSettings}
+          editMode={true}
+          onSettingsChange={onSettingsChange}
+        />
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: /Image URL/i }));
+
+      expect(onSettingsChange).toHaveBeenCalledWith({
+        src: '',
+        alt: 'Uploaded image',
+        bundledImage: undefined,
+      });
+    });
+  });
+
+  describe('edit mode - no onSettingsChange', () => {
     it('renders in view mode when editMode true but no onSettingsChange', () => {
       render(
         <ImageCard
@@ -327,7 +630,7 @@ describe('ImageCard', () => {
 
       // Should show image, not edit fields
       expect(screen.getByRole('img')).toBeInTheDocument();
-      expect(screen.queryByLabelText(/Image URL/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Upload Image/i })).not.toBeInTheDocument();
     });
   });
 
@@ -393,7 +696,7 @@ describe('ImageCard', () => {
 
       // Should be in view mode (showing image, not inputs)
       expect(screen.getByRole('img')).toBeInTheDocument();
-      expect(screen.queryByLabelText(/Image URL/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Upload Image/i })).not.toBeInTheDocument();
     });
   });
 });
