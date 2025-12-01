@@ -10,14 +10,9 @@
   "host": {
     "binaries": [
       {
-        "darwin": [{ "path": "/host/darwin/kubectl" }],
-        "linux": [{ "path": "/host/linux/kubectl" }],
-        "windows": [{ "path": "/host/windows/kubectl.cmd" }]
-      },
-      {
-        "darwin": [{ "path": "/host/darwin/helm" }],
-        "linux": [{ "path": "/host/linux/helm" }],
-        "windows": [{ "path": "/host/windows/helm.cmd" }]
+        "darwin": [{ "path": "/host/darwin/rd-exec" }],
+        "linux": [{ "path": "/host/linux/rd-exec" }],
+        "windows": [{ "path": "/host/windows/rd-exec.cmd" }]
       },
       {
         "darwin": [{ "path": "/host/darwin/kubectl-apply-json" }],
