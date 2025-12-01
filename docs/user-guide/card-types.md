@@ -70,6 +70,67 @@ cards:
 
 ---
 
+## HTML Card
+
+Display raw HTML content with full JavaScript support. Unlike Markdown cards, HTML cards allow `<script>` elements to execute, enabling interactive widgets like stock tickers and weather displays.
+
+**Type:** `html`
+
+### Use Cases
+- Stock tickers and financial charts
+- Weather widgets
+- Interactive visualizations with Chart.js or similar libraries
+- Third-party embeddable content (via fetch+eval pattern)
+- Custom interactive components
+
+### Configuration
+
+```yaml
+cards:
+  - id: stock-widget
+    type: html
+    title: "Stock Ticker"      # Optional: heading above content
+    settings:
+      # Raw HTML content - scripts will execute
+      content: |
+        <canvas id="chart" width="400" height="200"></canvas>
+        <script>
+          // JavaScript code runs with full network access
+          fetch('https://api.example.com/data')
+            .then(r => r.json())
+            .then(data => {
+              // Render your widget
+            });
+        </script>
+```
+
+### Security Notes
+- HTML cards intentionally allow arbitrary JavaScript execution
+- Content is provided by the extension author (manifest) or user (edit mode)
+- Scripts have the same origin as the extension and can access localStorage
+
+### Limitations (Rancher Desktop CSP)
+Due to Content Security Policy restrictions:
+
+- **External `<script src="...">` tags don't work** - Use fetch+eval pattern instead:
+  ```html
+  <script>
+    fetch('https://cdn.example.com/library.js')
+      .then(r => r.text())
+      .then(code => eval(code));
+  </script>
+  ```
+- **External iframes may not work** - Some sites block iframe embedding via X-Frame-Options
+
+### Example: Stock Chart with Chart.js
+
+See `examples/html-card-snippets/stock-chart.html` for a complete working example that:
+- Fetches stock data from Yahoo Finance
+- Renders an interactive chart using Chart.js
+- Supports configurable time periods and log/linear scale
+
+---
+
 ## Image Card
 
 Display a static image from a URL. Useful for logos, diagrams, or visual content.
