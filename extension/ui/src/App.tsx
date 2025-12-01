@@ -202,7 +202,7 @@ function App() {
   const placeholderIdCounter = useRef(0);
 
   // Handle config loaded from external source (image or ZIP)
-  const handleConfigLoaded = useCallback((loadedManifest: Manifest, _sourceName: string) => {
+  const handleConfigLoaded = useCallback((loadedManifest: Manifest) => {
     setManifest(loadedManifest);
     setManifestCards(loadedManifest.cards);
 
@@ -544,7 +544,6 @@ function App() {
               index={repoIndex}
               totalCount={gitRepos.length}
               maxVisiblePaths={maxVisiblePaths}
-              cardId={cardId}
               editMode={editMode}
               title={getDynamicCardTitle(cardId, repo.name)}
               isUpdating={updatingRepo === repo.name}

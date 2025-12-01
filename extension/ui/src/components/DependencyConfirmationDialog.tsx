@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 /**
  * DependencyConfirmationDialog component - Confirms enabling paths with dependencies.
  *

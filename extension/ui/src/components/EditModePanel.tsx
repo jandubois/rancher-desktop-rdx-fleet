@@ -50,7 +50,7 @@ interface EditModePanelProps {
   cardOrder: string[];
   iconState: IconState;
   resolvedPalette?: ReturnType<typeof import('../hooks/usePalette').usePalette>;
-  onConfigLoaded?: (manifest: Manifest, sourceName: string) => void;
+  onConfigLoaded?: (manifest: Manifest) => void;
   onPaletteChange?: (palette: ColorPalette) => void;
 }
 
@@ -373,7 +373,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
       setImportError(null);
       setImportSuccess(`Configuration loaded from ${sourceName}`);
       if (onConfigLoaded) {
-        onConfigLoaded(result.manifest, sourceName);
+        onConfigLoaded(result.manifest);
       }
     } else {
       setImportSuccess(null);
@@ -424,7 +424,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     setImportError(null);
     setImportSuccess('Configuration reset to defaults');
     if (onConfigLoaded) {
-      onConfigLoaded(DEFAULT_MANIFEST, 'defaults');
+      onConfigLoaded(DEFAULT_MANIFEST);
     }
   };
 

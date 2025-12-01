@@ -33,8 +33,6 @@ export interface GitRepoCardProps {
   totalCount: number;
   /** Maximum number of visible paths before scrolling */
   maxVisiblePaths?: number;
-  /** Custom card ID for edit mode */
-  cardId?: string;
   /** Whether edit mode is active */
   editMode: boolean;
   /** Current card title */
@@ -87,7 +85,6 @@ export function GitRepoCard({
   repo,
   totalCount,
   maxVisiblePaths = 6,
-  cardId: _cardId,
   editMode,
   title,
   isUpdating,
