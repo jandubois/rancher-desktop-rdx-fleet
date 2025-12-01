@@ -11,8 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "express": "^4.21.0",
-    "dockerode": "^4.0.2"
+    "@kubernetes/client-node": "^0.22.3",
+    "dockerode": "^4.0.2",
+    "express": "^4.21.0"
   },
   "devDependencies": {
     "@types/dockerode": "^3.3.31",
