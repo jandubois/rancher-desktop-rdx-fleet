@@ -15,9 +15,11 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
   settings,
   editMode = false,
   onSettingsChange,
+  paletteColors,
 }) => {
   const label = settings?.label || '';
   const style: DividerStyle = settings?.style || 'solid';
+  const borderColor = paletteColors?.border ?? 'grey.300';
 
   const handleStyleChange = (_: React.MouseEvent<HTMLElement>, newStyle: DividerStyle) => {
     if (newStyle && onSettingsChange) {
@@ -30,8 +32,10 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
 
   const dividerSx = {
     borderStyle: style,
+    borderColor: borderColor,
     '&::before, &::after': {
       borderStyle: style,
+      borderColor: borderColor,
     },
   };
 

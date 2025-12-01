@@ -714,6 +714,7 @@ function App() {
           settings={card.settings || {}}
           editMode={editMode}
           onSettingsChange={handleSettingsChange}
+          paletteColors={palette.card}
         />
       </CardWrapper>
     );
