@@ -10,7 +10,6 @@ import CircularProgress from '@mui/material/CircularProgress';
 import InputAdornment from '@mui/material/InputAdornment';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import ListItemText from '@mui/material/ListItemText';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
@@ -18,7 +17,6 @@ import PaletteIcon from '@mui/icons-material/Palette';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import RestoreIcon from '@mui/icons-material/Restore';
 import CheckIcon from '@mui/icons-material/Check';
-import SettingsIcon from '@mui/icons-material/Settings';
 import { HARMONY_TYPES, type HarmonyType } from '../utils/paletteGenerator';
 
 /** Configuration for a color field */
@@ -28,6 +26,15 @@ export interface ColorFieldConfig {
   group: 'header' | 'body' | 'card';
   property: string;
   defaultValue: string;
+}
+
+/** Preview palette colors for a harmony type */
+export interface HarmonyPreview {
+  headerBg: string;
+  headerText: string;
+  bodyBg: string;
+  cardBorder: string;
+  cardTitle: string;
 }
 
 export interface EditModeEditTabProps {
@@ -47,6 +54,8 @@ export interface EditModeEditTabProps {
   canChangePalette: boolean;
   /** Palette menu anchor element */
   paletteMenuAnchor: HTMLElement | null;
+  /** Preview palettes for all harmony types */
+  harmonyPreviews: Map<HarmonyType, HarmonyPreview>;
   /** Callback when color changes */
   onColorChange: (field: ColorFieldConfig, value: string) => void;
   /** Callback to reset a color to default */
@@ -57,6 +66,8 @@ export interface EditModeEditTabProps {
   onOpenPaletteMenu: (event: React.MouseEvent<HTMLElement>) => void;
   /** Callback to close palette menu */
   onClosePaletteMenu: () => void;
+  /** Callback when hovering over a harmony option */
+  onHarmonyHover: (harmony: HarmonyType | null) => void;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -73,11 +84,13 @@ export function EditModeEditTab({
   generatingPalette,
   canChangePalette,
   paletteMenuAnchor,
+  harmonyPreviews,
   onColorChange,
   onResetColor,
   onGeneratePalette,
   onOpenPaletteMenu,
   onClosePaletteMenu,
+  onHarmonyHover,
 }: EditModeEditTabProps) {
   return (
     <>
@@ -106,32 +119,109 @@ export function EditModeEditTab({
           onClose={onClosePaletteMenu}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
           transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+          slotProps={{
+            paper: {
+              onMouseLeave: () => onHarmonyHover(null),
+            },
+          }}
         >
           <Box sx={{ px: 2, py: 1 }}>
             <Typography variant="caption" color="text.secondary">
-              Generate palette from icon using:
+              Hover to preview • Click to apply
             </Typography>
           </Box>
           <Divider />
-          {HARMONY_TYPES.map((harmony) => (
-            <MenuItem
-              key={harmony.value}
-              onClick={() => onGeneratePalette(harmony.value)}
-              selected={selectedHarmony === harmony.value}
-            >
-              {selectedHarmony === harmony.value && (
-                <ListItemIcon>
-                  <CheckIcon fontSize="small" />
-                </ListItemIcon>
-              )}
-              <ListItemText
-                inset={selectedHarmony !== harmony.value}
-                primary={harmony.label}
-                secondary={harmony.description}
-                secondaryTypographyProps={{ variant: 'caption' }}
-              />
-            </MenuItem>
-          ))}
+          {HARMONY_TYPES.map((harmony) => {
+            const preview = harmonyPreviews.get(harmony.value);
+            return (
+              <MenuItem
+                key={harmony.value}
+                onClick={() => onGeneratePalette(harmony.value)}
+                onMouseEnter={() => onHarmonyHover(harmony.value)}
+                selected={selectedHarmony === harmony.value}
+                sx={{ py: 1 }}
+              >
+                {selectedHarmony === harmony.value && (
+                  <ListItemIcon>
+                    <CheckIcon fontSize="small" />
+                  </ListItemIcon>
+                )}
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%', ml: selectedHarmony !== harmony.value ? 4 : 0 }}>
+                  {/* Color swatch preview */}
+                  {preview && (
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
+                      {/* Header preview */}
+                      <Box sx={{ display: 'flex', gap: '1px' }}>
+                        <Box
+                          sx={{
+                            width: 18,
+                            height: 12,
+                            bgcolor: preview.headerBg,
+                            borderRadius: '2px 0 0 0',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                          title="Header Background"
+                        />
+                        <Box
+                          sx={{
+                            width: 10,
+                            height: 12,
+                            bgcolor: preview.headerText,
+                            borderRadius: '0 2px 0 0',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                          title="Header Text"
+                        />
+                      </Box>
+                      {/* Body + Card preview */}
+                      <Box sx={{ display: 'flex', gap: '1px' }}>
+                        <Box
+                          sx={{
+                            width: 10,
+                            height: 12,
+                            bgcolor: preview.bodyBg,
+                            borderRadius: '0 0 0 2px',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                          title="Body Background"
+                        />
+                        <Box
+                          sx={{
+                            width: 9,
+                            height: 12,
+                            bgcolor: preview.cardBorder,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                          title="Card Border"
+                        />
+                        <Box
+                          sx={{
+                            width: 9,
+                            height: 12,
+                            bgcolor: preview.cardTitle,
+                            borderRadius: '0 0 2px 0',
+                            border: '1px solid',
+                            borderColor: 'divider',
+                          }}
+                          title="Card Title"
+                        />
+                      </Box>
+                    </Box>
+                  )}
+                  <Box sx={{ flex: 1 }}>
+                    <Typography variant="body2">{harmony.label}</Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+                      {harmony.description}
+                    </Typography>
+                  </Box>
+                </Box>
+              </MenuItem>
+            );
+          })}
         </Menu>
       </Box>
 
@@ -210,17 +300,6 @@ export function EditModeEditTab({
           );
         })}
       </Box>
-
-      {/* Additional Settings Placeholder */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 4, mb: 2 }}>
-        <SettingsIcon color="action" />
-        <Typography variant="subtitle2">
-          Additional Settings
-        </Typography>
-      </Box>
-      <Typography variant="body2" color="text.secondary">
-        More configuration options coming soon.
-      </Typography>
     </>
   );
 }

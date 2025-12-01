@@ -31,12 +31,13 @@ import type { IconState } from './EditableHeaderIcon';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EditModeLoadTab } from './EditModeLoadTab';
 import { EditModeBuildTab } from './EditModeBuildTab';
-import { EditModeEditTab, ColorFieldConfig } from './EditModeEditTab';
+import { EditModeEditTab, ColorFieldConfig, HarmonyPreview } from './EditModeEditTab';
 import {
   generatePaletteFromColor,
+  HARMONY_TYPES,
   type HarmonyType,
 } from '../utils/paletteGenerator';
-import { extractColorsFromSvg, hexToRgb, getColorNames } from '../utils/colorExtractor';
+import { extractColorsFromSvg, hexToRgb, getColorNames, type ExtractedColor } from '../utils/colorExtractor';
 
 // Default Fleet icon SVG content for color extraction
 const DEFAULT_FLEET_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
@@ -186,6 +187,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
   const [paletteMenuAnchor, setPaletteMenuAnchor] = useState<null | HTMLElement>(null);
   const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
   const [generatingPalette, setGeneratingPalette] = useState(false);
+  const [harmonyPreviews, setHarmonyPreviews] = useState<Map<HarmonyType, HarmonyPreview>>(new Map());
+  const [originalPalette, setOriginalPalette] = useState<ColorPalette | null>(null);
+  const [previewingHarmony, setPreviewingHarmony] = useState<HarmonyType | null>(null);
 
   // Color names state
   const [colorNames, setColorNames] = useState<Map<string, string>>(new Map());
@@ -221,51 +225,159 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     fetchColorNames();
   }, [manifest.branding?.palette]);
 
-  // Generate palette from icon
+  // Get base color for palette generation
+  // Uses current header background if set, otherwise extracts from icon
+  const getBaseColor = async (): Promise<ExtractedColor> => {
+    // First check if user has manually set a header background color
+    const currentHeaderBg = manifest.branding?.palette?.header?.background;
+    if (currentHeaderBg && isValidHexColor(currentHeaderBg)) {
+      const rgb = hexToRgb(currentHeaderBg);
+      if (rgb) {
+        return { hex: currentHeaderBg, rgb };
+      }
+    }
+
+    // Otherwise extract from icon
+    if (iconState === 'deleted') {
+      return {
+        hex: defaultPalette.header.background,
+        rgb: hexToRgb(defaultPalette.header.background)!,
+      };
+    } else if (iconState === null) {
+      const colors = extractColorsFromSvg(DEFAULT_FLEET_ICON_SVG);
+      return colors[0] || {
+        hex: '#22ad5f',
+        rgb: { r: 34, g: 173, b: 95 },
+      };
+    } else {
+      const customIcon = iconState;
+      const dataUrl = `data:${customIcon.mimeType};base64,${customIcon.data}`;
+
+      if (customIcon.mimeType === 'image/svg+xml') {
+        const svgContent = atob(customIcon.data);
+        const colors = extractColorsFromSvg(svgContent);
+        if (colors[0]) return colors[0];
+      } else {
+        const { extractDominantColor } = await import('../utils/colorExtractor');
+        const dominantColor = await extractDominantColor(dataUrl);
+        if (dominantColor) return dominantColor;
+      }
+
+      // Fallback
+      return {
+        hex: '#22ad5f',
+        rgb: { r: 34, g: 173, b: 95 },
+      };
+    }
+  };
+
+  // Generate all harmony previews when opening the palette menu
+  const handleOpenPaletteMenu = async (event: React.MouseEvent<HTMLElement>) => {
+    setPaletteMenuAnchor(event.currentTarget);
+
+    // Store current palette for revert
+    setOriginalPalette(manifest.branding?.palette || {});
+
+    // Generate preview palettes for all harmony types
+    try {
+      const baseColor = await getBaseColor();
+      const previews = new Map<HarmonyType, HarmonyPreview>();
+
+      for (const harmony of HARMONY_TYPES) {
+        const result = generatePaletteFromColor(baseColor, { harmony: harmony.value });
+        previews.set(harmony.value, {
+          headerBg: result.uiPalette.header?.background || defaultPalette.header.background,
+          headerText: result.uiPalette.header?.text || defaultPalette.header.text,
+          bodyBg: result.uiPalette.body?.background || defaultPalette.body.background,
+          cardBorder: result.uiPalette.card?.border || defaultPalette.card.border,
+          cardTitle: result.uiPalette.card?.title || defaultPalette.card.title,
+        });
+      }
+
+      setHarmonyPreviews(previews);
+    } catch (err) {
+      console.error('Failed to generate preview palettes:', err);
+    }
+  };
+
+  // Handle harmony hover - apply preview palette
+  const handleHarmonyHover = (harmony: HarmonyType | null) => {
+    if (!onPaletteChange) return;
+
+    if (harmony === null) {
+      // Mouse left menu - revert to original
+      if (originalPalette !== null && previewingHarmony !== null) {
+        onPaletteChange(originalPalette);
+      }
+      setPreviewingHarmony(null);
+    } else {
+      // Apply preview palette
+      const preview = harmonyPreviews.get(harmony);
+      if (preview) {
+        setPreviewingHarmony(harmony);
+        onPaletteChange({
+          header: {
+            background: preview.headerBg,
+            text: preview.headerText,
+          },
+          body: {
+            background: preview.bodyBg,
+          },
+          card: {
+            border: preview.cardBorder,
+            title: preview.cardTitle,
+          },
+        });
+      }
+    }
+  };
+
+  // Handle menu close - revert if no selection made
+  const handleClosePaletteMenu = () => {
+    if (originalPalette !== null && previewingHarmony !== null && onPaletteChange) {
+      onPaletteChange(originalPalette);
+    }
+    setPaletteMenuAnchor(null);
+    setOriginalPalette(null);
+    setPreviewingHarmony(null);
+  };
+
+  // Generate palette from icon (when harmony is clicked/selected)
   const handleGeneratePalette = async (harmony: HarmonyType) => {
     if (!onPaletteChange) return;
 
-    setGeneratingPalette(true);
+    // Clear preview state first - the palette is already applied from hover
+    setPreviewingHarmony(null);
+    setOriginalPalette(null);
     setPaletteMenuAnchor(null);
     setSelectedHarmony(harmony);
 
+    // If preview was shown, palette is already applied
+    const preview = harmonyPreviews.get(harmony);
+    if (preview) {
+      onPaletteChange({
+        header: {
+          background: preview.headerBg,
+          text: preview.headerText,
+        },
+        body: {
+          background: preview.bodyBg,
+        },
+        card: {
+          border: preview.cardBorder,
+          title: preview.cardTitle,
+        },
+      });
+      setImportSuccess(`Palette generated using ${harmony} harmony`);
+      return;
+    }
+
+    // Fallback: generate if previews weren't available
+    setGeneratingPalette(true);
+
     try {
-      let dominantColor;
-
-      if (iconState === 'deleted') {
-        dominantColor = {
-          hex: defaultPalette.header.background,
-          rgb: hexToRgb(defaultPalette.header.background)!,
-        };
-      } else if (iconState === null) {
-        const colors = extractColorsFromSvg(DEFAULT_FLEET_ICON_SVG);
-        dominantColor = colors[0] || {
-          hex: '#22ad5f',
-          rgb: { r: 34, g: 173, b: 95 },
-        };
-      } else {
-        const customIcon = iconState;
-        const dataUrl = `data:${customIcon.mimeType};base64,${customIcon.data}`;
-
-        if (customIcon.mimeType === 'image/svg+xml') {
-          const svgContent = atob(customIcon.data);
-          const colors = extractColorsFromSvg(svgContent);
-          dominantColor = colors[0];
-        } else {
-          const { extractDominantColor } = await import('../utils/colorExtractor');
-          dominantColor = await extractDominantColor(dataUrl);
-        }
-
-        if (!dominantColor) {
-          console.warn('Could not extract color from icon, using default');
-          dominantColor = {
-            hex: '#22ad5f',
-            rgb: { r: 34, g: 173, b: 95 },
-          };
-        }
-      }
-
-      const result = generatePaletteFromColor(dominantColor, { harmony });
+      const baseColor = await getBaseColor();
+      const result = generatePaletteFromColor(baseColor, { harmony });
       onPaletteChange(result.uiPalette);
       setImportSuccess(`Palette generated using ${harmony} harmony`);
     } catch (err) {
@@ -511,11 +623,13 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
                 generatingPalette={generatingPalette}
                 canChangePalette={!!onPaletteChange}
                 paletteMenuAnchor={paletteMenuAnchor}
+                harmonyPreviews={harmonyPreviews}
                 onColorChange={handleColorChange}
                 onResetColor={handleResetColor}
                 onGeneratePalette={handleGeneratePalette}
-                onOpenPaletteMenu={(e) => setPaletteMenuAnchor(e.currentTarget)}
-                onClosePaletteMenu={() => setPaletteMenuAnchor(null)}
+                onOpenPaletteMenu={handleOpenPaletteMenu}
+                onClosePaletteMenu={handleClosePaletteMenu}
+                onHarmonyHover={handleHarmonyHover}
               />
             </TabPanel>
 
