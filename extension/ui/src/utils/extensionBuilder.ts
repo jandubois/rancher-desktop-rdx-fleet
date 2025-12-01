@@ -1,9 +1,17 @@
 import yaml from 'js-yaml';
 import JSZip from 'jszip';
-import { Manifest, CardDefinition } from '../manifest';
+import { Manifest, CardDefinition, ImageCardSettings } from '../manifest';
+import type { BundledImage } from '../manifest';
 import { ddClient } from '../lib/ddClient';
 import type { CustomIcon } from '../components/IconUpload';
 import type { IconState } from '../components/EditableHeaderIcon';
+
+// Collected bundled image with its target path
+interface CollectedBundledImage {
+  path: string;        // Path in the bundle (e.g., "images/my-image.png")
+  data: string;        // Base64 encoded data
+  mimeType: string;    // MIME type
+}
 
 // Fleet extension image info (from Docker labels)
 export interface FleetExtensionImage {
@@ -20,7 +28,8 @@ export interface ImportResult {
   success: boolean;
   manifest?: Manifest;
   metadata?: Record<string, unknown>;
-  icons?: Map<string, string>;  // filename -> base64 content
+  icons?: Map<string, string>;   // filename -> base64 content (e.g., "icons/custom-icon.png")
+  images?: Map<string, string>;  // filename -> base64 content (e.g., "images/my-image.png")
   error?: string;
 }
 
@@ -195,7 +204,7 @@ export function generateMetadataJson(config: ExtensionConfig): string {
 }
 
 // Generate Dockerfile for custom extension
-export function generateDockerfile(config: ExtensionConfig): string {
+export function generateDockerfile(config: ExtensionConfig, hasBundledImages = false): string {
   const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops:latest';
   const extensionName = config.name || 'My Fleet Extension';
   const hasCustomIcon = isCustomIcon(config.iconState);
@@ -234,6 +243,13 @@ COPY metadata.json /metadata.json
     dockerfile += `
 # Add custom icon
 COPY icons/ /icons/
+`;
+  }
+
+  if (hasBundledImages) {
+    dockerfile += `
+# Add bundled images for image cards
+COPY images/ /images/
 `;
   }
 
@@ -293,18 +309,139 @@ function getCustomIconFilename(customIcon: CustomIcon): string {
   return `custom-icon.${ext}`;
 }
 
+// Get extension for a MIME type
+function getExtensionForMimeType(mimeType: string): string {
+  return mimeType === 'image/svg+xml' ? 'svg'
+    : mimeType === 'image/png' ? 'png'
+    : mimeType === 'image/jpeg' ? 'jpg'
+    : mimeType === 'image/gif' ? 'gif'
+    : mimeType === 'image/webp' ? 'webp'
+    : 'png';
+}
+
+// Sanitize filename for safe bundling
+function sanitizeFilename(filename: string): string {
+  // Remove path components and special characters, keep alphanumeric, dash, underscore, dot
+  return filename
+    .replace(/^.*[\\/]/, '')  // Remove path
+    .replace(/[^a-zA-Z0-9._-]/g, '-')  // Replace special chars
+    .replace(/-+/g, '-')  // Collapse multiple dashes
+    .replace(/^-|-$/g, '');  // Trim dashes
+}
+
+// Collect all bundled images from cards, returns map of card ID + index to image info
+function collectBundledImages(cards: CardDefinition[]): CollectedBundledImage[] {
+  const collected: CollectedBundledImage[] = [];
+  const usedFilenames = new Set<string>();
+
+  for (const card of cards) {
+    if (card.type === 'image' && card.settings) {
+      const settings = card.settings as ImageCardSettings;
+      if (settings.bundledImage) {
+        const bundledImage = settings.bundledImage;
+        // Generate a unique filename based on original name
+        let baseName = sanitizeFilename(bundledImage.filename);
+        // If no extension, add one based on MIME type
+        if (!baseName.includes('.')) {
+          baseName += '.' + getExtensionForMimeType(bundledImage.mimeType);
+        }
+
+        // Ensure uniqueness by adding card ID if needed
+        let finalName = baseName;
+        if (usedFilenames.has(finalName)) {
+          const ext = finalName.includes('.') ? '.' + finalName.split('.').pop() : '';
+          const nameWithoutExt = finalName.replace(/\.[^.]+$/, '');
+          finalName = `${nameWithoutExt}-${card.id}${ext}`;
+        }
+        usedFilenames.add(finalName);
+
+        collected.push({
+          path: `images/${finalName}`,
+          data: bundledImage.data,
+          mimeType: bundledImage.mimeType,
+        });
+
+        // Update the card's src to point to the bundled path
+        // Note: This mutates the card which is intentional during bundling
+        settings.src = `/images/${finalName}`;
+      }
+    }
+  }
+
+  return collected;
+}
+
+// Create a manifest for export, stripping bundledImage data from image cards
+// Returns a deep clone with bundledImage removed (data is stored separately)
+function createExportManifest(config: ExtensionConfig): Manifest {
+  // Filter out placeholder cards and reorder based on cardOrder
+  const orderedCards = config.cardOrder
+    .map(id => config.cards.find(c => c.id === id))
+    .filter((c): c is CardDefinition => c !== undefined && c.type !== 'placeholder');
+
+  const exportCards = orderedCards.map(card => {
+    const exportCard: CardDefinition = {
+      id: card.id,
+      type: card.type,
+      ...(card.title && { title: card.title }),
+      ...(card.visible === false && { visible: false }),
+      ...(card.enabled === false && { enabled: false }),
+    };
+
+    if (card.settings) {
+      if (card.type === 'image') {
+        // For image cards, strip bundledImage data but keep src
+        const imageSettings = card.settings as ImageCardSettings;
+        exportCard.settings = {
+          src: imageSettings.src,
+          ...(imageSettings.alt && { alt: imageSettings.alt }),
+        };
+      } else {
+        exportCard.settings = card.settings;
+      }
+    }
+
+    return exportCard;
+  });
+
+  return {
+    version: config.manifest.version || '1.0',
+    app: {
+      name: config.name || config.manifest.app?.name || 'My Fleet Extension',
+      icon: config.manifest.app?.icon,
+      description: config.manifest.app?.description,
+    },
+    branding: config.manifest.branding,
+    layout: {
+      ...config.manifest.layout,
+      edit_mode: false,
+    },
+    cards: exportCards,
+  };
+}
+
 // Create a ZIP file with all extension files
 export async function createExtensionZip(config: ExtensionConfig): Promise<Blob> {
   const zip = new JSZip();
 
-  // Add manifest.yaml
-  zip.file('manifest.yaml', generateManifestYaml(config));
+  // Collect bundled images from cards (this also updates src paths)
+  const bundledImages = collectBundledImages(config.cards);
+
+  // Create export manifest (strips bundledImage data)
+  const exportManifest = createExportManifest(config);
+  zip.file('manifest.yaml', yaml.dump(exportManifest, {
+    indent: 2,
+    lineWidth: -1,
+    noRefs: true,
+    quotingType: '"',
+    forceQuotes: false,
+  }));
 
   // Add metadata.json
   zip.file('metadata.json', generateMetadataJson(config));
 
-  // Add Dockerfile
-  zip.file('Dockerfile', generateDockerfile(config));
+  // Add Dockerfile (needs to know about bundled images)
+  zip.file('Dockerfile', generateDockerfile(config, bundledImages.length > 0));
 
   // Add README
   zip.file('README.md', generateReadme(config));
@@ -321,6 +458,16 @@ export async function createExtensionZip(config: ExtensionConfig): Promise<Blob>
     zip.file(`icons/${iconFilename}`, bytes);
   }
   // Note: If icon is deleted or default, no icons directory needed
+
+  // Add bundled images
+  for (const img of bundledImages) {
+    const binaryData = atob(img.data);
+    const bytes = new Uint8Array(binaryData.length);
+    for (let i = 0; i < binaryData.length; i++) {
+      bytes[i] = binaryData.charCodeAt(i);
+    }
+    zip.file(img.path, bytes);
+  }
 
   // Generate the ZIP blob
   return await zip.generateAsync({ type: 'blob' });
@@ -359,8 +506,19 @@ export async function buildExtension(
   const hasCustomIcon = isCustomIcon(config.iconState);
   const isIconDeleted = config.iconState === 'deleted';
 
-  // Generate the files
-  const manifestYaml = generateManifestYaml(config);
+  // Collect bundled images from cards (this also updates src paths in settings)
+  const bundledImages = collectBundledImages(config.cards);
+  const hasBundledImages = bundledImages.length > 0;
+
+  // Create export manifest (strips bundledImage data from image cards)
+  const exportManifest = createExportManifest(config);
+  const manifestYaml = yaml.dump(exportManifest, {
+    indent: 2,
+    lineWidth: -1,
+    noRefs: true,
+    quotingType: '"',
+    forceQuotes: false,
+  });
   const metadataJson = generateMetadataJson(config);
 
   // Base64 encode the files for passing as environment variables
@@ -377,13 +535,20 @@ export async function buildExtension(
   // Determine the icon path for the label (empty string if deleted = no icon label)
   const iconPath = isIconDeleted ? '' : (hasCustomIcon ? `/icons/${iconFilename}` : '/icons/fleet-icon.svg');
 
+  // Prepare bundled images data - JSON encoded array of {path, data} objects
+  const bundledImagesJson = JSON.stringify(bundledImages.map(img => ({
+    path: img.path,
+    data: img.data,
+  })));
+  const bundledImagesB64 = btoa(bundledImagesJson);
+
   onProgress?.('Preparing build context...');
 
   // Build script that runs inside the helper container
   // This creates the build context and runs docker build
   const buildScript = `
 set -e
-mkdir -p /build/icons
+mkdir -p /build/icons /build/images
 cd /build
 
 # Decode manifest and metadata from base64
@@ -396,6 +561,21 @@ EXT_TITLE_DECODED=$(echo "$TITLE_B64" | base64 -d)
 # Decode custom icon if present
 if [ -n "$ICON_B64" ] && [ -n "$ICON_FILENAME" ]; then
   echo "$ICON_B64" | base64 -d > "icons/$ICON_FILENAME"
+fi
+
+# Decode bundled images if present
+if [ -n "$BUNDLED_IMAGES_B64" ] && [ "$HAS_BUNDLED_IMAGES" = "true" ]; then
+  # Decode the JSON array of images
+  IMAGES_JSON=$(echo "$BUNDLED_IMAGES_B64" | base64 -d)
+  # Parse and decode each image using a simple approach
+  echo "$IMAGES_JSON" | sed 's/},{/}\\n{/g' | sed 's/^\\[//' | sed 's/\\]$//' | while read -r img; do
+    # Extract path and data from JSON object
+    IMG_PATH=$(echo "$img" | sed 's/.*"path":"\\([^"]*\\)".*/\\1/')
+    IMG_DATA=$(echo "$img" | sed 's/.*"data":"\\([^"]*\\)".*/\\1/')
+    if [ -n "$IMG_PATH" ] && [ -n "$IMG_DATA" ]; then
+      echo "$IMG_DATA" | base64 -d > "$IMG_PATH"
+    fi
+  done
 fi
 
 # Create the Dockerfile using unquoted heredoc for variable expansion
@@ -421,6 +601,11 @@ if [ "$HAS_CUSTOM_ICON" = "true" ]; then
   echo "COPY icons/ /icons/" >> Dockerfile
 fi
 
+# Add bundled images copy instruction if present
+if [ "$HAS_BUNDLED_IMAGES" = "true" ]; then
+  echo "COPY images/ /images/" >> Dockerfile
+fi
+
 # Build the image
 docker build \\
   --build-arg BASE_IMAGE="$BASE_IMAGE" \\
@@ -443,12 +628,18 @@ echo "Build complete: $IMAGE_NAME"
       '-e', `ICON_PATH=${iconPath}`,
       '-e', `BASE_IMAGE=${baseImage}`,
       '-e', `HAS_CUSTOM_ICON=${hasCustomIcon}`,
+      '-e', `HAS_BUNDLED_IMAGES=${hasBundledImages}`,
     ];
 
     // Add icon environment variables if present
     if (hasCustomIcon) {
       envVars.push('-e', `ICON_B64=${iconB64}`);
       envVars.push('-e', `ICON_FILENAME=${iconFilename}`);
+    }
+
+    // Add bundled images environment variable if present
+    if (hasBundledImages) {
+      envVars.push('-e', `BUNDLED_IMAGES_B64=${bundledImagesB64}`);
     }
 
     const result = await ddClient.docker.cli.exec('run', [
@@ -561,12 +752,12 @@ export async function importConfigFromImage(imageName: string): Promise<ImportRe
     let manifest: Manifest | undefined;
     let metadata: Record<string, unknown> | undefined;
     const icons = new Map<string, string>();
+    const images = new Map<string, string>();
 
     for (const [filename, base64Content] of Object.entries(exportData.files)) {
-      const content = atob(base64Content);
-
       if (filename === 'manifest.yaml') {
         try {
+          const content = atob(base64Content);
           manifest = yaml.load(content) as Manifest;
         } catch (e) {
           return {
@@ -576,6 +767,7 @@ export async function importConfigFromImage(imageName: string): Promise<ImportRe
         }
       } else if (filename === 'metadata.json') {
         try {
+          const content = atob(base64Content);
           metadata = JSON.parse(content);
         } catch (e) {
           return {
@@ -586,6 +778,9 @@ export async function importConfigFromImage(imageName: string): Promise<ImportRe
       } else if (filename.startsWith('icons/')) {
         // Keep icons as base64 for later use
         icons.set(filename, base64Content);
+      } else if (filename.startsWith('images/')) {
+        // Keep bundled images as base64 for later use
+        images.set(filename, base64Content);
       }
     }
 
@@ -601,6 +796,7 @@ export async function importConfigFromImage(imageName: string): Promise<ImportRe
       manifest,
       metadata,
       icons,
+      images,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -608,6 +804,44 @@ export async function importConfigFromImage(imageName: string): Promise<ImportRe
       success: false,
       error: `Failed to extract config from image: ${errorMessage}`,
     };
+  }
+}
+
+// Restore bundledImage data to image cards based on imported images
+// This matches card src paths (e.g., "/images/my-image.png") to image files
+export function restoreBundledImages(
+  cards: CardDefinition[],
+  images: Map<string, string>
+): void {
+  for (const card of cards) {
+    if (card.type === 'image' && card.settings) {
+      const settings = card.settings as ImageCardSettings;
+      // Check if src points to a bundled image path
+      if (settings.src?.startsWith('/images/')) {
+        // Convert src path to the key format used in the map (without leading /)
+        const imagePath = settings.src.substring(1);  // Remove leading /
+        const base64Data = images.get(imagePath);
+
+        if (base64Data) {
+          // Determine MIME type from filename
+          const filename = imagePath.split('/').pop() || 'image.png';
+          const ext = filename.split('.').pop()?.toLowerCase() || 'png';
+          const mimeType = ext === 'svg' ? 'image/svg+xml'
+            : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+            : ext === 'gif' ? 'image/gif'
+            : ext === 'webp' ? 'image/webp'
+            : 'image/png';
+
+          // Restore the bundledImage data
+          const restoredImage: BundledImage = {
+            data: base64Data,
+            filename,
+            mimeType,
+          };
+          settings.bundledImage = restoredImage;
+        }
+      }
+    }
   }
 }
 
@@ -619,6 +853,7 @@ export async function importConfigFromZip(file: File): Promise<ImportResult> {
     let manifest: Manifest | undefined;
     let metadata: Record<string, unknown> | undefined;
     const icons = new Map<string, string>();
+    const images = new Map<string, string>();
 
     // Look for manifest.yaml
     const manifestFile = zip.file('manifest.yaml');
@@ -657,6 +892,15 @@ export async function importConfigFromZip(file: File): Promise<ImportResult> {
       }
     }
 
+    // Look for bundled images in images/ directory
+    const imageFiles = zip.file(/^images\/.+/);
+    for (const imageFile of imageFiles) {
+      if (!imageFile.dir) {
+        const base64Content = await imageFile.async('base64');
+        images.set(imageFile.name, base64Content);
+      }
+    }
+
     if (!manifest) {
       return {
         success: false,
@@ -669,6 +913,7 @@ export async function importConfigFromZip(file: File): Promise<ImportResult> {
       manifest,
       metadata,
       icons,
+      images,
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);

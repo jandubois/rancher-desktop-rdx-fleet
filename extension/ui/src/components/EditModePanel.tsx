@@ -22,6 +22,7 @@ import {
   listFleetExtensionImages,
   importConfigFromImage,
   importConfigFromZip,
+  restoreBundledImages,
   ExtensionConfig,
   DetectionResult,
   FleetExtensionImage,
@@ -484,6 +485,12 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     if (result.success && result.manifest) {
       setImportError(null);
       setImportSuccess(`Configuration loaded from ${sourceName}`);
+
+      // Restore bundled images to image cards if present
+      if (result.images && result.images.size > 0 && result.manifest.cards) {
+        restoreBundledImages(result.manifest.cards, result.images);
+      }
+
       if (onConfigLoaded) {
         onConfigLoaded(result.manifest);
       }

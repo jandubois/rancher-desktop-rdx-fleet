@@ -46,9 +46,17 @@ export interface MarkdownCardSettings {
   content: string;
 }
 
+// Bundled image data (for uploaded/drag-dropped images)
+export interface BundledImage {
+  data: string;       // Base64 encoded image data
+  filename: string;   // Original filename
+  mimeType: string;   // MIME type (e.g., image/png, image/jpeg)
+}
+
 export interface ImageCardSettings {
-  src: string;
+  src: string;                      // URL for external images, or path like /images/... for bundled
   alt?: string;
+  bundledImage?: BundledImage;      // Uploaded/bundled image data (stored in ZIP/Docker)
 }
 
 export interface VideoCardSettings {
