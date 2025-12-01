@@ -141,11 +141,13 @@ const handleDragEnd = (event: DragEndEvent) => {
 
 Each card is wrapped in a `SortableCard` component that:
 - Provides drag handle (visible in edit mode)
+- Shows visibility toggle button when `onVisibilityToggle` is provided
+- Shows delete button when `onDelete` is provided
 - Applies transform/transition during drag
 - Shows opacity change when dragging
 
 ```typescript
-function SortableCard({ id, editMode, children }: SortableCardProps) {
+function SortableCard({ id, editMode, isVisible, onDelete, onVisibilityToggle, children }: SortableCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   // ...
 }
