@@ -20,12 +20,12 @@ This document tracks the testing implementation plan and progress.
 | **Utilities** | 6 | 4 | 67% (errors, github, colorExtractor, paletteGenerator) |
 | **Hooks** | 5 | 5 | 100% ✅ |
 | **Components** | 7 | 3 | 43% (EditableTitle, SortableCard, AddRepoDialog) |
-| **Cards** | 7 | 0 | 0% ❌ |
+| **Cards** | 7 | 5 | 71% (CardWrapper, Divider, Image, Markdown, Video) |
 | **Theme** | 2 | 1 | 50% (palette) |
 | **Main App** | 1 | 0 | 0% ❌ |
 
-**Total Test Files:** 13
-**Total Test Cases:** ~160 tests
+**Total Test Files:** 18
+**Total Test Cases:** 339 tests
 
 ---
 
@@ -209,33 +209,35 @@ This document tracks the testing implementation plan and progress.
 
 ## Outstanding Test Coverage (TODO)
 
-### Phase 10: Card Type Tests ⏳ NOT STARTED
+### Phase 10: Card Type Tests ⏳ IN PROGRESS
 Priority: **HIGH** - Cards are the core UI components
 
-#### CardWrapper.tsx (Base wrapper for all cards)
-- [ ] Write `cards/CardWrapper.test.tsx`
-  - [ ] Test: renders children content
-  - [ ] Test: shows edit controls in edit mode
-  - [ ] Test: hides edit controls in view mode
-  - [ ] Test: shows visibility toggle in edit mode
-  - [ ] Test: calls onDelete when delete button clicked
-  - [ ] Test: calls onToggleVisibility when visibility toggled
-  - [ ] Test: applies palette colors correctly
-  - [ ] Test: handles hidden cards (renders null in view mode)
-  - [ ] Test: handles disabled cards appropriately
+#### CardWrapper.tsx (Base wrapper for all cards) ✅ COMPLETE
+- [x] Write `cards/CardWrapper.test.tsx` (22 tests)
+  - [x] Test: renders children content
+  - [x] Test: shows edit controls in edit mode
+  - [x] Test: hides edit controls in view mode
+  - [x] Test: shows visibility toggle in edit mode
+  - [x] Test: calls onDelete when delete button clicked
+  - [x] Test: calls onToggleVisibility when visibility toggled
+  - [x] Test: applies palette colors correctly
+  - [x] Test: handles hidden cards (renders null in view mode)
+  - [x] Test: handles disabled cards appropriately
+  - [x] Test: special handling for divider cards (no Paper in view mode)
 
-#### MarkdownCard.tsx
-- [ ] Write `cards/MarkdownCard.test.tsx`
-  - [ ] Test: renders markdown content correctly
-  - [ ] Test: shows editor in edit mode
-  - [ ] Test: shows rendered preview in edit mode
-  - [ ] Test: shows rendered content in view mode
-  - [ ] Test: calls onContentChange when content edited
-  - [ ] Test: handles empty content gracefully
-  - [ ] Test: renders code blocks with syntax highlighting
-  - [ ] Test: renders links, lists, headers correctly
+#### MarkdownCard.tsx ✅ COMPLETE
+- [x] Write `cards/MarkdownCard.test.tsx` (26 tests)
+  - [x] Test: renders markdown content correctly
+  - [x] Test: shows editor in edit mode
+  - [x] Test: shows rendered preview in edit mode
+  - [x] Test: shows rendered content in view mode
+  - [x] Test: calls onSettingsChange when content edited
+  - [x] Test: handles empty content gracefully
+  - [x] Test: renders code blocks
+  - [x] Test: renders links, lists, headers correctly
+  - [x] Test: renders bold, italic, inline code
 
-#### HtmlCard.tsx
+#### HtmlCard.tsx ⏳ NOT STARTED
 - [ ] Write `cards/HtmlCard.test.tsx`
   - [ ] Test: renders HTML content in iframe
   - [ ] Test: shows HTML editor in edit mode
@@ -246,28 +248,30 @@ Priority: **HIGH** - Cards are the core UI components
   - [ ] Test: handles empty content
   - [ ] Test: shows preview in edit mode
 
-#### ImageCard.tsx
-- [ ] Write `cards/ImageCard.test.tsx`
-  - [ ] Test: renders image with correct src
-  - [ ] Test: shows URL input in edit mode
-  - [ ] Test: shows alt text input in edit mode
-  - [ ] Test: calls onContentChange with new URL
-  - [ ] Test: handles image load errors
-  - [ ] Test: shows placeholder for broken images
-  - [ ] Test: handles empty URL
+#### ImageCard.tsx ✅ COMPLETE
+- [x] Write `cards/ImageCard.test.tsx` (24 tests)
+  - [x] Test: renders image with correct src
+  - [x] Test: shows URL input in edit mode
+  - [x] Test: shows alt text input in edit mode
+  - [x] Test: calls onSettingsChange with new URL
+  - [x] Test: handles image load errors
+  - [x] Test: shows placeholder when no image configured
+  - [x] Test: handles empty URL
+  - [x] Test: displays card title when provided
 
-#### VideoCard.tsx
-- [ ] Write `cards/VideoCard.test.tsx`
-  - [ ] Test: renders YouTube embed from URL
-  - [ ] Test: renders Vimeo embed from URL
-  - [ ] Test: renders direct video element for .mp4/.webm
-  - [ ] Test: parses YouTube URL formats (watch, youtu.be, embed)
-  - [ ] Test: parses Vimeo URL formats
-  - [ ] Test: shows URL input in edit mode
-  - [ ] Test: handles invalid video URLs
-  - [ ] Test: handles empty URL
+#### VideoCard.tsx ✅ COMPLETE
+- [x] Write `cards/VideoCard.test.tsx` (36 tests)
+  - [x] Test: renders YouTube embed from URL
+  - [x] Test: renders Vimeo embed from URL
+  - [x] Test: renders direct video element for .mp4/.webm
+  - [x] Test: parses YouTube URL formats (watch, youtu.be, embed)
+  - [x] Test: parses Vimeo URL formats
+  - [x] Test: shows URL input in edit mode
+  - [x] Test: handles invalid video URLs
+  - [x] Test: handles empty URL
+  - [x] Test: iframe attributes (allowFullScreen, allow)
 
-#### LinkCard.tsx
+#### LinkCard.tsx ⏳ NOT STARTED
 - [ ] Write `cards/LinkCard.test.tsx`
   - [ ] Test: renders links as buttons (default)
   - [ ] Test: renders links as list when configured
@@ -279,16 +283,17 @@ Priority: **HIGH** - Cards are the core UI components
   - [ ] Test: validates URL format
   - [ ] Test: opens links in new tab
 
-#### DividerCard.tsx
-- [ ] Write `cards/DividerCard.test.tsx`
-  - [ ] Test: renders solid divider by default
-  - [ ] Test: renders dashed divider when configured
-  - [ ] Test: renders dotted divider when configured
-  - [ ] Test: shows label when provided
-  - [ ] Test: shows style selector in edit mode
-  - [ ] Test: shows label input in edit mode
-  - [ ] Test: calls onContentChange when style changed
-  - [ ] Test: calls onSettingsChange when label changed
+#### DividerCard.tsx ✅ COMPLETE
+- [x] Write `cards/DividerCard.test.tsx` (25 tests)
+  - [x] Test: renders solid divider by default
+  - [x] Test: renders dashed divider when configured
+  - [x] Test: renders dotted divider when configured
+  - [x] Test: shows label when provided
+  - [x] Test: shows style selector in edit mode
+  - [x] Test: shows label input in edit mode
+  - [x] Test: calls onSettingsChange when style changed
+  - [x] Test: calls onSettingsChange when label changed
+  - [x] Test: shows preview in edit mode
 
 ### Phase 11: Additional Component Tests ⏳ NOT STARTED
 Priority: **MEDIUM** - Support components for edit functionality
@@ -367,14 +372,14 @@ Priority: **LOW** - Requires significant setup
 
 ## Test Priority Summary
 
-| Priority | Phase | Component Count | Est. Tests |
-|----------|-------|-----------------|------------|
-| **HIGH** | Phase 10: Card Types | 7 cards | ~55 tests |
-| **MEDIUM** | Phase 11: Components | 4 components | ~35 tests |
-| **LOW** | Phase 12: extensionBuilder | 1 utility | ~6 tests |
-| **LOW** | Phase 13: App Integration | 1 main app | ~8 tests |
+| Priority | Phase | Component Count | Status |
+|----------|-------|-----------------|--------|
+| **HIGH** | Phase 10: Card Types | 7 cards | 5/7 complete (133 tests) |
+| **MEDIUM** | Phase 11: Components | 4 components | 0/4 complete |
+| **LOW** | Phase 12: extensionBuilder | 1 utility | 0/1 complete |
+| **LOW** | Phase 13: App Integration | 1 main app | 0/1 complete |
 
-**Total Outstanding:** ~104 additional tests
+**Remaining:** HtmlCard, LinkCard, 4 components, extensionBuilder, App integration
 
 ---
 
@@ -421,13 +426,18 @@ extension/ui/
 │   │   ├── IconUpload.tsx               ❌ NEEDS TESTS
 │   │   └── EditableHeaderIcon.tsx       ❌ NEEDS TESTS
 │   ├── cards/
-│   │   ├── CardWrapper.tsx              ❌ NEEDS TESTS
-│   │   ├── MarkdownCard.tsx             ❌ NEEDS TESTS
+│   │   ├── CardWrapper.tsx
+│   │   ├── CardWrapper.test.tsx         ✅
+│   │   ├── MarkdownCard.tsx
+│   │   ├── MarkdownCard.test.tsx        ✅
 │   │   ├── HtmlCard.tsx                 ❌ NEEDS TESTS
-│   │   ├── ImageCard.tsx                ❌ NEEDS TESTS
-│   │   ├── VideoCard.tsx                ❌ NEEDS TESTS
+│   │   ├── ImageCard.tsx
+│   │   ├── ImageCard.test.tsx           ✅
+│   │   ├── VideoCard.tsx
+│   │   ├── VideoCard.test.tsx           ✅
 │   │   ├── LinkCard.tsx                 ❌ NEEDS TESTS
-│   │   ├── DividerCard.tsx              ❌ NEEDS TESTS
+│   │   ├── DividerCard.tsx
+│   │   ├── DividerCard.test.tsx         ✅
 │   │   ├── registry.ts
 │   │   ├── types.ts
 │   │   └── index.ts
