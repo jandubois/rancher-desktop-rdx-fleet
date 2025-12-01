@@ -417,14 +417,6 @@ function App() {
       });
     };
 
-    const handleTitleChange = (title: string) => {
-      setManifestCards((prev) => {
-        const next = [...prev];
-        next[index] = { ...card, title: title || undefined };
-        return next;
-      });
-    };
-
     const handleDelete = () => {
       if (confirm(`Delete this ${card.type} card?`)) {
         setManifestCards((prev) => prev.filter((_, i) => i !== index));
@@ -439,25 +431,27 @@ function App() {
       });
     };
 
-    return (
-      <CardWrapper
-        key={card.id}
-        definition={card}
-        editMode={editMode}
-        onDelete={handleDelete}
-        onVisibilityToggle={handleVisibilityToggle}
-        onTitleChange={handleTitleChange}
-        paletteColors={palette.card}
-      >
-        <CardComponent
+    return {
+      element: (
+        <CardWrapper
+          key={card.id}
           definition={card}
-          settings={card.settings || {}}
           editMode={editMode}
-          onSettingsChange={handleSettingsChange}
           paletteColors={palette.card}
-        />
-      </CardWrapper>
-    );
+        >
+          <CardComponent
+            definition={card}
+            settings={card.settings || {}}
+            editMode={editMode}
+            onSettingsChange={handleSettingsChange}
+            paletteColors={palette.card}
+          />
+        </CardWrapper>
+      ),
+      onDelete: handleDelete,
+      onVisibilityToggle: handleVisibilityToggle,
+      isVisible: card.visible !== false,
+    };
   };
 
   // Render a placeholder card with type selector
@@ -536,9 +530,19 @@ function App() {
       if (card.type !== 'placeholder') {
         if (card.visible === false && !editMode) return null;
         const index = manifestCards.indexOf(card);
+        const rendered = renderManifestCard(card, index);
+        if (!rendered) return null;
+        const { element, onDelete, onVisibilityToggle, isVisible } = rendered;
         return (
-          <SortableCard key={cardId} id={cardId} editMode={editMode}>
-            {renderManifestCard(card, index)}
+          <SortableCard
+            key={cardId}
+            id={cardId}
+            editMode={editMode}
+            isVisible={isVisible}
+            onDelete={onDelete}
+            onVisibilityToggle={onVisibilityToggle}
+          >
+            {element}
             {renderAddCardButton(cardId)}
           </SortableCard>
         );
@@ -612,9 +616,19 @@ function App() {
     if (card && (card.type === 'markdown' || card.type === 'html' || card.type === 'image' || card.type === 'video' || card.type === 'link' || card.type === 'divider')) {
       if (card.visible === false && !editMode) return null;
       const index = manifestCards.indexOf(card);
+      const rendered = renderManifestCard(card, index);
+      if (!rendered) return null;
+      const { element, onDelete, onVisibilityToggle, isVisible } = rendered;
       return (
-        <SortableCard key={cardId} id={cardId} editMode={editMode}>
-          {renderManifestCard(card, index)}
+        <SortableCard
+          key={cardId}
+          id={cardId}
+          editMode={editMode}
+          isVisible={isVisible}
+          onDelete={onDelete}
+          onVisibilityToggle={onVisibilityToggle}
+        >
+          {element}
           {renderAddCardButton(cardId)}
         </SortableCard>
       );

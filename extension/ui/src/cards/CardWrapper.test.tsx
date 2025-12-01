@@ -3,16 +3,16 @@
  *
  * CardWrapper is the base wrapper component for all card types:
  * - Wraps card content in a Paper component with consistent styling
- * - Shows edit controls (drag handle, visibility toggle, delete) in edit mode
- * - Hides edit controls in view mode
  * - Handles visibility: hidden cards render null in view mode, show with reduced opacity in edit mode
  * - Handles disabled state with reduced interactivity
  * - Special handling for divider cards (no Paper wrapper in view mode)
  * - Applies palette colors for border and title styling
+ *
+ * Note: Edit controls (drag handle, visibility toggle, delete) are handled by SortableCard
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
 import { CardWrapper } from './CardWrapper';
 import { CardDefinition } from '../manifest/types';
 
@@ -36,19 +36,17 @@ describe('CardWrapper', () => {
       expect(screen.getByText('Card Content')).toBeInTheDocument();
     });
 
-    it('hides edit controls in view mode', () => {
+    it('does not render edit controls (they are in SortableCard)', () => {
       render(
         <CardWrapper
           definition={defaultDefinition}
           editMode={false}
-          onDelete={vi.fn()}
-          onVisibilityToggle={vi.fn()}
         >
           <div>Content</div>
         </CardWrapper>
       );
 
-      // Drag handle, visibility, and delete buttons should not be present
+      // Edit controls are handled by SortableCard, not CardWrapper
       expect(screen.queryByTitle('Drag to reorder')).not.toBeInTheDocument();
       expect(screen.queryByTitle('Hide card')).not.toBeInTheDocument();
       expect(screen.queryByTitle('Delete card')).not.toBeInTheDocument();
@@ -81,119 +79,17 @@ describe('CardWrapper', () => {
   });
 
   describe('edit mode (editMode=true)', () => {
-    it('shows drag handle in edit mode', () => {
+    it('does not render edit controls (they are in SortableCard)', () => {
       render(
         <CardWrapper definition={defaultDefinition} editMode={true}>
           <div>Content</div>
         </CardWrapper>
       );
 
-      expect(screen.getByTitle('Drag to reorder')).toBeInTheDocument();
-    });
-
-    it('shows card type label in edit mode', () => {
-      render(
-        <CardWrapper definition={defaultDefinition} editMode={true}>
-          <div>Content</div>
-        </CardWrapper>
-      );
-
-      expect(screen.getByText('markdown')).toBeInTheDocument();
-    });
-
-    it('shows visibility toggle when onVisibilityToggle provided', () => {
-      const onVisibilityToggle = vi.fn();
-      render(
-        <CardWrapper
-          definition={defaultDefinition}
-          editMode={true}
-          onVisibilityToggle={onVisibilityToggle}
-        >
-          <div>Content</div>
-        </CardWrapper>
-      );
-
-      expect(screen.getByTitle('Hide card')).toBeInTheDocument();
-    });
-
-    it('does not show visibility toggle when onVisibilityToggle not provided', () => {
-      render(
-        <CardWrapper definition={defaultDefinition} editMode={true}>
-          <div>Content</div>
-        </CardWrapper>
-      );
-
+      // Edit controls (drag handle, visibility, delete) are handled by SortableCard
+      expect(screen.queryByTitle('Drag to reorder')).not.toBeInTheDocument();
       expect(screen.queryByTitle('Hide card')).not.toBeInTheDocument();
-      expect(screen.queryByTitle('Show card')).not.toBeInTheDocument();
-    });
-
-    it('shows delete button when onDelete provided', () => {
-      const onDelete = vi.fn();
-      render(
-        <CardWrapper definition={defaultDefinition} editMode={true} onDelete={onDelete}>
-          <div>Content</div>
-        </CardWrapper>
-      );
-
-      expect(screen.getByTitle('Delete card')).toBeInTheDocument();
-    });
-
-    it('does not show delete button when onDelete not provided', () => {
-      render(
-        <CardWrapper definition={defaultDefinition} editMode={true}>
-          <div>Content</div>
-        </CardWrapper>
-      );
-
       expect(screen.queryByTitle('Delete card')).not.toBeInTheDocument();
-    });
-
-    it('calls onDelete when delete button clicked', () => {
-      const onDelete = vi.fn();
-      render(
-        <CardWrapper definition={defaultDefinition} editMode={true} onDelete={onDelete}>
-          <div>Content</div>
-        </CardWrapper>
-      );
-
-      fireEvent.click(screen.getByTitle('Delete card'));
-      expect(onDelete).toHaveBeenCalledTimes(1);
-    });
-
-    it('calls onVisibilityToggle when visibility button clicked', () => {
-      const onVisibilityToggle = vi.fn();
-      render(
-        <CardWrapper
-          definition={defaultDefinition}
-          editMode={true}
-          onVisibilityToggle={onVisibilityToggle}
-        >
-          <div>Content</div>
-        </CardWrapper>
-      );
-
-      fireEvent.click(screen.getByTitle('Hide card'));
-      expect(onVisibilityToggle).toHaveBeenCalledTimes(1);
-    });
-
-    it('shows "Show card" title for hidden cards', () => {
-      const hiddenDefinition: CardDefinition = {
-        ...defaultDefinition,
-        visible: false,
-      };
-      const onVisibilityToggle = vi.fn();
-
-      render(
-        <CardWrapper
-          definition={hiddenDefinition}
-          editMode={true}
-          onVisibilityToggle={onVisibilityToggle}
-        >
-          <div>Content</div>
-        </CardWrapper>
-      );
-
-      expect(screen.getByTitle('Show card')).toBeInTheDocument();
     });
 
     it('renders hidden cards with reduced opacity in edit mode', () => {
@@ -295,17 +191,13 @@ describe('CardWrapper', () => {
   describe('default props', () => {
     it('defaults editMode to false', () => {
       render(
-        <CardWrapper
-          definition={defaultDefinition}
-          onDelete={vi.fn()}
-          onVisibilityToggle={vi.fn()}
-        >
+        <CardWrapper definition={defaultDefinition}>
           <div>Content</div>
         </CardWrapper>
       );
 
-      // Edit controls should not be visible
-      expect(screen.queryByTitle('Drag to reorder')).not.toBeInTheDocument();
+      // Content should be visible
+      expect(screen.getByText('Content')).toBeInTheDocument();
     });
 
     it('treats undefined visible as true', () => {

@@ -23,11 +23,6 @@ export interface CardPaletteColors {
 export interface CardWrapperProps {
   definition: CardDefinition;
   editMode?: boolean;
-  onMove?: (direction: 'up' | 'down') => void;
-  onDelete?: () => void;
-  onSettingsClick?: () => void;
-  onVisibilityToggle?: () => void;
-  onTitleChange?: (title: string) => void;
   paletteColors?: CardPaletteColors;
   children: ReactNode;
 }
