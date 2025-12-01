@@ -7,11 +7,12 @@ Before starting, create a todo list with ALL of the following items:
 2. Check test coverage for code changes
 3. Verify test comment headers are up-to-date
 4. Check for library reimplementations
-5. Check if documentation needs updates
-6. Run tests, lint, and build
-7. Rebase on main branch
-8. Push changes
-9. Generate `gh pr create` command for user
+5. Check for new dependencies and license compatibility
+6. Check if documentation needs updates
+7. Run tests, lint, and build
+8. Rebase on main branch
+9. Push changes
+10. Generate `gh pr create` command for user
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
@@ -122,7 +123,43 @@ If you find reimplementations:
 
 **Rationale**: See `.claude/instructions.md` Development Guidelines for more details.
 
-## 4. Check Documentation
+## 4. Check for New Dependencies and License Compatibility
+
+**IMPORTANT: Verify that any newly added dependencies are compatible with our Apache 2.0 license.**
+
+Check if any dependency files were modified:
+
+```bash
+git diff origin/main...HEAD --name-only | grep -E '(package\.json|go\.mod|go\.sum)$'
+```
+
+If dependency files were changed, check for newly added dependencies:
+
+```bash
+# For package.json changes
+git diff origin/main...HEAD -- '**/package.json' | grep -E '^\+.*"[^"]+":.*"[\^~]?[0-9]'
+
+# For go.mod changes
+git diff origin/main...HEAD -- '**/go.mod' | grep -E '^\+\s+(require|github\.com|golang\.org)'
+```
+
+For each new dependency:
+1. **Check the license** using `npm view <package> license` or checking the repository
+2. **Verify compatibility** with Apache 2.0 (MIT, BSD, ISC, Apache-2.0 are compatible)
+3. **Update the license document** at `docs/reference/license-compatibility.md`
+
+**Incompatible licenses to watch for:**
+- GPL-2.0-only (copyleft)
+- AGPL-3.0 (network copyleft)
+- SSPL (not OSI-approved)
+- Proprietary licenses
+
+**Decision Required**: After checking, explicitly state your conclusion:
+- If new dependencies found: List each new dependency, its license, and confirm it's compatible. State that you've updated `docs/reference/license-compatibility.md`.
+- If dependencies were removed: Note this and update `docs/reference/license-compatibility.md` to remove them.
+- If no dependency changes: State that no dependency files were modified.
+
+## 5. Check Documentation
 Review if any documentation needs updates based on the changes:
 
 ### Developer Documentation
@@ -131,6 +168,7 @@ Review if any documentation needs updates based on the changes:
 - `docs/TESTING_PLAN.md` - for testing changes
 - `docs/README.md` - for documentation index
 - `docs/reference/ui-card-architecture.md` - for card system changes
+- `docs/reference/license-compatibility.md` - for dependency license changes
 - `.claude/instructions.md` - for AI context updates
 
 ### User Documentation
@@ -146,7 +184,7 @@ Review if any documentation needs updates based on the changes:
 
 If docs need updates, make the changes and commit before proceeding.
 
-## 5. Run Tests, Linting, and Build
+## 6. Run Tests, Linting, and Build
 Run the checks from the extension/ui directory:
 
 ```bash
@@ -160,7 +198,7 @@ This will:
 
 If any step fails, fix the issues and commit before proceeding.
 
-## 6. Rebase on Main
+## 7. Rebase on Main
 Rebase your branch on the latest main:
 
 ```bash
@@ -172,14 +210,14 @@ If conflicts occur, resolve them, then:
 git add . && git rebase --continue
 ```
 
-## 7. Push Changes
+## 8. Push Changes
 Push your rebased branch:
 
 ```bash
 git push -f
 ```
 
-## 8. Create PR Command
+## 9. Create PR Command
 Provide a copyable `gh pr create` command using HEREDOC format:
 
 ```bash
