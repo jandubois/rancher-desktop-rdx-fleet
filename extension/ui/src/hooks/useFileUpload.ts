@@ -26,6 +26,30 @@ export interface FileUploadOptions {
   errorAutoClearMs?: number;
 }
 
+/** Map MIME type suffixes to user-friendly names */
+const MIME_TYPE_DISPLAY_NAMES: Record<string, string> = {
+  'png': 'PNG',
+  'svg+xml': 'SVG',
+  'jpeg': 'JPEG',
+  'gif': 'GIF',
+  'webp': 'WebP',
+};
+
+/** Format a MIME type for user display */
+function formatMimeType(mimeType: string): string {
+  const suffix = mimeType.split('/')[1];
+  return MIME_TYPE_DISPLAY_NAMES[suffix] || suffix.toUpperCase();
+}
+
+/** Format a list of MIME types as a readable string with "or" before the last item */
+function formatTypeList(types: string[]): string {
+  const names = types.map(formatMimeType);
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  if (names.length === 2) return `${names[0]} or ${names[1]}`;
+  return `${names.slice(0, -1).join(', ')}, or ${names[names.length - 1]}`;
+}
+
 /** Default accepted image types */
 export const DEFAULT_ACCEPTED_TYPES = [
   'image/png',
@@ -95,8 +119,7 @@ export function useFileUpload(options: FileUploadOptions = {}): UseFileUploadRes
 
         // Validate type
         if (!acceptedTypes.includes(file.type)) {
-          const typeList = acceptedTypes.map((t) => t.split('/')[1].toUpperCase()).join(', ');
-          setErrorWithAutoClear(`Invalid file type. Please use ${typeList}.`);
+          setErrorWithAutoClear(`Invalid file type. Please use ${formatTypeList(acceptedTypes)}.`);
           resolve(null);
           return;
         }
