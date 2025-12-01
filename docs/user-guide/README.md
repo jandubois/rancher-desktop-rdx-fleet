@@ -124,7 +124,12 @@ Click the **Edit** button in the header bar to toggle edit mode.
 
 ### Exiting Edit Mode
 
-Click the **Done** button to exit edit mode. Your layout is preserved.
+When you're done editing, you have two options:
+
+- **Apply** (✓ checkmark) - Keep your changes and exit edit mode
+- **Cancel** (✗) - Discard all changes made during this edit session and restore the previous state
+
+This allows you to experiment with changes and easily undo them if needed.
 
 ### Loading Configuration
 
