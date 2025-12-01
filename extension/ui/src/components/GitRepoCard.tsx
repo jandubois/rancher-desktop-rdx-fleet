@@ -3,8 +3,6 @@
  *
  * This is a pure presentational component that receives all data via props,
  * making it easily testable without complex mocking.
- *
- * Refactored to use extracted PathCheckbox and RepoStatusChip components.
  */
 
 import Box from '@mui/material/Box';

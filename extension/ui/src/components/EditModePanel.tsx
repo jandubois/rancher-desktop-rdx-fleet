@@ -1,7 +1,5 @@
 /**
  * EditModePanel - Extension builder panel with tabs for editing, loading, and building.
- *
- * Refactored to use extracted tab components for better maintainability.
  */
 
 import { useState, useEffect, useRef } from 'react';

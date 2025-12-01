@@ -1,7 +1,5 @@
 /**
  * EditableHeaderIcon component - Header icon with edit mode support.
- *
- * Refactored to use the shared useFileUpload hook.
  */
 
 import { useState, useCallback, useRef } from 'react';

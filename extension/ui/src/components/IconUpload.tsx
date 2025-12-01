@@ -1,7 +1,5 @@
 /**
  * IconUpload component - Upload area for extension icon.
- *
- * Refactored to use the shared useFileUpload hook.
  */
 
 import { useState, useCallback, useRef } from 'react';
