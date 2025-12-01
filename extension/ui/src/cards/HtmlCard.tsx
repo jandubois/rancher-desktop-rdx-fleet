@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -10,7 +10,7 @@ import { registerCard } from './registry';
  * HtmlCard - Renders raw HTML content including <script> elements
  *
  * Unlike MarkdownCard which sanitizes HTML, this card uses an iframe with
- * a blob URL to allow scripts to execute with full network access.
+ * document.write to allow scripts to execute with full network access.
  *
  * Use cases:
  * - Stock tickers
@@ -27,6 +27,7 @@ export const HtmlCard: React.FC<CardProps<HtmlCardSettings>> = ({
   const content = settings?.content || '';
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeHeight, setIframeHeight] = useState<number>(200);
+  const [iframeKey, setIframeKey] = useState(0);
 
   // Build the full HTML document for the iframe
   const buildIframeDocument = (htmlContent: string): string => {
@@ -61,44 +62,48 @@ ${htmlContent}
 </html>`;
   };
 
-  // Create blob URL for the iframe content
-  const blobUrl = useMemo(() => {
-    if (!content) return null;
-    const html = buildIframeDocument(content);
-    const blob = new Blob([html], { type: 'text/html' });
-    return URL.createObjectURL(blob);
-  }, [content]);
-
-  // Clean up blob URL on unmount or content change
-  useEffect(() => {
-    return () => {
-      if (blobUrl) {
-        URL.revokeObjectURL(blobUrl);
-      }
-    };
-  }, [blobUrl]);
-
-  // Auto-resize iframe based on content
+  // Write content to iframe using document.write
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe || !content) return;
 
-    const handleLoad = () => {
+    // Wait for iframe to be ready
+    const writeContent = () => {
       try {
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
         if (doc) {
-          // Get the content height and add some padding
-          const height = doc.body.scrollHeight || 200;
-          setIframeHeight(Math.max(height + 20, 100));
+          doc.open();
+          doc.write(buildIframeDocument(content));
+          doc.close();
+
+          // Auto-resize after content loads
+          const checkHeight = () => {
+            try {
+              const height = doc.body?.scrollHeight || 200;
+              setIframeHeight(Math.max(height + 20, 100));
+            } catch {
+              setIframeHeight(200);
+            }
+          };
+
+          // Check height after scripts have a chance to run
+          setTimeout(checkHeight, 100);
+          setTimeout(checkHeight, 500);
+          setTimeout(checkHeight, 1500);
         }
-      } catch {
-        // Cross-origin restrictions may prevent access
-        setIframeHeight(200);
+      } catch (e) {
+        console.error('Failed to write to iframe:', e);
       }
     };
 
-    iframe.addEventListener('load', handleLoad);
-    return () => iframe.removeEventListener('load', handleLoad);
+    // Small delay to ensure iframe is mounted
+    const timer = setTimeout(writeContent, 50);
+    return () => clearTimeout(timer);
+  }, [content, iframeKey]);
+
+  // Force iframe recreation when content changes significantly
+  useEffect(() => {
+    setIframeKey((k) => k + 1);
   }, [content]);
 
   if (editMode && onSettingsChange) {
@@ -134,9 +139,9 @@ ${htmlContent}
               Preview:
             </Typography>
             <Box
+              key={iframeKey}
               component="iframe"
               ref={iframeRef}
-              src={blobUrl || 'about:blank'}
               sx={{
                 width: '100%',
                 height: iframeHeight,
@@ -163,9 +168,9 @@ ${htmlContent}
         </Typography>
       )}
       <Box
+        key={iframeKey}
         component="iframe"
         ref={iframeRef}
-        src={blobUrl || 'about:blank'}
         sx={{
           width: '100%',
           height: iframeHeight,
