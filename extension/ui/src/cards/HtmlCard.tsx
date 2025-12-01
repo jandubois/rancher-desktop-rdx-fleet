@@ -99,12 +99,12 @@ ${htmlContent}
     // Small delay to ensure iframe is mounted
     const timer = setTimeout(writeContent, 50);
     return () => clearTimeout(timer);
-  }, [content, iframeKey]);
+  }, [content, iframeKey, editMode]);
 
-  // Force iframe recreation when content changes significantly
+  // Force iframe recreation when content or editMode changes
   useEffect(() => {
     setIframeKey((k) => k + 1);
-  }, [content]);
+  }, [content, editMode]);
 
   if (editMode && onSettingsChange) {
     return (
