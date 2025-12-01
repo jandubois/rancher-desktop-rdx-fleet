@@ -29,8 +29,10 @@ export const ImageCard: React.FC<CardProps<ImageCardSettings>> = ({
   const alt = settings?.alt || '';
   const bundledImage = settings?.bundledImage;
 
-  // Determine initial mode based on whether we have a bundled image
-  const [sourceMode, setSourceMode] = useState<ImageSourceMode>(bundledImage ? 'upload' : 'url');
+  // Determine initial mode - default to upload unless there's an external URL
+  const [sourceMode, setSourceMode] = useState<ImageSourceMode>(
+    src && !bundledImage && !src.startsWith('/images/') ? 'url' : 'upload'
+  );
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
