@@ -3,6 +3,8 @@
  *
  * This is a pure presentational component that receives all data via props,
  * making it easily testable without complex mocking.
+ *
+ * Refactored to use extracted PathCheckbox and RepoStatusChip components.
  */
 
 import Box from '@mui/material/Box';
@@ -12,22 +14,16 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Chip from '@mui/material/Chip';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import Checkbox from '@mui/material/Checkbox';
 import FormGroup from '@mui/material/FormGroup';
 import Divider from '@mui/material/Divider';
-import Tooltip from '@mui/material/Tooltip';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import ErrorIcon from '@mui/icons-material/Error';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
-import SyncIcon from '@mui/icons-material/Sync';
-import BlockIcon from '@mui/icons-material/Block';
-import LockIcon from '@mui/icons-material/Lock';
 
 import { GitRepo, BundleInfo, DependencyResolution } from '../types';
 import { PathInfo } from '../utils';
 import { EditableTitle } from './EditableTitle';
+import { PathCheckbox } from './PathCheckbox';
+import { RepoStatusChip } from './RepoStatusChip';
 
 /** Props for the GitRepoCard component */
 export interface GitRepoCardProps {
@@ -81,170 +77,6 @@ export interface GitRepoCardProps {
   onRetryDiscovery: () => void;
   /** Callback to discover paths */
   onDiscoverPaths: () => void;
-}
-
-/** Get a status chip for a repo */
-function RepoStatusChip({ repo }: { repo: GitRepo }) {
-  if (!repo.status) {
-    return <Chip label="Unknown" size="small" />;
-  }
-
-  if (repo.status.ready) {
-    const resourceCount = repo.status.resources?.length || 0;
-    return (
-      <Chip
-        label={`Ready${resourceCount > 0 ? ` (${resourceCount})` : ''}`}
-        color="success"
-        size="small"
-        icon={<CheckCircleIcon />}
-      />
-    );
-  }
-
-  if (repo.status.display?.error) {
-    return (
-      <Chip
-        label="Error"
-        color="error"
-        size="small"
-        icon={<ErrorIcon />}
-      />
-    );
-  }
-
-  const state = repo.status.display?.state || 'Syncing';
-  const stateLabels: Record<string, string> = {
-    'GitUpdating': 'Cloning...',
-    'WaitApplied': 'Applying...',
-    'Active': 'Deploying...',
-    'Modified': 'Updating...',
-  };
-
-  return (
-    <Chip
-      label={stateLabels[state] || state}
-      color="info"
-      size="small"
-      icon={<SyncIcon sx={{ animation: 'spin 2s linear infinite', '@keyframes spin': { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } } }} />}
-      title={repo.status.display?.message}
-    />
-  );
-}
-
-/** Individual path checkbox with dependency info */
-interface PathCheckboxProps {
-  pathInfo: PathInfo;
-  repo: GitRepo;
-  isSelected: boolean;
-  selectionInfo: DependencyResolution;
-  deselectionInfo: { canDeselect: boolean; requiredBy: BundleInfo[] } | null;
-  isUpdating: boolean;
-  onToggle: () => void;
-  onShowDependencyDialog: () => void;
-}
-
-function PathCheckbox({
-  pathInfo,
-  isSelected,
-  selectionInfo,
-  deselectionInfo,
-  isUpdating,
-  onToggle,
-  onShowDependencyDialog,
-}: PathCheckboxProps) {
-  const isBlocked = !selectionInfo.canSelect;
-  const isProtected = !!(isSelected && deselectionInfo && !deselectionInfo.canDeselect);
-  const hasDepsToSelect = selectionInfo.willAutoSelect.length > 0;
-
-  // Build tooltip text
-  let tooltipText = '';
-  if (isBlocked) {
-    tooltipText = `Blocked: requires ${selectionInfo.blockedBy.join(', ')} (not in any configured repository)`;
-  } else if (isProtected && deselectionInfo) {
-    const requiredByNames = deselectionInfo.requiredBy.map((b) => b.path).join(', ');
-    tooltipText = `Required by: ${requiredByNames}`;
-  } else if (hasDepsToSelect && !isSelected) {
-    const depsToAdd = selectionInfo.willAutoSelect.map((b) => b.path).join(', ');
-    tooltipText = `Will also enable: ${depsToAdd}`;
-  }
-
-  const handleCheckboxChange = () => {
-    if (isBlocked || isProtected) return;
-
-    if (isSelected) {
-      // Deselecting - simple toggle
-      onToggle();
-    } else if (hasDepsToSelect) {
-      // Selecting with dependencies - show confirmation dialog
-      onShowDependencyDialog();
-    } else {
-      // Simple selection without dependencies
-      onToggle();
-    }
-  };
-
-  return (
-    <Tooltip
-      title={tooltipText}
-      placement="right"
-      disableHoverListener={!tooltipText}
-    >
-      <FormControlLabel
-        sx={{ my: -0.25 }}
-        control={
-          <Checkbox
-            checked={isSelected}
-            onChange={handleCheckboxChange}
-            size="small"
-            disabled={isUpdating || isBlocked || isProtected}
-            sx={{ py: 0.5 }}
-            icon={isBlocked ? <BlockIcon fontSize="small" color="error" /> : undefined}
-            checkedIcon={isProtected ? <LockIcon fontSize="small" color="info" /> : undefined}
-          />
-        }
-        label={
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            <Typography
-              variant="body2"
-              sx={{
-                fontFamily: 'monospace',
-                color: isBlocked ? 'error.main' : isProtected ? 'info.main' : 'text.primary',
-              }}
-            >
-              {pathInfo.path}
-            </Typography>
-            {isProtected && deselectionInfo && (
-              <Chip
-                size="small"
-                label={`required by ${deselectionInfo.requiredBy.length}`}
-                color="info"
-                variant="outlined"
-                sx={{ height: 18, fontSize: '0.7rem' }}
-              />
-            )}
-            {hasDepsToSelect && !isSelected && (
-              <Chip
-                size="small"
-                label={`+${selectionInfo.willAutoSelect.length} deps`}
-                color="warning"
-                variant="outlined"
-                sx={{ height: 18, fontSize: '0.7rem' }}
-              />
-            )}
-            {isBlocked && (
-              <Chip
-                size="small"
-                label="blocked"
-                color="error"
-                variant="outlined"
-                sx={{ height: 18, fontSize: '0.7rem' }}
-              />
-            )}
-          </Box>
-        }
-      />
-    </Tooltip>
-  );
 }
 
 /**
@@ -400,7 +232,6 @@ export function GitRepoCard({
                 <PathCheckbox
                   key={pathInfo.path}
                   pathInfo={pathInfo}
-                  repo={repo}
                   isSelected={isSelected}
                   selectionInfo={selectionInfo}
                   deselectionInfo={deselectionInfo}
