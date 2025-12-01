@@ -43,7 +43,7 @@ import {
 } from '@dnd-kit/sortable';
 
 // Local imports
-import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
+import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, HtmlCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
 import type { ColorPalette } from './theme';
 import { CardWrapper, getCardComponent } from './cards';
 import { SortableCard, AddRepoDialog, EditableTitle, EditModePanel, EditableHeaderIcon, IconState } from './components';
@@ -182,7 +182,7 @@ function App() {
   const effectiveCardOrder = useMemo(() => {
     const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
     const manifestCardIds = manifestCards
-      .filter((c) => c.type === 'markdown' || c.type === 'image' || c.type === 'video' || c.type === 'link' || c.type === 'divider' || c.type === 'placeholder')
+      .filter((c) => c.type === 'markdown' || c.type === 'html' || c.type === 'image' || c.type === 'video' || c.type === 'link' || c.type === 'divider' || c.type === 'placeholder')
       .map((c) => c.id);
     const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
 
@@ -749,6 +749,8 @@ function App() {
     switch (cardType) {
       case 'markdown':
         return { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings;
+      case 'html':
+        return { content: '<!-- Enter HTML content here -->\n<div>\n  <p>Hello World</p>\n</div>' } as HtmlCardSettings;
       case 'image':
         return { src: '', alt: '' } as ImageCardSettings;
       case 'video':
@@ -783,6 +785,7 @@ function App() {
   const renderPlaceholderCard = (card: CardDefinition) => {
     const cardTypes: { type: CardType; label: string }[] = [
       { type: 'markdown', label: 'Markdown' },
+      { type: 'html', label: 'HTML' },
       { type: 'image', label: 'Image' },
       { type: 'video', label: 'Video' },
       { type: 'link', label: 'Links' },
@@ -968,9 +971,9 @@ function App() {
       );
     }
 
-    // Manifest cards (markdown, image, video, link, divider)
+    // Manifest cards (markdown, html, image, video, link, divider)
     const card = manifestCards.find((c) => c.id === cardId);
-    if (card && (card.type === 'markdown' || card.type === 'image' || card.type === 'video' || card.type === 'link' || card.type === 'divider')) {
+    if (card && (card.type === 'markdown' || card.type === 'html' || card.type === 'image' || card.type === 'video' || card.type === 'link' || card.type === 'divider')) {
       if (card.visible === false && !editMode) return null;
       const index = manifestCards.indexOf(card);
       return (

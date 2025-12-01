@@ -72,6 +72,10 @@ export interface DividerCardSettings {
   style?: 'solid' | 'dashed' | 'dotted';
 }
 
+export interface HtmlCardSettings {
+  content: string;  // Raw HTML content (scripts allowed)
+}
+
 export type CardSettings =
   | GitRepoCardSettings
   | AuthCardSettings
@@ -79,7 +83,8 @@ export type CardSettings =
   | ImageCardSettings
   | VideoCardSettings
   | LinkCardSettings
-  | DividerCardSettings;
+  | DividerCardSettings
+  | HtmlCardSettings;
 
 export type CardType =
   | 'gitrepo'
@@ -87,6 +92,7 @@ export type CardType =
   | 'auth-git'
   | 'auth-appco'
   | 'markdown'
+  | 'html'  // Raw HTML with script support
   | 'image'
   | 'video'
   | 'link'

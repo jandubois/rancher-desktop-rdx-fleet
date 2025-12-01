@@ -24,7 +24,12 @@ extension/ui/src/
 │   ├── registry.ts            # Card type registry
 │   ├── types.ts               # Card component prop types
 │   ├── CardWrapper.tsx        # Common card wrapper with edit controls
-│   └── MarkdownCard.tsx       # Markdown content card
+│   ├── MarkdownCard.tsx       # Markdown content card
+│   ├── HtmlCard.tsx           # Raw HTML card with script support
+│   ├── ImageCard.tsx          # Static image card
+│   ├── VideoCard.tsx          # Embedded video card
+│   ├── LinkCard.tsx           # Link collection card
+│   └── DividerCard.tsx        # Visual separator card
 ├── components/
 │   ├── EditableTitle.tsx      # Inline-editable title component
 │   ├── SortableCard.tsx       # Drag-and-drop wrapper
@@ -46,6 +51,7 @@ extension/ui/src/
 |------|-------------|----------|
 | `gitrepo` | Git repository with path selection | `repo_url`, `branch`, `paths`, `max_visible_paths` |
 | `markdown` | Rich text content | `content` (markdown string) |
+| `html` | Raw HTML with script support | `content` (HTML string with scripts) |
 | `image` | Static image display | `src`, `alt` |
 | `video` | Embedded video (YouTube, Vimeo, direct) | `src`, `title` |
 | `link` | Collection of clickable links | `links` (array), `variant` |

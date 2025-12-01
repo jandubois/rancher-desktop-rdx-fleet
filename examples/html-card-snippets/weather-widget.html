@@ -1,0 +1,36 @@
+<!--
+  Weather Widget for HTML Card
+
+  Features:
+  - Displays current weather for a specified location
+  - Uses weatherwidget.io service
+  - Loaded via fetch+eval pattern to bypass CSP restrictions
+
+  Usage:
+  1. Create an HTML card in the extension
+  2. Paste this content into the card
+  3. Modify the href URL to change the location (use forecast7.com to get the URL)
+
+  To customize the location:
+  - Visit https://weatherwidget.io/
+  - Enter your city and customize the widget
+  - Copy the href URL from the generated code
+-->
+<a class="weatherwidget-io"
+   href="https://forecast7.com/en/37d77n122d42/san-francisco/"
+   data-label_1="SAN FRANCISCO"
+   data-label_2="Weather"
+   data-theme="original">
+  SAN FRANCISCO Weather
+</a>
+<script>
+  // Load the weather widget script via fetch+eval
+  // This bypasses CSP script-src restrictions in Rancher Desktop
+  fetch('https://weatherwidget.io/js/widget.min.js')
+    .then(r => r.text())
+    .then(code => eval(code))
+    .catch(err => {
+      console.error('Failed to load weather widget:', err);
+      document.querySelector('.weatherwidget-io').textContent = 'Failed to load weather data';
+    });
+</script>
