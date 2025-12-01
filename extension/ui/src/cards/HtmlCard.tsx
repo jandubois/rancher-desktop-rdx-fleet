@@ -126,7 +126,7 @@ ${htmlContent}
                 border: 'none',
                 display: 'block',
               }}
-              sandbox="allow-scripts allow-same-origin"
+              sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox"
               title={definition.title || 'HTML preview'}
             />
           </Box>
@@ -157,7 +157,7 @@ ${htmlContent}
           display: 'block',
           borderRadius: 1,
         }}
-        sandbox="allow-scripts allow-same-origin"
+        sandbox="allow-scripts allow-same-origin allow-popups allow-forms allow-popups-to-escape-sandbox"
         title={definition.title || 'HTML content'}
       />
     </Box>
