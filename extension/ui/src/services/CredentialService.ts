@@ -7,7 +7,6 @@
  */
 
 import { CommandExecutor } from './CommandExecutor';
-import { HttpClient, FetchHttpClient } from './HttpClient';
 
 /** GitHub CLI authentication status */
 export interface GhAuthStatus {
@@ -32,20 +31,6 @@ export interface StoredCredential {
   Secret: string;
 }
 
-/** GitHub user information */
-export interface GitHubUser {
-  login: string;
-  name?: string;
-  avatar_url?: string;
-}
-
-/** GitHub rate limit information */
-export interface GitHubRateLimit {
-  limit: number;
-  remaining: number;
-  reset: number; // Unix timestamp
-}
-
 /** Server URL for GitHub API credentials (PATs) - distinct from gh CLI's 'github.com' */
 export const GITHUB_CREDENTIAL_SERVER = 'https://fleet-extension.rancherdesktop.io';
 
@@ -60,11 +45,9 @@ export type AuthSource = 'pat' | 'gh-cli' | 'none';
  */
 export class CredentialService {
   private executor: CommandExecutor;
-  private httpClient: HttpClient;
 
-  constructor(executor: CommandExecutor, httpClient?: HttpClient) {
+  constructor(executor: CommandExecutor) {
     this.executor = executor;
-    this.httpClient = httpClient ?? new FetchHttpClient();
   }
 
   /**
@@ -180,67 +163,6 @@ export class CredentialService {
   }
 
   /**
-   * Validate a GitHub token and return user information
-   */
-  async validateGitHubToken(token: string): Promise<GitHubUser | null> {
-    try {
-      const response = await this.httpClient.get('https://api.github.com/user', {
-        Authorization: `Bearer ${token}`,
-        Accept: 'application/vnd.github.v3+json',
-      });
-
-      if (!response.ok) {
-        console.error('[CredentialService] GitHub token validation failed:', response.status);
-        return null;
-      }
-
-      const user = await response.json() as Record<string, unknown>;
-      return {
-        login: user.login as string,
-        name: user.name as string | undefined,
-        avatar_url: user.avatar_url as string | undefined,
-      };
-    } catch (error) {
-      console.error('[CredentialService] Error validating GitHub token:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get GitHub API rate limit information
-   */
-  async getGitHubRateLimit(token?: string): Promise<GitHubRateLimit | null> {
-    try {
-      const headers: Record<string, string> = {
-        Accept: 'application/vnd.github.v3+json',
-      };
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const response = await this.httpClient.get('https://api.github.com/rate_limit', headers);
-
-      if (!response.ok) {
-        return null;
-      }
-
-      const data = await response.json() as { rate?: { limit: number; remaining: number; reset: number } };
-      if (!data.rate) {
-        return null;
-      }
-
-      return {
-        limit: data.rate.limit,
-        remaining: data.rate.remaining,
-        reset: data.rate.reset,
-      };
-    } catch (error) {
-      console.error('[CredentialService] Error getting rate limit:', error);
-      return null;
-    }
-  }
-
-  /**
    * Get the stored GitHub API token
    */
   async getStoredGitHubToken(): Promise<string | null> {
@@ -318,79 +240,5 @@ export class CredentialService {
     }
 
     return null;
-  }
-}
-
-/**
- * Mock credential service for testing
- */
-export class MockCredentialService extends CredentialService {
-  private mockGhStatus: GhAuthStatus = { installed: false, authenticated: false };
-  private mockGhToken: string | null = null;
-  private mockCredHelperStatus: CredHelperStatus = { available: true, helper: 'mock', configured: true };
-  private mockCredentials: Map<string, StoredCredential> = new Map();
-  private mockGitHubUser: GitHubUser | null = null;
-  private mockRateLimit: GitHubRateLimit | null = null;
-
-  constructor() {
-    // Create a mock executor that does nothing
-    const mockExecutor = {
-      exec: async () => ({ stdout: '', stderr: '' }),
-    };
-    super(mockExecutor);
-  }
-
-  setGhAuthStatus(status: GhAuthStatus): void {
-    this.mockGhStatus = status;
-  }
-
-  setGhToken(token: string | null): void {
-    this.mockGhToken = token;
-  }
-
-  setCredHelperStatus(status: CredHelperStatus): void {
-    this.mockCredHelperStatus = status;
-  }
-
-  setGitHubUser(user: GitHubUser | null): void {
-    this.mockGitHubUser = user;
-  }
-
-  setRateLimit(rateLimit: GitHubRateLimit | null): void {
-    this.mockRateLimit = rateLimit;
-  }
-
-  async getGhAuthStatus(): Promise<GhAuthStatus> {
-    return this.mockGhStatus;
-  }
-
-  async getGhToken(): Promise<string | null> {
-    return this.mockGhToken;
-  }
-
-  async getCredHelperStatus(): Promise<CredHelperStatus> {
-    return this.mockCredHelperStatus;
-  }
-
-  async storeCredential(server: string, username: string, secret: string): Promise<void> {
-    this.mockCredentials.set(server, { ServerURL: server, Username: username, Secret: secret });
-  }
-
-  async getCredential(server: string): Promise<StoredCredential | null> {
-    return this.mockCredentials.get(server) ?? null;
-  }
-
-  async deleteCredential(server: string): Promise<void> {
-    this.mockCredentials.delete(server);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async validateGitHubToken(_token: string): Promise<GitHubUser | null> {
-    return this.mockGitHubUser;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getGitHubRateLimit(_token?: string): Promise<GitHubRateLimit | null> {
-    return this.mockRateLimit;
   }
 }

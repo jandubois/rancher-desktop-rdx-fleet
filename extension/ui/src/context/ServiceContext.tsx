@@ -49,19 +49,13 @@ interface ServiceProviderProps {
  * </ServiceProvider>
  * ```
  *
- * Usage in tests:
+ * Usage in tests (see test-utils/TestServiceProvider for convenience wrapper):
  * ```tsx
- * const mockExecutor = new MockCommandExecutor();
- * const mockK8sService = new KubernetesService(mockExecutor);
- * const mockHttpClient = new MockHttpClient();
- * const mockGitHubService = new GitHubService(mockHttpClient);
+ * import { TestServiceProvider } from '../test-utils';
  *
- * <ServiceProvider services={{
- *   kubernetesService: mockK8sService,
- *   gitHubService: mockGitHubService,
- * }}>
+ * <TestServiceProvider services={{ gitHubService: mockGitHubService }}>
  *   <ComponentUnderTest />
- * </ServiceProvider>
+ * </TestServiceProvider>
  * ```
  */
 export function ServiceProvider({ children, services }: ServiceProviderProps) {
@@ -75,7 +69,7 @@ export function ServiceProvider({ children, services }: ServiceProviderProps) {
     // Create default services if not provided
     const kubernetesService = services?.kubernetesService ?? new KubernetesService(commandExecutor);
     const gitHubService = services?.gitHubService ?? new GitHubService(httpClient);
-    const credentialService = services?.credentialService ?? new CredentialService(commandExecutor, httpClient);
+    const credentialService = services?.credentialService ?? new CredentialService(commandExecutor);
 
     return {
       commandExecutor,
