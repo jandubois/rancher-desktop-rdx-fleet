@@ -7,47 +7,42 @@ This document tracks the current development plan and priorities. **Read this fi
 **Phase 1 (MVP)**: Complete
 - Project setup, Fleet management, GitRepo management, status dashboard
 
-**Phase 4 (Multi-Card Architecture)**: Partially complete
+**Phase 4 (Multi-Card Architecture)**: Mostly complete
 - Manifest system, card registry, drag-and-drop, edit mode
-- Card types implemented: `gitrepo`, `markdown`, `image`, `video`, `link`, `divider`, `placeholder`
-- Card types defined but not implemented: `auth-github`, `auth-git`, `auth-appco`
+- Card types implemented: `gitrepo`, `markdown`, `html`, `image`, `video`, `link`, `divider`, `placeholder`, `auth-github`, `auth-appco`
+- Card types defined but not implemented: `auth-git`
 
 ---
 
-## Priority 1: Authentication Cards (Blocking)
+## Priority 1: Authentication Cards (Mostly Complete)
 
 Essential for private Git repositories and enterprise use.
 
-### Tasks
+### Completed
 
-1. **Implement `auth-github` card** (`extension/ui/src/cards/AuthGitHubCard.tsx`)
+1. **✓ `auth-github` card** (`extension/ui/src/cards/AuthGitHubCard.tsx`)
    - GitHub Personal Access Token entry field
-   - Token validation against GitHub API
-   - Status display (configured/not configured, authenticated user info)
-   - Store token in Kubernetes Secret (`fleet-local` namespace)
+   - gh CLI integration for token retrieval
+   - Rate limit display and status indicators
+   - Secure credential storage via Docker credential helpers
 
-2. **Implement `auth-git` card** (`extension/ui/src/cards/AuthGitCard.tsx`)
+2. **✓ `auth-appco` card** (`extension/ui/src/cards/AuthAppCoCard.tsx`)
+   - SUSE Application Collection authentication
+   - Username/token authentication
+   - Secure credential storage via Docker credential helpers
+
+### Remaining
+
+3. **Implement `auth-git` card** (`extension/ui/src/cards/AuthGitCard.tsx`)
    - Username/token authentication option
    - SSH key authentication option
    - Server URL field for self-hosted Git servers
    - Store credentials in Kubernetes Secret
 
-3. **Kubernetes Secret integration** (add to `App.tsx` or new utility)
-   - Create/update Secret with Git credentials
-   - Reference Secret in GitRepo CR (`spec.clientSecretName`)
-   - Detect existing credentials
+### Future Enhancements
 
-4. **Card dependency system**
-   - Add `required` setting to auth cards
-   - Block GitRepo cards until auth is configured (for private repos)
-   - Visual indication of blocked state
-
-### Implementation Notes
-
-- Use existing patterns from `MarkdownCard.tsx` and card registry
-- Credentials stored as Kubernetes Secrets in `fleet-local` namespace
-- GitRepo references credentials via `spec.clientSecretName`
-- See `docs/reference/fleet-local-mode.md` for Secret format
+- Card dependency system (block GitRepo cards until auth configured)
+- Kubernetes Secret integration for Fleet credential references
 
 ---
 
@@ -164,11 +159,9 @@ When all dependents of an indirectly-selected path are removed, that path can be
 
 ### Remaining Card Types
 
-- `image` card - Static image display
-- `video` card - Embedded video content
-- `auth-appco` card - SUSE Application Collection credentials
+- `auth-git` card - Generic Git credentials (see Priority 1)
 
-### Card Behaviors
+### Card Behaviors (Future)
 
 - `duplicatable` setting with "Add Another" button
 - Field-level `locked` and `editable` settings
