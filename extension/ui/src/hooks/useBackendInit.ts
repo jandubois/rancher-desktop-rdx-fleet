@@ -88,7 +88,11 @@ export function useBackendInit({
   // Track if we've already initialized to avoid duplicate calls
   const initAttempted = useRef(false);
   const onInitializedRef = useRef(onInitialized);
-  onInitializedRef.current = onInitialized;
+
+  // Update the callback ref when it changes (must be in useEffect, not during render)
+  useEffect(() => {
+    onInitializedRef.current = onInitialized;
+  }, [onInitialized]);
 
   const initialize = useCallback(async () => {
     if (status.loading) {
@@ -186,7 +190,10 @@ export function useBackendInit({
   useEffect(() => {
     if (backendConnected && !initAttempted.current && !status.attempted) {
       initAttempted.current = true;
-      initialize();
+      // Schedule for next tick to avoid synchronous setState in effect
+      queueMicrotask(() => {
+        void initialize();
+      });
     }
   }, [backendConnected, status.attempted, initialize]);
 

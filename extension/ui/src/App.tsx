@@ -187,7 +187,7 @@ function App() {
     },
   });
   // Log init state for debugging (prevent unused variable warnings)
-  console.debug('[App] Backend init state:', { _backendInitialized, _initError });
+  console.debug('[App] Backend init state:', { _backendInitialized, _initError, _ownershipStatus, _retryInit });
 
   // Build currently selected paths map for dependency resolution
   const currentlySelectedPaths = useMemo(() => {
