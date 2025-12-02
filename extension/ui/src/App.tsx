@@ -360,10 +360,17 @@ function App() {
 
   // Handle applying edit mode changes - clear snapshot and exit
   const handleApplyEditMode = useCallback(() => {
+    // Remove unconverted placeholders from both manifestCards and cardOrder
     setManifestCards((prev) => prev.filter((c) => c.type !== 'placeholder'));
+    setCardOrder((prev) => {
+      const placeholderIds = manifestCards
+        .filter((c) => c.type === 'placeholder')
+        .map((c) => c.id);
+      return prev.filter((id) => !placeholderIds.includes(id));
+    });
     setEditModeSnapshot(null);
     setEditMode(false);
-  }, []);
+  }, [manifestCards]);
 
   // Handle canceling edit mode - restore snapshot and exit
   const handleCancelEditMode = useCallback(() => {
@@ -460,7 +467,8 @@ function App() {
 
     const handleDelete = () => {
       if (confirm(`Delete this ${card.type} card?`)) {
-        setManifestCards((prev) => prev.filter((_, i) => i !== index));
+        setManifestCards((prev) => prev.filter((c) => c.id !== card.id));
+        setCardOrder((prev) => prev.filter((id) => id !== card.id));
       }
     };
 
@@ -497,8 +505,10 @@ function App() {
 
   // Render a placeholder card with type selector
   const renderPlaceholderCard = (card: CardDefinition) => {
+    // Get existing card types to filter out singleton cards that already exist
+    const existingTypes = manifestCards.map((c) => c.type);
     // Get card types from registry + gitrepo (special card not in registry)
-    const registeredTypes = getAddCardMenuItems();
+    const registeredTypes = getAddCardMenuItems(existingTypes);
     const cardTypes: { type: CardType; label: string }[] = [
       ...registeredTypes,
       { type: 'gitrepo', label: 'Git Repository' },
@@ -565,6 +575,8 @@ function App() {
     if (cardId.startsWith('placeholder-')) {
       const card = manifestCards.find((c) => c.id === cardId);
       if (!card) return null;
+      // Don't render unconverted placeholders in non-edit mode
+      if (card.type === 'placeholder' && !editMode) return null;
       if (card.type !== 'placeholder') {
         if (card.visible === false && !editMode) return null;
         const index = manifestCards.indexOf(card);

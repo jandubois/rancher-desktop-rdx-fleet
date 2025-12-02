@@ -289,9 +289,17 @@ Cards are registered in a global registry for dynamic rendering:
 
 ```typescript
 // registry.ts
+interface CardTypeMetadata {
+  label: string;              // Display name in UI
+  orderable: boolean;         // Can be reordered/added via "Add Card"
+  category: 'auth' | 'content' | 'special';
+  singleton?: boolean;        // Only one instance allowed (e.g., auth cards)
+  defaultSettings: () => CardSettings;
+}
+
 const cardRegistry = new Map<CardType, CardComponent>();
 
-export function registerCard(type: CardType, component: CardComponent) {
+export function registerCard(type: CardType, component: CardComponent, metadata: CardTypeMetadata) {
   cardRegistry.set(type, component);
 }
 
@@ -300,11 +308,29 @@ export function getCardComponent(type: CardType): CardComponent | undefined {
 }
 ```
 
-Cards self-register on import:
+Cards self-register on import with metadata:
 ```typescript
 // MarkdownCard.tsx
-registerCard('markdown', MarkdownCard);
+registerCard('markdown', MarkdownCard, {
+  label: 'Markdown',
+  orderable: true,
+  category: 'content',
+  defaultSettings: () => ({ content: '' }),
+});
+
+// AuthGitHubCard.tsx - singleton prevents duplicates
+registerCard('auth-github', AuthGitHubCard, {
+  label: 'GitHub Auth',
+  orderable: true,
+  category: 'auth',
+  singleton: true,  // Only one GitHub auth card allowed
+  defaultSettings: () => ({ required: false, show_status: true }),
+});
 ```
+
+### Singleton Cards
+
+Cards marked with `singleton: true` can only have one instance in the UI. When adding a new card, singleton types that already exist are filtered from the selection menu. This is used for authentication cards (GitHub Auth, AppCo Auth) where having multiple instances would be redundant.
 
 ## State Management
 
