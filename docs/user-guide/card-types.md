@@ -415,23 +415,50 @@ Each field (`repo_url`, `branch`, `paths`) can have these settings:
 
 ## Authentication Cards
 
-**Note:** Authentication cards require additional backend integration and are not yet fully implemented.
-
 ### GitHub Authentication (`auth-github`)
 
-For repositories requiring GitHub authentication.
+Authenticate with GitHub to increase API rate limits (60 → 5,000 requests/hour) and access private repositories.
+
+**Type:** `auth-github`
+
+#### Features
+- **gh CLI Integration**: Use your existing `gh` CLI authentication (recommended)
+- **Personal Access Token**: Enter a GitHub PAT for manual authentication
+- **Rate Limit Display**: Shows current API rate limit and remaining requests
+- **Credential Storage**: PATs stored securely in system keychain via Docker credential helpers
+
+#### Use Cases
+- Accessing private GitHub repositories
+- Avoiding rate limiting during bundle scanning
+- Team environments with shared authentication
+
+#### Configuration
 
 ```yaml
 cards:
   - id: github-auth
     type: auth-github
-    title: "GitHub Credentials"
+    title: "GitHub Authentication"
     settings:
       required: false          # Is authentication mandatory?
       show_status: true        # Show connection status indicator
 ```
 
+#### Authentication Methods
+
+**gh CLI Token (Recommended)**:
+If you have the GitHub CLI installed and authenticated (`gh auth login`), you can use your existing credentials. The extension fetches a fresh token each time, ensuring you always use your current authentication.
+
+**Personal Access Token**:
+Create a token at [GitHub Settings](https://github.com/settings/tokens/new?scopes=repo,read:org) with recommended scopes:
+- `repo` - Access private repositories
+- `read:org` - Read organization membership
+
+The PAT is stored securely in your system's credential helper (Keychain on macOS, Credential Manager on Windows, or secretservice/pass on Linux).
+
 ### Git Credentials (`auth-git`)
+
+**Note:** This card type is planned but not yet implemented.
 
 For generic Git authentication (username/password or SSH).
 
@@ -446,6 +473,8 @@ cards:
 ```
 
 ### AppCo Authentication (`auth-appco`)
+
+**Note:** This card type is planned but not yet implemented.
 
 For Rancher Application Collection integration.
 
