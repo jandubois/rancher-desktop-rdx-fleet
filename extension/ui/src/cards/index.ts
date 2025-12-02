@@ -20,4 +20,5 @@ import './VideoCard';
 import './LinkCard';
 import './DividerCard';
 import './AuthGitHubCard';
+import './AuthAppCoCard';
 // Future: import './GitRepoCard';

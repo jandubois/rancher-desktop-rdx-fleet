@@ -8,7 +8,7 @@
 
 import React, { ReactNode } from 'react';
 import { ServiceProvider, Services } from '../context/ServiceContext';
-import { MockCommandExecutor, MockHttpClient, MockCredentialService } from './mocks';
+import { MockCommandExecutor, MockHttpClient, MockCredentialService, MockAppCoService } from './mocks';
 import { KubernetesService, GitHubService } from '../services';
 
 export interface TestServicesOptions {
@@ -22,6 +22,8 @@ export interface TestServicesOptions {
   gitHubService?: Services['gitHubService'];
   /** Override credential service */
   credentialService?: Services['credentialService'];
+  /** Override AppCo service */
+  appCoService?: Services['appCoService'];
 }
 
 /**
@@ -37,6 +39,7 @@ export function createTestServices(options: TestServicesOptions = {}): Partial<S
     kubernetesService: options.kubernetesService ?? new KubernetesService(commandExecutor),
     gitHubService: options.gitHubService ?? new GitHubService(httpClient),
     credentialService: options.credentialService ?? new MockCredentialService(),
+    appCoService: options.appCoService ?? new MockAppCoService(),
   };
 }
 

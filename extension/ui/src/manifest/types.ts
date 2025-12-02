@@ -42,6 +42,10 @@ export interface AuthCardSettings {
   show_status?: boolean;
 }
 
+export interface AppCoCardSettings extends AuthCardSettings {
+  show_catalog_link?: boolean;
+}
+
 export interface MarkdownCardSettings {
   content: string;
 }
@@ -87,6 +91,7 @@ export interface HtmlCardSettings {
 export type CardSettings =
   | GitRepoCardSettings
   | AuthCardSettings
+  | AppCoCardSettings
   | MarkdownCardSettings
   | ImageCardSettings
   | VideoCardSettings
