@@ -59,15 +59,22 @@ export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
   return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
 }
 
-/** Rate limit info extracted from GitHub API response headers */
-export interface RateLimitInfo {
+/** GitHub rate limit information */
+export interface GitHubRateLimit {
   limit: number;
   remaining: number;
   reset: number; // Unix timestamp
 }
 
 /** Callback for rate limit updates */
-export type RateLimitCallback = (rateLimit: RateLimitInfo) => void;
+export type RateLimitCallback = (rateLimit: GitHubRateLimit) => void;
+
+/** GitHub user information */
+export interface GitHubUser {
+  login: string;
+  name?: string;
+  avatar_url?: string;
+}
 
 /**
  * Service for GitHub API operations.
@@ -95,17 +102,28 @@ export class GitHubService {
    * Extract rate limit info from response headers and notify callback
    */
   private updateRateLimitFromHeaders(headers: { get: (name: string) => string | null }): void {
+    const rateLimit = this.extractRateLimitFromHeaders(headers);
+    if (rateLimit && this.rateLimitCallback) {
+      this.rateLimitCallback(rateLimit);
+    }
+  }
+
+  /**
+   * Extract rate limit from response headers
+   */
+  private extractRateLimitFromHeaders(headers: { get: (name: string) => string | null }): GitHubRateLimit | null {
     const limit = headers.get('x-ratelimit-limit');
     const remaining = headers.get('x-ratelimit-remaining');
     const reset = headers.get('x-ratelimit-reset');
 
-    if (limit && remaining && reset && this.rateLimitCallback) {
-      this.rateLimitCallback({
+    if (limit && remaining && reset) {
+      return {
         limit: parseInt(limit, 10),
         remaining: parseInt(remaining, 10),
         reset: parseInt(reset, 10),
-      });
+      };
     }
+    return null;
   }
 
   /**
@@ -288,6 +306,73 @@ export class GitHubService {
 
     const triedBranches = branches.join(', ');
     throw new Error(lastError || `Could not access repository. Tried branches: ${triedBranches}`);
+  }
+
+  /**
+   * Validate a GitHub token and return user information
+   */
+  async validateGitHubToken(token: string): Promise<GitHubUser | null> {
+    try {
+      const response = await this.httpClient.get('https://api.github.com/user', {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github.v3+json',
+      });
+
+      // Update rate limit from response
+      this.updateRateLimitFromHeaders(response.headers);
+
+      if (!response.ok) {
+        console.error('[GitHubService] GitHub token validation failed:', response.status);
+        return null;
+      }
+
+      const user = await response.json() as Record<string, unknown>;
+      return {
+        login: user.login as string,
+        name: user.name as string | undefined,
+        avatar_url: user.avatar_url as string | undefined,
+      };
+    } catch (error) {
+      console.error('[GitHubService] Error validating GitHub token:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get GitHub API rate limit information
+   */
+  async getRateLimit(token?: string): Promise<GitHubRateLimit | null> {
+    try {
+      const headers: Record<string, string> = {
+        Accept: 'application/vnd.github.v3+json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await this.httpClient.get('https://api.github.com/rate_limit', headers);
+
+      // Update rate limit callback from headers
+      this.updateRateLimitFromHeaders(response.headers);
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json() as { rate?: { limit: number; remaining: number; reset: number } };
+      if (!data.rate) {
+        return null;
+      }
+
+      return {
+        limit: data.rate.limit,
+        remaining: data.rate.remaining,
+        reset: data.rate.reset,
+      };
+    } catch (error) {
+      console.error('[GitHubService] Error getting rate limit:', error);
+      return null;
+    }
   }
 }
 

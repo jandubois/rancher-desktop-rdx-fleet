@@ -1,14 +1,30 @@
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { usePathDiscovery } from './usePathDiscovery';
 import { GitHubService, PathInfo } from '../services';
+import { TestServiceProvider } from '../test-utils';
 
 // Create a mock GitHubService
 function createMockGitHubService() {
   return {
     fetchGitHubPaths: vi.fn<[string, string?], Promise<PathInfo[]>>(),
     fetchFleetYamlDeps: vi.fn(),
+    setAuthToken: vi.fn(),
+    getAuthToken: vi.fn(),
+    setRateLimitCallback: vi.fn(),
   } as unknown as GitHubService;
+}
+
+// Wrapper component for tests
+function createWrapper(mockService: GitHubService) {
+  return function Wrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <TestServiceProvider services={{ gitHubService: mockService }}>
+        {children}
+      </TestServiceProvider>
+    );
+  };
 }
 
 // Suppress console.error in tests
@@ -28,7 +44,9 @@ describe('usePathDiscovery', () => {
   });
 
   it('initializes with empty cache and no errors', () => {
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     expect(result.current.repoPathsCache).toEqual({});
     expect(result.current.discoveryErrors).toEqual({});
@@ -42,7 +60,9 @@ describe('usePathDiscovery', () => {
     ];
     vi.mocked(mockService.fetchGitHubPaths).mockResolvedValueOnce(mockPaths);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     await act(async () => {
       await result.current.discoverPathsForRepo('https://github.com/owner/repo');
@@ -55,7 +75,9 @@ describe('usePathDiscovery', () => {
   it('passes branch parameter to fetchGitHubPaths', async () => {
     vi.mocked(mockService.fetchGitHubPaths).mockResolvedValueOnce([]);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     await act(async () => {
       await result.current.discoverPathsForRepo('https://github.com/owner/repo', 'develop');
@@ -67,7 +89,9 @@ describe('usePathDiscovery', () => {
   it('prevents duplicate requests for the same repo', async () => {
     vi.mocked(mockService.fetchGitHubPaths).mockResolvedValue([{ path: 'app' }]);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     await act(async () => {
       await result.current.discoverPathsForRepo('https://github.com/owner/repo');
@@ -89,7 +113,9 @@ describe('usePathDiscovery', () => {
       .mockResolvedValueOnce(initialPaths)
       .mockResolvedValueOnce(updatedPaths);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     // First fetch
     await act(async () => {
@@ -110,7 +136,9 @@ describe('usePathDiscovery', () => {
   it('tracks discovery errors when fetch fails', async () => {
     vi.mocked(mockService.fetchGitHubPaths).mockRejectedValueOnce(new Error('API rate limit exceeded'));
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     await act(async () => {
       await result.current.discoverPathsForRepo('https://github.com/owner/repo');
@@ -128,7 +156,9 @@ describe('usePathDiscovery', () => {
     });
     vi.mocked(mockService.fetchGitHubPaths).mockReturnValueOnce(fetchPromise);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     // Start discovery (don't await)
     act(() => {
@@ -154,7 +184,9 @@ describe('usePathDiscovery', () => {
     const mockPaths = [{ path: 'app' }];
     vi.mocked(mockService.fetchGitHubPaths).mockResolvedValueOnce(mockPaths);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     // First, populate the cache
     await act(async () => {
@@ -174,7 +206,9 @@ describe('usePathDiscovery', () => {
   it('clearDiscoveryCache clears errors', async () => {
     vi.mocked(mockService.fetchGitHubPaths).mockRejectedValueOnce(new Error('Network error'));
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     await act(async () => {
       await result.current.discoverPathsForRepo('https://github.com/owner/repo');
@@ -196,7 +230,9 @@ describe('usePathDiscovery', () => {
     });
     vi.mocked(mockService.fetchGitHubPaths).mockReturnValueOnce(fetchPromise);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     expect(result.current.isLoadingPaths('https://github.com/owner/repo')).toBe(false);
 
@@ -224,7 +260,9 @@ describe('usePathDiscovery', () => {
       .mockResolvedValueOnce(repo1Paths)
       .mockResolvedValueOnce(repo2Paths);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     await act(async () => {
       await result.current.discoverPathsForRepo('https://github.com/owner/repo1');
@@ -240,7 +278,9 @@ describe('usePathDiscovery', () => {
       .mockRejectedValueOnce(new Error('First error'))
       .mockResolvedValueOnce([{ path: 'app' }]);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     // First attempt fails
     await act(async () => {
@@ -265,7 +305,9 @@ describe('usePathDiscovery', () => {
     });
     vi.mocked(mockService.fetchGitHubPaths).mockReturnValueOnce(fetchPromise);
 
-    const { result } = renderHook(() => usePathDiscovery({ gitHubService: mockService }));
+    const { result } = renderHook(() => usePathDiscovery(), {
+      wrapper: createWrapper(mockService),
+    });
 
     // Start first request
     act(() => {
