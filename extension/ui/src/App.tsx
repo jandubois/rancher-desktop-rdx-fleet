@@ -656,18 +656,11 @@ function App() {
             editMode ? (
               <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
-                  variant="outlined"
+                  variant="contained"
                   size="small"
                   onClick={handleCancelEditMode}
                   startIcon={<CloseIcon />}
-                  sx={{
-                    color: 'error.light',
-                    borderColor: 'error.light',
-                    '&:hover': {
-                      borderColor: 'error.main',
-                      backgroundColor: 'rgba(244, 67, 54, 0.08)',
-                    },
-                  }}
+                  color="error"
                 >
                   Cancel
                 </Button>
