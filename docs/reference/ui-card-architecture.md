@@ -29,7 +29,11 @@ extension/ui/src/
 │   ├── ImageCard.tsx          # Static image card
 │   ├── VideoCard.tsx          # Embedded video card
 │   ├── LinkCard.tsx           # Link collection card
-│   └── DividerCard.tsx        # Visual separator card
+│   ├── DividerCard.tsx        # Visual separator card
+│   ├── AuthGitHubCard.tsx     # GitHub authentication card
+│   ├── AuthGitHubCard/        # GitHub auth sub-components
+│   ├── AuthAppCoCard.tsx      # AppCo authentication card
+│   └── AuthAppCoCard/         # AppCo auth sub-components
 ├── components/
 │   ├── EditableTitle.tsx      # Inline-editable title component
 │   ├── SortableCard.tsx       # Drag-and-drop wrapper

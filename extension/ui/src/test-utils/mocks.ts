@@ -9,6 +9,7 @@ import type { CommandExecutor, ExecResult } from '../services/CommandExecutor';
 import type { HttpClient, HttpResponse } from '../services/HttpClient';
 import type { GhAuthStatus, CredHelperStatus, StoredCredential } from '../services/CredentialService';
 import { CredentialService } from '../services/CredentialService';
+import { AppCoService, AppCoUser } from '../services/AppCoService';
 
 /**
  * Mock executor for testing.
@@ -240,5 +241,46 @@ export class MockCredentialService extends CredentialService {
 
   async deleteCredential(server: string): Promise<void> {
     this.mockCredentials.delete(server);
+  }
+}
+
+/**
+ * Mock AppCo service for testing
+ */
+export class MockAppCoService extends AppCoService {
+  private mockUser: AppCoUser | null = null;
+  private validateCalls: Array<{ username: string; token: string }> = [];
+
+  constructor() {
+    // Create a mock HTTP client
+    const mockHttpClient = {
+      get: async () => ({
+        ok: false,
+        status: 401,
+        statusText: 'Unauthorized',
+        headers: { get: () => null },
+        text: async () => '',
+        json: async () => ({}),
+      }),
+    };
+    super(mockHttpClient);
+  }
+
+  setMockUser(user: AppCoUser | null): void {
+    this.mockUser = user;
+  }
+
+  async validateCredentials(username: string, token: string): Promise<AppCoUser | null> {
+    this.validateCalls.push({ username, token });
+    return this.mockUser;
+  }
+
+  getValidateCalls(): Array<{ username: string; token: string }> {
+    return [...this.validateCalls];
+  }
+
+  reset(): void {
+    this.mockUser = null;
+    this.validateCalls = [];
   }
 }

@@ -16,6 +16,7 @@ import {
   HttpClient,
   FetchHttpClient,
   CredentialService,
+  AppCoService,
 } from '../services';
 
 /** Services available through context */
@@ -23,6 +24,7 @@ export interface Services {
   kubernetesService: KubernetesService;
   gitHubService: GitHubService;
   credentialService: CredentialService;
+  appCoService: AppCoService;
   commandExecutor: CommandExecutor;
   httpClient: HttpClient;
 }
@@ -70,6 +72,7 @@ export function ServiceProvider({ children, services }: ServiceProviderProps) {
     const kubernetesService = services?.kubernetesService ?? new KubernetesService(commandExecutor);
     const gitHubService = services?.gitHubService ?? new GitHubService(httpClient);
     const credentialService = services?.credentialService ?? new CredentialService(commandExecutor);
+    const appCoService = services?.appCoService ?? new AppCoService(httpClient);
 
     return {
       commandExecutor,
@@ -77,6 +80,7 @@ export function ServiceProvider({ children, services }: ServiceProviderProps) {
       kubernetesService,
       gitHubService,
       credentialService,
+      appCoService,
     };
   }, [services]);
 
@@ -119,4 +123,11 @@ export function useGitHubService(): GitHubService {
  */
 export function useCredentialService(): CredentialService {
   return useServices().credentialService;
+}
+
+/**
+ * Hook to access the AppCoService.
+ */
+export function useAppCoService(): AppCoService {
+  return useServices().appCoService;
 }

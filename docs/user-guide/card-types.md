@@ -474,9 +474,21 @@ cards:
 
 ### AppCo Authentication (`auth-appco`)
 
-**Note:** This card type is planned but not yet implemented.
+Authenticate with SUSE Application Collection (AppCo) to access Helm charts and container images from the enterprise catalog at `dp.apps.rancher.io`.
 
-For Rancher Application Collection integration.
+**Type:** `auth-appco`
+
+#### Features
+- **Username/Token Authentication**: Enter your AppCo credentials or service account token
+- **Credential Storage**: Credentials stored securely in system keychain via Docker credential helpers
+- **Registry Integration**: Enables `docker pull` and `helm pull` from `dp.apps.rancher.io`
+
+#### Use Cases
+- Accessing enterprise Helm charts from the Application Collection
+- Pulling container images from the AppCo registry
+- Deploying commercial applications via Fleet
+
+#### Configuration
 
 ```yaml
 cards:
@@ -484,9 +496,15 @@ cards:
     type: auth-appco
     title: "Application Collection"
     settings:
-      required: false
-      show_status: true
+      required: false          # Is authentication mandatory?
+      show_status: true        # Show connection status indicator
 ```
+
+#### Getting Credentials
+
+1. Visit [apps.rancher.io](https://apps.rancher.io) to create an account or access token
+2. For service accounts, generate a token in your account settings
+3. Enter your username/email and access token in the auth card
 
 ---
 

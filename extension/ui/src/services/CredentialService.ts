@@ -34,6 +34,9 @@ export interface StoredCredential {
 /** Server URL for GitHub API credentials (PATs) - distinct from gh CLI's 'github.com' */
 export const GITHUB_CREDENTIAL_SERVER = 'https://fleet-extension.rancherdesktop.io';
 
+/** Server URL for AppCo credentials (OCI registry at dp.apps.rancher.io) */
+export const APPCO_CREDENTIAL_SERVER = 'dp.apps.rancher.io';
+
 /** Marker username to indicate gh CLI auth is authorized */
 const GH_CLI_AUTH_MARKER = '__gh-cli-authorized__';
 
@@ -240,5 +243,39 @@ export class CredentialService {
     }
 
     return null;
+  }
+
+  // ============================================
+  // AppCo Credential Methods
+  // ============================================
+
+  /**
+   * Get stored AppCo credentials
+   */
+  async getAppCoCredential(): Promise<StoredCredential | null> {
+    return this.getCredential(APPCO_CREDENTIAL_SERVER);
+  }
+
+  /**
+   * Store AppCo credentials
+   * Uses the standard credential helper which also enables `docker pull dp.apps.rancher.io/...`
+   */
+  async storeAppCoCredential(username: string, token: string): Promise<void> {
+    await this.storeCredential(APPCO_CREDENTIAL_SERVER, username, token);
+  }
+
+  /**
+   * Delete stored AppCo credentials
+   */
+  async deleteAppCoCredential(): Promise<void> {
+    await this.deleteCredential(APPCO_CREDENTIAL_SERVER);
+  }
+
+  /**
+   * Check if AppCo credentials are stored
+   */
+  async hasAppCoCredential(): Promise<boolean> {
+    const cred = await this.getAppCoCredential();
+    return cred !== null && !!cred.Username && !!cred.Secret;
   }
 }
