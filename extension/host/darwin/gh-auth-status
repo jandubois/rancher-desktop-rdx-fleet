@@ -1,0 +1,102 @@
+#!/bin/sh
+# Check if gh CLI is installed and authenticated
+# Outputs JSON with status information (includes debug info for troubleshooting)
+
+# Collect debug info
+DEBUG_LOG=""
+debug() {
+  DEBUG_LOG="${DEBUG_LOG}$*\n"
+}
+
+# Find gh CLI binary
+find_gh() {
+  # Check PATH first
+  if command -v gh >/dev/null 2>&1; then
+    command -v gh
+    return 0
+  fi
+
+  # Check common macOS locations (including Rancher Desktop's ~/.rd/bin)
+  for dir in "$HOME/.rd/bin" /usr/local/bin /opt/homebrew/bin; do
+    if [ -x "$dir/gh" ]; then
+      echo "$dir/gh"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+debug "HOME=$HOME"
+debug "PATH=$PATH"
+debug "XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-not set}"
+debug "GH_CONFIG_DIR=${GH_CONFIG_DIR:-not set}"
+debug "GITHUB_TOKEN=${GITHUB_TOKEN:+SET (hidden)}"
+debug "GH_TOKEN=${GH_TOKEN:+SET (hidden)}"
+
+# Check git credential helper config
+git_cred_helper=$(git config --global credential.helper 2>/dev/null || echo "not configured")
+debug "git credential.helper: $git_cred_helper"
+
+# Check if gh config exists
+if [ -f "$HOME/.config/gh/hosts.yml" ]; then
+  debug "~/.config/gh/hosts.yml exists"
+  # Check if it has github.com entry (without revealing secrets)
+  if grep -q "github.com" "$HOME/.config/gh/hosts.yml" 2>/dev/null; then
+    debug "hosts.yml contains github.com entry"
+  else
+    debug "hosts.yml does NOT contain github.com entry"
+  fi
+else
+  debug "~/.config/gh/hosts.yml does NOT exist"
+fi
+
+# Check keychain accessibility - try multiple possible service names
+for svc in "gh:github.com" "github.com" "git:https://github.com"; do
+  keychain_test=$(security find-generic-password -s "$svc" 2>&1)
+  keychain_exit=$?
+  if [ $keychain_exit -eq 0 ]; then
+    debug "Keychain '$svc': FOUND"
+  else
+    debug "Keychain '$svc': not found"
+  fi
+done
+
+# Also try internet password (used by git credential-osxkeychain)
+inet_test=$(security find-internet-password -s "github.com" 2>&1)
+if [ $? -eq 0 ]; then
+  debug "Keychain internet-password github.com: FOUND"
+else
+  debug "Keychain internet-password github.com: not found"
+fi
+
+GH_PATH=$(find_gh)
+
+if [ -z "$GH_PATH" ]; then
+  escaped_debug=$(printf '%s' "$DEBUG_LOG" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+  echo "{\"installed\":false,\"authenticated\":false,\"debug\":\"$escaped_debug\"}"
+  exit 0
+fi
+
+debug "Found gh at: $GH_PATH"
+
+# Try to get a token directly - this is more reliable than 'gh auth status'
+# because it doesn't require a GUI context for keychain prompts
+token=$("$GH_PATH" auth token 2>&1)
+token_exit_code=$?
+debug "gh auth token exit code: $token_exit_code"
+
+# Check if we got a valid token (starts with gh or gho)
+if [ $token_exit_code -eq 0 ] && echo "$token" | grep -qE '^gh[opsu]_'; then
+  debug "Got valid token (redacted)"
+
+  escaped_debug=$(printf '%s' "$DEBUG_LOG" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+
+  # Get the authenticated user
+  user=$("$GH_PATH" api user --jq '.login' 2>/dev/null || echo "")
+  echo "{\"installed\":true,\"authenticated\":true,\"user\":\"$user\",\"debug\":\"$escaped_debug\"}"
+else
+  debug "gh auth token output: $token"
+  escaped_debug=$(printf '%s' "$DEBUG_LOG" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+  echo "{\"installed\":true,\"authenticated\":false,\"debug\":\"$escaped_debug\"}"
+fi

@@ -1,0 +1,77 @@
+#!/bin/sh
+# Delete a credential from the Docker credential helper
+# Usage: cred-delete <server>
+
+set -e
+
+if [ $# -ne 1 ]; then
+  echo "Usage: cred-delete <server>" >&2
+  exit 1
+fi
+
+SERVER="$1"
+
+DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
+CONFIG_FILE="$DOCKER_CONFIG/config.json"
+
+# Find the full path to a credential helper
+# Checks PATH first, then common macOS installation locations
+find_helper_path() {
+  helper_name="$1"
+  helper_bin="docker-credential-$helper_name"
+
+  # Check PATH first
+  if command -v "$helper_bin" >/dev/null 2>&1; then
+    command -v "$helper_bin"
+    return 0
+  fi
+
+  # Check common macOS locations (including Rancher Desktop's ~/.rd/bin)
+  for dir in "$HOME/.rd/bin" /usr/local/bin /opt/homebrew/bin "$HOME/.docker/bin" \
+             "/Applications/Docker.app/Contents/Resources/bin" \
+             "/Applications/Rancher Desktop.app/Contents/Resources/resources/darwin/bin"; do
+    if [ -x "$dir/$helper_bin" ]; then
+      echo "$dir/$helper_bin"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# Get the configured credential helper
+get_creds_store() {
+  if [ -f "$CONFIG_FILE" ]; then
+    grep -o '"credsStore"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" 2>/dev/null | sed 's/.*: *"\([^"]*\)".*/\1/'
+  fi
+}
+
+CREDS_STORE=$(get_creds_store)
+
+if [ -z "$CREDS_STORE" ]; then
+  # Try to find an available helper (prioritize osxkeychain on macOS)
+  for helper in osxkeychain secretservice pass; do
+    if find_helper_path "$helper" >/dev/null 2>&1; then
+      CREDS_STORE="$helper"
+      break
+    fi
+  done
+fi
+
+if [ -z "$CREDS_STORE" ]; then
+  echo "No credential helper available" >&2
+  exit 1
+fi
+
+HELPER_PATH=$(find_helper_path "$CREDS_STORE")
+
+if [ -z "$HELPER_PATH" ]; then
+  echo "Credential helper 'docker-credential-$CREDS_STORE' not found" >&2
+  exit 1
+fi
+
+# Delete the credential using the helper
+# The helper expects the server URL on stdin
+echo "$SERVER" | "$HELPER_PATH" erase 2>/dev/null || true
+
+echo "Credential deleted"

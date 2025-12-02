@@ -1,0 +1,54 @@
+#!/bin/sh
+# Extract GitHub token from gh CLI
+# Returns JSON with token or error info
+
+# Find gh CLI binary
+find_gh() {
+  # Check PATH first
+  if command -v gh >/dev/null 2>&1; then
+    command -v gh
+    return 0
+  fi
+
+  # Check common Linux locations
+  for dir in /usr/bin /usr/local/bin "$HOME/.local/bin"; do
+    if [ -x "$dir/gh" ]; then
+      echo "$dir/gh"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+# JSON escape a string
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/	/\\t/g' | tr '\n' ' '
+}
+
+GH_PATH=$(find_gh)
+
+if [ -z "$GH_PATH" ]; then
+  echo '{"error":"gh CLI not installed","debug":"gh not found in PATH or common locations"}'
+  exit 0
+fi
+
+# Use gh auth token which respects the CLI's security model
+token_output=$("$GH_PATH" auth token 2>&1)
+token_exit=$?
+
+debug_info="gh_path=$GH_PATH, exit_code=$token_exit, output=$(json_escape "$token_output")"
+
+if [ $token_exit -ne 0 ]; then
+  echo "{\"error\":\"gh auth token failed\",\"debug\":\"$debug_info\"}"
+  exit 0
+fi
+
+# Validate token format (should start with gh prefix)
+if ! echo "$token_output" | grep -qE '^gh[opsu]_'; then
+  echo "{\"error\":\"Invalid token format\",\"debug\":\"$debug_info\"}"
+  exit 0
+fi
+
+# Success - return token
+echo "{\"token\":\"$token_output\",\"debug\":\"$debug_info\"}"

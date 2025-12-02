@@ -1,0 +1,91 @@
+#!/bin/sh
+# Check if a Docker credential helper is available
+# Outputs JSON with helper information (includes debug info for troubleshooting)
+
+DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
+CONFIG_FILE="$DOCKER_CONFIG/config.json"
+
+# Collect debug info in a variable
+DEBUG_LOG=""
+debug() {
+  DEBUG_LOG="${DEBUG_LOG}$*\n"
+}
+
+debug "HOME=$HOME"
+debug "DOCKER_CONFIG=$DOCKER_CONFIG"
+debug "CONFIG_FILE=$CONFIG_FILE"
+debug "PATH=$PATH"
+
+# Escape string for JSON
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g'
+}
+
+# Helper function to check if a credential helper exists
+# Checks both PATH and common macOS installation locations
+find_helper() {
+  helper_name="$1"
+  helper_bin="docker-credential-$helper_name"
+
+  debug "Looking for $helper_bin"
+
+  # Check PATH first
+  if command -v "$helper_bin" >/dev/null 2>&1; then
+    debug "  Found in PATH: $(command -v "$helper_bin")"
+    return 0
+  fi
+  debug "  Not in PATH"
+
+  # Check common macOS locations for Docker credential helpers (including Rancher Desktop's ~/.rd/bin)
+  for dir in "$HOME/.rd/bin" /usr/local/bin /opt/homebrew/bin "$HOME/.docker/bin" \
+             "/Applications/Docker.app/Contents/Resources/bin" \
+             "/Applications/Rancher Desktop.app/Contents/Resources/resources/darwin/bin"; do
+    debug "  Checking $dir/$helper_bin"
+    if [ -x "$dir/$helper_bin" ]; then
+      debug "  Found: $dir/$helper_bin"
+      return 0
+    fi
+  done
+
+  debug "  Not found anywhere"
+  return 1
+}
+
+# Output result with debug info
+output_result() {
+  available="$1"
+  helper="$2"
+  configured="$3"
+  escaped_debug=$(printf '%s' "$DEBUG_LOG" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+  echo "{\"available\":$available,\"helper\":\"$helper\",\"configured\":$configured,\"debug\":\"$escaped_debug\"}"
+}
+
+# Check if config.json exists and has credsStore set
+debug "Checking config file: $CONFIG_FILE"
+if [ -f "$CONFIG_FILE" ]; then
+  debug "Config file exists"
+  # Try to extract credsStore value (simple grep, no jq dependency)
+  creds_store=$(grep -o '"credsStore"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" 2>/dev/null | sed 's/.*: *"\([^"]*\)".*/\1/')
+  debug "credsStore from config: '$creds_store'"
+  if [ -n "$creds_store" ]; then
+    if find_helper "$creds_store"; then
+      output_result "true" "$creds_store" "true"
+      exit 0
+    fi
+  fi
+else
+  debug "Config file does not exist"
+fi
+
+# Check for common credential helpers (prioritize osxkeychain on macOS)
+debug "Falling back to checking common helpers"
+for helper in osxkeychain secretservice pass; do
+  if find_helper "$helper"; then
+    output_result "true" "$helper" "false"
+    exit 0
+  fi
+done
+
+# No credential helper found
+debug "No credential helper found"
+output_result "false" "" "false"
