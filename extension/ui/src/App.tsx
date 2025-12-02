@@ -360,10 +360,17 @@ function App() {
 
   // Handle applying edit mode changes - clear snapshot and exit
   const handleApplyEditMode = useCallback(() => {
+    // Remove unconverted placeholders from both manifestCards and cardOrder
     setManifestCards((prev) => prev.filter((c) => c.type !== 'placeholder'));
+    setCardOrder((prev) => {
+      const placeholderIds = manifestCards
+        .filter((c) => c.type === 'placeholder')
+        .map((c) => c.id);
+      return prev.filter((id) => !placeholderIds.includes(id));
+    });
     setEditModeSnapshot(null);
     setEditMode(false);
-  }, []);
+  }, [manifestCards]);
 
   // Handle canceling edit mode - restore snapshot and exit
   const handleCancelEditMode = useCallback(() => {
@@ -460,7 +467,8 @@ function App() {
 
     const handleDelete = () => {
       if (confirm(`Delete this ${card.type} card?`)) {
-        setManifestCards((prev) => prev.filter((_, i) => i !== index));
+        setManifestCards((prev) => prev.filter((c) => c.id !== card.id));
+        setCardOrder((prev) => prev.filter((id) => id !== card.id));
       }
     };
 
@@ -567,6 +575,8 @@ function App() {
     if (cardId.startsWith('placeholder-')) {
       const card = manifestCards.find((c) => c.id === cardId);
       if (!card) return null;
+      // Don't render unconverted placeholders in non-edit mode
+      if (card.type === 'placeholder' && !editMode) return null;
       if (card.type !== 'placeholder') {
         if (card.visible === false && !editMode) return null;
         const index = manifestCards.indexOf(card);
