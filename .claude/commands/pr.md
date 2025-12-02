@@ -1,5 +1,12 @@
 # Create Pull Request
 
+**IMPORTANT: Record the start time immediately when this command begins.**
+
+Run this command first to capture the start time:
+```bash
+echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command started at %H:%M:%S %Z"
+```
+
 **IMPORTANT: Use TodoWrite to track progress through ALL steps below.**
 
 Before starting, create a todo list with ALL of the following items:
@@ -14,6 +21,7 @@ Before starting, create a todo list with ALL of the following items:
 9. Rebase on main branch
 10. Push changes
 11. Generate `gh pr create` command for user
+12. Display elapsed time
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
@@ -308,3 +316,10 @@ EOF
 - Include a test plan with checkboxes
 - Keep summary concise (3-5 bullet points)
 - **NEVER use triple backticks (```) inside the PR body** - use 4-space indentation or inline backticks instead
+
+## 11. Display Elapsed Time
+After generating the PR command, display how long the PR process took:
+
+```bash
+source /tmp/pr_timing.txt && END_TIME=$(date +%s) && ELAPSED=$((END_TIME - PR_START_TIME)) && MINUTES=$((ELAPSED / 60)) && SECONDS=$((ELAPSED % 60)) && echo "✅ PR command completed in ${MINUTES}m ${SECONDS}s"
+```
