@@ -181,18 +181,6 @@ function App() {
     })
   );
 
-  // Handle drag end - reorder cards
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      setCardOrder((items) => {
-        const oldIndex = items.indexOf(active.id as string);
-        const newIndex = items.indexOf(over.id as string);
-        return arrayMove(items, oldIndex, newIndex);
-      });
-    }
-  };
-
   // Compute effective card order: filter deleted cards and add new ones
   const effectiveCardOrder = useMemo(() => {
     const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
@@ -211,6 +199,20 @@ function App() {
 
     return [...filtered, ...newIds];
   }, [cardOrder, gitRepos, manifestCards]);
+
+  // Handle drag end - reorder cards
+  // NOTE: Must use effectiveCardOrder for index lookup since that's what's rendered
+  // in SortableContext. cardOrder may not contain dynamically added items like gitrepos.
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = effectiveCardOrder.indexOf(active.id as string);
+      const newIndex = effectiveCardOrder.indexOf(over.id as string);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        setCardOrder(arrayMove(effectiveCardOrder, oldIndex, newIndex));
+      }
+    }
+  };
 
   // Load manifest file on startup if no cached state exists
   // State is already initialized from cachedInitialState in useState calls above
