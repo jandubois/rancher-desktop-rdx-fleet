@@ -7,6 +7,7 @@ export interface CardTypeMetadata {
   orderable: boolean;                      // Can be reordered/added via "Add Card"
   category: 'auth' | 'content' | 'special'; // Card category
   defaultSettings: () => CardSettings;     // Factory for default settings
+  singleton?: boolean;                     // Only one instance allowed (e.g., auth cards)
 }
 
 // Registry of card types to their components
@@ -55,9 +56,16 @@ export function getOrderableCardTypes(): CardType[] {
 }
 
 // Get card types for the "Add Card" menu with their labels
-export function getAddCardMenuItems(): Array<{ type: CardType; label: string }> {
+// Optionally pass existing card types to filter out singleton cards that already exist
+export function getAddCardMenuItems(existingTypes?: CardType[]): Array<{ type: CardType; label: string }> {
+  const existingSet = existingTypes ? new Set(existingTypes) : null;
   return Array.from(metadataRegistry.entries())
-    .filter(([, meta]) => meta.orderable)
+    .filter(([type, meta]) => {
+      if (!meta.orderable) return false;
+      // Filter out singleton cards that already exist
+      if (meta.singleton && existingSet?.has(type)) return false;
+      return true;
+    })
     .map(([type, meta]) => ({ type, label: meta.label }));
 }
 

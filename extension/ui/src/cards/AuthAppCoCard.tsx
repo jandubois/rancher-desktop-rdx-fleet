@@ -157,6 +157,7 @@ registerCard('auth-appco', AuthAppCoCard, {
   label: 'AppCo Auth',
   orderable: true,
   category: 'auth',
+  singleton: true,
   defaultSettings: () => ({ required: false, show_status: true } as AppCoCardSettings),
 });
 

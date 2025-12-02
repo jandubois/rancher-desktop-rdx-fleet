@@ -497,8 +497,10 @@ function App() {
 
   // Render a placeholder card with type selector
   const renderPlaceholderCard = (card: CardDefinition) => {
+    // Get existing card types to filter out singleton cards that already exist
+    const existingTypes = manifestCards.map((c) => c.type);
     // Get card types from registry + gitrepo (special card not in registry)
-    const registeredTypes = getAddCardMenuItems();
+    const registeredTypes = getAddCardMenuItems(existingTypes);
     const cardTypes: { type: CardType; label: string }[] = [
       ...registeredTypes,
       { type: 'gitrepo', label: 'Git Repository' },

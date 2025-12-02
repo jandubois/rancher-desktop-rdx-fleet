@@ -178,6 +178,7 @@ registerCard('auth-github', AuthGitHubCard, {
   label: 'GitHub Auth',
   orderable: true,
   category: 'auth',
+  singleton: true,
   defaultSettings: () => ({ required: false, show_status: true }),
 });
 
