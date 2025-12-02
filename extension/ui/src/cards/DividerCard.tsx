@@ -104,6 +104,11 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
 };
 
 // Register the divider card
-registerCard('divider', DividerCard);
+registerCard('divider', DividerCard, {
+  label: 'Divider',
+  orderable: true,
+  category: 'content',
+  defaultSettings: () => ({ label: '', style: 'solid' }),
+});
 
 export default DividerCard;

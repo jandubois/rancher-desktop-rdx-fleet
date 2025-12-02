@@ -22,17 +22,20 @@ export interface HttpClient {
   /**
    * Perform a GET request
    * @param url The URL to fetch
+   * @param headers Optional headers to include in the request
    * @returns Promise resolving to the response
    */
-  get(url: string): Promise<HttpResponse>;
+  get(url: string, headers?: Record<string, string>): Promise<HttpResponse>;
 }
 
 /**
  * Default implementation using the global fetch function.
  */
 export class FetchHttpClient implements HttpClient {
-  async get(url: string): Promise<HttpResponse> {
-    const response = await fetch(url);
+  async get(url: string, headers?: Record<string, string>): Promise<HttpResponse> {
+    const response = await fetch(url, {
+      headers: headers,
+    });
     return {
       ok: response.ok,
       status: response.status,
@@ -69,7 +72,8 @@ export class MockHttpClient implements HttpClient {
     this.responses.set(`__pattern__${pattern.source}`, response);
   }
 
-  async get(url: string): Promise<HttpResponse> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async get(url: string, _headers?: Record<string, string>): Promise<HttpResponse> {
     this.calls.push(url);
 
     // Check exact match first

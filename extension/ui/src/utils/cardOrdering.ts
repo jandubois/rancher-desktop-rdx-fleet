@@ -7,17 +7,18 @@
 
 import type { CardDefinition, CardType } from '../manifest';
 import type { GitRepo } from '../types';
+import { getOrderableCardTypes } from '../cards';
 
-/** Card types that can appear in the card order */
-const ORDERABLE_CARD_TYPES: CardType[] = [
-  'markdown',
-  'html',
-  'image',
-  'video',
-  'link',
-  'divider',
-  'placeholder',
-];
+/**
+ * Get all orderable card types from registry plus special types.
+ * Uses the registry to auto-discover orderable cards.
+ */
+function getOrderableTypes(): CardType[] {
+  // Get orderable types from registry
+  const registeredTypes = getOrderableCardTypes();
+  // Add special types that aren't in registry but should be orderable
+  return [...registeredTypes, 'placeholder'];
+}
 
 /**
  * Build the effective card order by filtering deleted cards and adding new ones.
@@ -34,8 +35,9 @@ export function buildEffectiveCardOrder(
 ): string[] {
   // Build set of all currently valid card IDs
   const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
+  const orderableTypes = getOrderableTypes();
   const manifestCardIds = manifestCards
-    .filter((c) => ORDERABLE_CARD_TYPES.includes(c.type))
+    .filter((c) => orderableTypes.includes(c.type))
     .map((c) => c.id);
   const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
 

@@ -15,12 +15,14 @@ import {
   GitHubService,
   HttpClient,
   FetchHttpClient,
+  CredentialService,
 } from '../services';
 
 /** Services available through context */
 export interface Services {
   kubernetesService: KubernetesService;
   gitHubService: GitHubService;
+  credentialService: CredentialService;
   commandExecutor: CommandExecutor;
   httpClient: HttpClient;
 }
@@ -73,12 +75,14 @@ export function ServiceProvider({ children, services }: ServiceProviderProps) {
     // Create default services if not provided
     const kubernetesService = services?.kubernetesService ?? new KubernetesService(commandExecutor);
     const gitHubService = services?.gitHubService ?? new GitHubService(httpClient);
+    const credentialService = services?.credentialService ?? new CredentialService(commandExecutor, httpClient);
 
     return {
       commandExecutor,
       httpClient,
       kubernetesService,
       gitHubService,
+      credentialService,
     };
   }, [services]);
 
@@ -114,4 +118,11 @@ export function useKubernetesService(): KubernetesService {
  */
 export function useGitHubService(): GitHubService {
   return useServices().gitHubService;
+}
+
+/**
+ * Hook to access the CredentialService.
+ */
+export function useCredentialService(): CredentialService {
+  return useServices().credentialService;
 }

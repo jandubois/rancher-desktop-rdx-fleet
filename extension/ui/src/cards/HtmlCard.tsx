@@ -203,6 +203,11 @@ ${htmlContent}
 };
 
 // Register the html card
-registerCard('html', HtmlCard);
+registerCard('html', HtmlCard, {
+  label: 'HTML',
+  orderable: true,
+  category: 'content',
+  defaultSettings: () => ({ content: '<p>Edit this HTML content...</p>' }),
+});
 
 export default HtmlCard;
