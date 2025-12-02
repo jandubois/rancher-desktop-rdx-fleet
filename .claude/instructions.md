@@ -47,8 +47,8 @@ Do NOT run Glob or Grep to explore. The documentation tells you where files are.
 
 ## Card Types
 
-Implemented: `gitrepo`, `markdown`, `image`, `video`, `link`, `divider`, `placeholder`
-Not yet implemented: `auth-github`, `auth-git`, `auth-appco`
+Implemented: `gitrepo`, `markdown`, `html`, `image`, `video`, `link`, `divider`, `placeholder`, `auth-github`, `auth-appco`
+Not yet implemented: `auth-git`
 
 **When adding/modifying card types**: Update both `docs/user-guide/card-types.md` (user docs)
 and `docs/reference/ui-card-architecture.md` (developer docs).
@@ -75,4 +75,4 @@ Examples of packages to use instead of reimplementing:
 
 ## Current Priority
 
-Authentication cards - see `docs/NEXT_STEPS.md` for implementation details.
+Dependency awareness and UI enhancements - see `docs/NEXT_STEPS.md` for details.
