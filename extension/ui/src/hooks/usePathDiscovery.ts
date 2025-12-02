@@ -91,6 +91,10 @@ export function usePathDiscovery(options: UsePathDiscoveryOptions = {}): UsePath
     });
 
     try {
+      // Wait for auth initialization to complete before making GitHub API calls
+      // This ensures we use the auth token if available, avoiding rate limit issues
+      await gitHubService.waitForAuthReady();
+
       const paths = await gitHubService.fetchGitHubPaths(repoUrl, branch);
       // Update both ref and state immediately
       repoPathsCacheRef.current[repoUrl] = paths;

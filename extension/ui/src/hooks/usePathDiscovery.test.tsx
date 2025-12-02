@@ -13,6 +13,10 @@ function createMockGitHubService() {
     setAuthToken: vi.fn(),
     getAuthToken: vi.fn(),
     setRateLimitCallback: vi.fn(),
+    // Auth readiness - resolve immediately in tests
+    waitForAuthReady: vi.fn().mockResolvedValue(undefined),
+    setAuthReady: vi.fn(),
+    isAuthReady: vi.fn().mockReturnValue(true),
   } as unknown as GitHubService;
 }
 
@@ -309,14 +313,17 @@ describe('usePathDiscovery', () => {
       wrapper: createWrapper(mockService),
     });
 
-    // Start first request
-    act(() => {
+    // Start first request (use async act to let waitForAuthReady resolve)
+    await act(async () => {
       result.current.discoverPathsForRepo('https://github.com/owner/repo');
+      // Wait a tick to let waitForAuthReady resolve before the second call
+      await Promise.resolve();
     });
 
-    // Try to start another (should be blocked)
-    act(() => {
+    // Try to start another (should be blocked because first is still loading)
+    await act(async () => {
       result.current.discoverPathsForRepo('https://github.com/owner/repo');
+      await Promise.resolve();
     });
 
     expect(mockService.fetchGitHubPaths).toHaveBeenCalledTimes(1);
