@@ -4,7 +4,7 @@
 
 Run this command first to capture the start time:
 ```bash
-echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command started at %H:%M:%S"
+echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command started at %H:%M:%S %Z"
 ```
 
 **IMPORTANT: Use TodoWrite to track progress through ALL steps below.**
