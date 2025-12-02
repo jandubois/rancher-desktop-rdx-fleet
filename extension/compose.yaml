@@ -1,0 +1,41 @@
+# Fleet GitOps Extension Backend Service
+#
+# RANCHER DESKTOP WORKAROUNDS:
+# 1. Image name must be hardcoded - ${DESKTOP_PLUGIN_IMAGE} is not expanded
+# 2. pull_policy: never - required for locally-built images
+# 3. ports: 8080 exposed - ddClient.extension.vm.service is not implemented
+#
+# See docs/reference/rancher-desktop-extension-bugs.md for details
+
+services:
+  backend:
+    # IMPORTANT: This image name must match what you build with `docker build -t`
+    # For development: fleet-gitops:dev
+    # For production: update to match your published image name
+    image: fleet-gitops:dev
+    pull_policy: never
+
+    # Expose HTTP port for frontend communication
+    # Frontend will call http://localhost:8080/... directly
+    ports:
+      - "8080:8080"
+
+    # Mount Docker socket to check running containers
+    # Uses .raw variant as recommended for extensions in Docker Desktop VM
+    volumes:
+      - /var/run/docker.sock.raw:/var/run/docker.sock
+
+    # Environment variables for extension identification
+    environment:
+      - EXTENSION_NAME=fleet-gitops
+      - EXTENSION_TYPE=base
+      - EXTENSION_VERSION=1.0.0
+      - PORT=8080
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

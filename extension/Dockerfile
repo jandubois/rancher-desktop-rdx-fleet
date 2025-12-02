@@ -6,8 +6,16 @@ RUN npm ci
 COPY ui/ ./
 RUN npm run build
 
-# Final image
-FROM alpine:3.19
+# Build Backend
+FROM --platform=$BUILDPLATFORM node:22-alpine AS backend-builder
+WORKDIR /app
+COPY backend/package*.json ./
+RUN npm ci
+COPY backend/ ./
+RUN npm run build
+
+# Final image - uses Node.js to run the backend service
+FROM node:22-alpine
 
 # Standard OCI labels
 LABEL org.opencontainers.image.title="Fleet GitOps"
@@ -22,12 +30,20 @@ LABEL com.docker.desktop.extension.icon="/icons/fleet-icon.svg"
 # Fleet extension labels - used to identify and filter Fleet extensions
 LABEL io.rancher-desktop.fleet.type="base"
 LABEL io.rancher-desktop.fleet.version="1.0"
+LABEL io.rancher-desktop.fleet.name="fleet-gitops"
 
-# Copy UI build
+# Copy UI build (for extension installation)
 COPY --from=ui-builder /app/build /ui
 
-# Copy metadata and icons
+# Copy backend build and dependencies
+WORKDIR /backend
+COPY --from=backend-builder /app/dist ./dist
+COPY --from=backend-builder /app/node_modules ./node_modules
+COPY --from=backend-builder /app/package.json ./
+
+# Copy metadata, icons, and compose file
 COPY metadata.json /
+COPY compose.yaml /
 COPY icons/ /icons/
 
 # Copy host binary wrapper scripts
@@ -38,5 +54,17 @@ RUN chmod +x /host/darwin/* /host/linux/*
 COPY scripts/ /scripts/
 RUN chmod +x /scripts/*.sh
 
-# Set entrypoint for command handling (export-config, etc.)
-ENTRYPOINT ["/scripts/entrypoint.sh"]
+# Environment variables for backend service
+ENV PORT=8080
+ENV EXTENSION_NAME=fleet-gitops
+ENV EXTENSION_TYPE=base
+ENV EXTENSION_VERSION=1.0.0
+
+# Expose backend port
+EXPOSE 8080
+
+# Default command runs the backend service
+# When used as an extension image for file extraction, Docker Desktop
+# doesn't run this - it just extracts files from the image
+# When started via compose.yaml, this runs the backend service
+CMD ["node", "/backend/dist/index.js"]

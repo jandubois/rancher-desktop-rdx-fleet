@@ -49,11 +49,12 @@ import {
   IconState,
   GitRepoCard,
   FleetStatusCard,
+  BackendStatusCard,
   DependencyConfirmationDialog,
   INITIAL_DEPENDENCY_DIALOG_STATE,
   DependencyDialogState,
 } from './components';
-import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver } from './hooks';
+import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver, useBackendStatus, useBackendInit } from './hooks';
 import { useServices } from './context';
 
 // Cache the initial state load so all useState initializers see the same value
@@ -61,7 +62,7 @@ const cachedInitialState = getInitialState();
 
 function App() {
   // Get services from context
-  const { kubernetesService, gitHubService } = useServices();
+  const { kubernetesService, gitHubService, commandExecutor } = useServices();
 
   // Manifest and edit mode state - prefer cached state from localStorage
   const [manifest, setManifest] = useState<Manifest>(
@@ -161,6 +162,32 @@ function App() {
     gitRepos,
     repoPathsCache,
   });
+
+  // Backend status (for debugging)
+  const {
+    status: backendStatus,
+    loading: backendLoading,
+    refresh: refreshBackend,
+  } = useBackendStatus({ pollInterval: 30000 });
+
+  // Backend initialization (sends extension list and kubeconfig to backend)
+  // These variables are intentionally prefixed with _ as they're tracked by backend status
+  const {
+    initialized: _backendInitialized,
+    ownership: _ownershipStatus,
+    error: _initError,
+    retry: _retryInit,
+  } = useBackendInit({
+    commandExecutor,
+    backendConnected: backendStatus?.connected ?? false,
+    onInitialized: (ownership) => {
+      console.log('[App] Backend initialized, ownership:', ownership.status);
+      // Refresh backend status to pick up new init status
+      refreshBackend();
+    },
+  });
+  // Log init state for debugging (prevent unused variable warnings)
+  console.debug('[App] Backend init state:', { _backendInitialized, _initError, _ownershipStatus, _retryInit });
 
   // Build currently selected paths map for dependency resolution
   const currentlySelectedPaths = useMemo(() => {
@@ -752,6 +779,13 @@ function App() {
               onPaletteChange={handlePaletteChange}
             />
           )}
+
+          {/* Backend Status Card - debug info */}
+          <BackendStatusCard
+            status={backendStatus}
+            loading={backendLoading}
+            onRefresh={refreshBackend}
+          />
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={effectiveCardOrder} strategy={verticalListSortingStrategy}>
