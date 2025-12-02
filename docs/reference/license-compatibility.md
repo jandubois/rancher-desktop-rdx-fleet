@@ -88,6 +88,25 @@ Dev dependencies don't ship with the final product but are included for complete
 | vite | MIT | Yes |
 | vitest | MIT | Yes |
 
+## Backend Service Dependencies
+
+Source: `extension/backend/package.json`
+
+| Package | License | Compatible | Notes |
+|---------|---------|------------|-------|
+| @kubernetes/client-node | Apache-2.0 | Yes | Kubernetes API client |
+| dockerode | Apache-2.0 | Yes | Docker API client |
+| express | MIT | Yes | Web framework |
+
+### Backend Dev Dependencies
+
+| Package | License | Compatible |
+|---------|---------|------------|
+| @types/dockerode | MIT | Yes |
+| @types/express | MIT | Yes |
+| @types/node | MIT | Yes |
+| typescript | Apache-2.0 | Yes |
+
 ## Debug Extension UI Dependencies
 
 Source: `debug-extension/ui/package.json`
