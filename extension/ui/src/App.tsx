@@ -27,6 +27,17 @@ import {
 
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, HtmlCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
+import { loadExtensionState, saveExtensionState, PersistedExtensionState } from './utils/extensionStateStorage';
+
+// Get initial state from localStorage (synchronous for lazy useState)
+function getInitialState(): PersistedExtensionState | null {
+  try {
+    return loadExtensionState();
+  } catch {
+    return null;
+  }
+}
+
 import type { ColorPalette } from './theme';
 import { CardWrapper, getCardComponent } from './cards';
 import {
@@ -45,26 +56,39 @@ import {
 import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver } from './hooks';
 import { useServices } from './context';
 
+// Cache the initial state load so all useState initializers see the same value
+const cachedInitialState = getInitialState();
+
 function App() {
   // Get services from context
   const { kubernetesService, gitHubService } = useServices();
 
-  // Manifest and edit mode state
-  const [manifest, setManifest] = useState<Manifest>(DEFAULT_MANIFEST);
+  // Manifest and edit mode state - prefer cached state from localStorage
+  const [manifest, setManifest] = useState<Manifest>(
+    () => cachedInitialState?.manifest ?? DEFAULT_MANIFEST
+  );
   const [editMode, setEditMode] = useState(false);
-  const [manifestCards, setManifestCards] = useState<CardDefinition[]>(DEFAULT_MANIFEST.cards);
+  const [manifestCards, setManifestCards] = useState<CardDefinition[]>(
+    () => cachedInitialState?.manifestCards ?? DEFAULT_MANIFEST.cards
+  );
 
   // Color palette from manifest
   const palette = usePalette(manifest);
 
   // Card order for drag-and-drop (IDs of all cards in display order)
-  const [cardOrder, setCardOrder] = useState<string[]>(['fleet-status']);
+  const [cardOrder, setCardOrder] = useState<string[]>(
+    () => cachedInitialState?.cardOrder ?? ['fleet-status']
+  );
 
   // Titles for dynamic cards (fleet-status, gitrepo-*) that aren't in manifestCards
-  const [dynamicCardTitles, setDynamicCardTitles] = useState<Record<string, string>>({});
+  const [dynamicCardTitles, setDynamicCardTitles] = useState<Record<string, string>>(
+    () => cachedInitialState?.dynamicCardTitles ?? {}
+  );
 
   // Icon state for extension builder: null = default, CustomIcon = custom, 'deleted' = no icon
-  const [iconState, setIconState] = useState<IconState>(null);
+  const [iconState, setIconState] = useState<IconState>(
+    () => cachedInitialState?.iconState ?? null
+  );
 
   // Edit mode snapshot for undo/cancel functionality
   const [editModeSnapshot, setEditModeSnapshot] = useState<{
@@ -187,13 +211,37 @@ function App() {
     return [...filtered, ...newIds];
   }, [cardOrder, gitRepos, manifestCards]);
 
-  // Load manifest on startup
+  // Load manifest file on startup if no cached state exists
+  // State is already initialized from cachedInitialState in useState calls above
   useEffect(() => {
-    loadManifest().then((m) => {
-      setManifest(m);
-      setManifestCards(m.cards);
-    });
+    if (cachedInitialState) {
+      // State was restored from localStorage via lazy useState initializers
+      initialLoadComplete.current = true;
+    } else {
+      // No cached state - load from manifest file (first-time load)
+      loadManifest().then((m) => {
+        setManifest(m);
+        setManifestCards(m.cards);
+        initialLoadComplete.current = true;
+      });
+    }
   }, []);
+
+  // Auto-save state to localStorage when key state changes
+  useEffect(() => {
+    // Don't save during initial load
+    if (!initialLoadComplete.current) {
+      return;
+    }
+    saveExtensionState({
+      manifest,
+      manifestCards,
+      cardOrder,
+      dynamicCardTitles,
+      iconState,
+      timestamp: Date.now(),
+    });
+  }, [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState]);
 
   // Track current time for timeout checks (updated every 5s when there are active discovery operations)
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -210,6 +258,9 @@ function App() {
 
   // Counter for generating unique placeholder IDs
   const placeholderIdCounter = useRef(0);
+
+  // Track whether initial state loading is complete (to prevent saving during load)
+  const initialLoadComplete = useRef(false);
 
   // Handle config loaded from external source (image or ZIP)
   const handleConfigLoaded = useCallback((loadedManifest: Manifest) => {
@@ -655,24 +706,20 @@ function App() {
           {editModeAllowed && (
             editMode ? (
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  variant="contained"
-                  size="small"
+                <IconButton
                   onClick={handleCancelEditMode}
-                  startIcon={<CloseIcon />}
-                  color="error"
+                  title="Cancel changes"
+                  sx={{ color: 'error.light' }}
                 >
-                  Cancel
-                </Button>
-                <Button
-                  variant="contained"
-                  size="small"
+                  <CloseIcon />
+                </IconButton>
+                <IconButton
                   onClick={handleApplyEditMode}
-                  startIcon={<CheckIcon />}
-                  color="success"
+                  title="Apply changes"
+                  sx={{ color: 'success.light' }}
                 >
-                  Apply
-                </Button>
+                  <CheckIcon />
+                </IconButton>
               </Box>
             ) : (
               <IconButton
