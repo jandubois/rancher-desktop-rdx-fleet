@@ -372,6 +372,11 @@ export const ImageCard: React.FC<CardProps<ImageCardSettings>> = ({
 };
 
 // Register the image card
-registerCard('image', ImageCard);
+registerCard('image', ImageCard, {
+  label: 'Image',
+  orderable: true,
+  category: 'content',
+  defaultSettings: () => ({ src: '', alt: '' }),
+});
 
 export default ImageCard;

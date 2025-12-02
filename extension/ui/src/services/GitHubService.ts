@@ -59,6 +59,16 @@ export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
   return { owner: match[1], repo: match[2].replace(/\.git$/, '') };
 }
 
+/** Rate limit info extracted from GitHub API response headers */
+export interface RateLimitInfo {
+  limit: number;
+  remaining: number;
+  reset: number; // Unix timestamp
+}
+
+/** Callback for rate limit updates */
+export type RateLimitCallback = (rateLimit: RateLimitInfo) => void;
+
 /**
  * Service for GitHub API operations.
  *
@@ -67,9 +77,70 @@ export function parseGitHubUrl(url: string): ParsedGitHubUrl | null {
  */
 export class GitHubService {
   private httpClient: HttpClient;
+  private authToken: string | null = null;
+  private rateLimitCallback: RateLimitCallback | null = null;
 
   constructor(httpClient?: HttpClient) {
     this.httpClient = httpClient ?? new FetchHttpClient();
+  }
+
+  /**
+   * Set callback for rate limit updates (called after each API response)
+   */
+  setRateLimitCallback(callback: RateLimitCallback | null): void {
+    this.rateLimitCallback = callback;
+  }
+
+  /**
+   * Extract rate limit info from response headers and notify callback
+   */
+  private updateRateLimitFromHeaders(headers: { get: (name: string) => string | null }): void {
+    const limit = headers.get('x-ratelimit-limit');
+    const remaining = headers.get('x-ratelimit-remaining');
+    const reset = headers.get('x-ratelimit-reset');
+
+    if (limit && remaining && reset && this.rateLimitCallback) {
+      this.rateLimitCallback({
+        limit: parseInt(limit, 10),
+        remaining: parseInt(remaining, 10),
+        reset: parseInt(reset, 10),
+      });
+    }
+  }
+
+  /**
+   * Set the authentication token for GitHub API calls
+   */
+  setAuthToken(token: string | null): void {
+    this.authToken = token;
+    console.log(`[GitHubService] Auth token ${token ? 'set' : 'cleared'}`);
+  }
+
+  /**
+   * Get the current authentication token
+   */
+  getAuthToken(): string | null {
+    return this.authToken;
+  }
+
+  /**
+   * Check if authenticated
+   */
+  isAuthenticated(): boolean {
+    return this.authToken !== null;
+  }
+
+  /**
+   * Get request headers with optional authentication
+   */
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github.v3+json',
+    };
+    if (this.authToken) {
+      headers.Authorization = `Bearer ${this.authToken}`;
+    }
+    return headers;
   }
 
   /**
@@ -87,7 +158,8 @@ export class GitHubService {
       try {
         const fleetYamlPath = path ? `${path}/${filename}` : filename;
         const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${fleetYamlPath}`;
-        const response = await this.httpClient.get(rawUrl);
+        // Note: raw.githubusercontent.com accepts Bearer tokens but doesn't require Accept header
+        const response = await this.httpClient.get(rawUrl, this.authToken ? { Authorization: `Bearer ${this.authToken}` } : undefined);
 
         if (!response.ok) continue;
 
@@ -135,8 +207,12 @@ export class GitHubService {
       console.log(`[Path Discovery] Fetching: ${apiUrl}`);
 
       try {
-        const response = await this.httpClient.get(apiUrl);
-        console.log(`[Path Discovery] Response status: ${response.status}`);
+        const response = await this.httpClient.get(apiUrl, this.getHeaders());
+        console.log(`[Path Discovery] Response status: ${response.status}${this.authToken ? ' (authenticated)' : ' (unauthenticated)'}`);
+        console.log(`[Path Discovery] Using auth: ${this.authToken ? 'yes' : 'no'}`);
+
+        // Update rate limit from headers
+        this.updateRateLimitFromHeaders(response.headers);
 
         const remaining = response.headers.get('X-RateLimit-Remaining');
         const limit = response.headers.get('X-RateLimit-Limit');

@@ -76,6 +76,11 @@ export const MarkdownCard: React.FC<CardProps<MarkdownCardSettings>> = ({
 };
 
 // Register the markdown card
-registerCard('markdown', MarkdownCard);
+registerCard('markdown', MarkdownCard, {
+  label: 'Markdown',
+  orderable: true,
+  category: 'content',
+  defaultSettings: () => ({ content: '# New Card\n\nEdit this content...' }),
+});
 
 export default MarkdownCard;

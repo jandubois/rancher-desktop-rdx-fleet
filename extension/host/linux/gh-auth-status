@@ -1,0 +1,62 @@
+#!/bin/sh
+# Check if gh CLI is installed and authenticated
+# Outputs JSON with status information (includes debug info for troubleshooting)
+
+# Collect debug info
+DEBUG_LOG=""
+debug() {
+  DEBUG_LOG="${DEBUG_LOG}$*\n"
+}
+
+# Find gh CLI binary
+find_gh() {
+  # Check PATH first
+  if command -v gh >/dev/null 2>&1; then
+    command -v gh
+    return 0
+  fi
+
+  # Check common Linux locations
+  for dir in /usr/bin /usr/local/bin "$HOME/.local/bin"; do
+    if [ -x "$dir/gh" ]; then
+      echo "$dir/gh"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+debug "HOME=$HOME"
+debug "PATH=$PATH"
+
+GH_PATH=$(find_gh)
+
+if [ -z "$GH_PATH" ]; then
+  escaped_debug=$(printf '%s' "$DEBUG_LOG" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+  echo "{\"installed\":false,\"authenticated\":false,\"debug\":\"$escaped_debug\"}"
+  exit 0
+fi
+
+debug "Found gh at: $GH_PATH"
+
+# Try to get a token directly - this is more reliable than 'gh auth status'
+# because it doesn't require a GUI context for keychain/secret-service prompts
+token=$("$GH_PATH" auth token 2>&1)
+token_exit_code=$?
+debug "gh auth token exit code: $token_exit_code"
+
+# Check if we got a valid token (starts with gh or gho)
+if [ $token_exit_code -eq 0 ] && echo "$token" | grep -qE '^gh[opsu]_'; then
+  debug "Got valid token (redacted)"
+
+  escaped_debug=$(printf '%s' "$DEBUG_LOG" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+
+  # Get the authenticated user
+  user=$("$GH_PATH" api user --jq '.login' 2>/dev/null || echo "")
+  echo "{\"installed\":true,\"authenticated\":true,\"user\":\"$user\",\"debug\":\"$escaped_debug\"}"
+else
+  debug "gh auth token output: $token"
+  escaped_debug=$(printf '%s' "$DEBUG_LOG" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr '\n' ' ')
+  echo "{\"installed\":true,\"authenticated\":false,\"debug\":\"$escaped_debug\"}"
+fi

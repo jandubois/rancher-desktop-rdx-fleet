@@ -1,0 +1,52 @@
+#!/bin/sh
+# Delete a credential from the Docker credential helper
+# Usage: cred-delete <server>
+
+set -e
+
+if [ $# -ne 1 ]; then
+  echo "Usage: cred-delete <server>" >&2
+  exit 1
+fi
+
+SERVER="$1"
+
+DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
+CONFIG_FILE="$DOCKER_CONFIG/config.json"
+
+# Get the configured credential helper
+get_creds_store() {
+  if [ -f "$CONFIG_FILE" ]; then
+    grep -o '"credsStore"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" 2>/dev/null | sed 's/.*: *"\([^"]*\)".*/\1/'
+  fi
+}
+
+CREDS_STORE=$(get_creds_store)
+
+if [ -z "$CREDS_STORE" ]; then
+  # Try to find an available helper
+  for helper in secretservice pass osxkeychain wincred; do
+    if command -v "docker-credential-$helper" >/dev/null 2>&1; then
+      CREDS_STORE="$helper"
+      break
+    fi
+  done
+fi
+
+if [ -z "$CREDS_STORE" ]; then
+  echo "No credential helper available" >&2
+  exit 1
+fi
+
+HELPER="docker-credential-$CREDS_STORE"
+
+if ! command -v "$HELPER" >/dev/null 2>&1; then
+  echo "Credential helper '$HELPER' not found" >&2
+  exit 1
+fi
+
+# Delete the credential using the helper
+# The helper expects the server URL on stdin
+echo "$SERVER" | "$HELPER" erase 2>/dev/null || true
+
+echo "Credential deleted"

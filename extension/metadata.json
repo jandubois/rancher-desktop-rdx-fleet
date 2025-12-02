@@ -25,6 +25,36 @@
         "darwin": [{ "path": "/host/darwin/kubectl-apply-json" }],
         "linux": [{ "path": "/host/linux/kubectl-apply-json" }],
         "windows": [{ "path": "/host/windows/kubectl-apply-json.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/gh-token" }],
+        "linux": [{ "path": "/host/linux/gh-token" }],
+        "windows": [{ "path": "/host/windows/gh-token.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/gh-auth-status" }],
+        "linux": [{ "path": "/host/linux/gh-auth-status" }],
+        "windows": [{ "path": "/host/windows/gh-auth-status.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/cred-helper-check" }],
+        "linux": [{ "path": "/host/linux/cred-helper-check" }],
+        "windows": [{ "path": "/host/windows/cred-helper-check.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/cred-store" }],
+        "linux": [{ "path": "/host/linux/cred-store" }],
+        "windows": [{ "path": "/host/windows/cred-store.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/cred-get" }],
+        "linux": [{ "path": "/host/linux/cred-get" }],
+        "windows": [{ "path": "/host/windows/cred-get.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/cred-delete" }],
+        "linux": [{ "path": "/host/linux/cred-delete" }],
+        "windows": [{ "path": "/host/windows/cred-delete.cmd" }]
       }
     ]
   }

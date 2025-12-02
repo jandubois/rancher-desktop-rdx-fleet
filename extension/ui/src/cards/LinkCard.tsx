@@ -218,6 +218,11 @@ export const LinkCard: React.FC<CardProps<LinkCardSettings>> = ({
 };
 
 // Register the link card
-registerCard('link', LinkCard);
+registerCard('link', LinkCard, {
+  label: 'Links',
+  orderable: true,
+  category: 'content',
+  defaultSettings: () => ({ links: [{ label: 'Example Link', url: 'https://example.com' }], variant: 'buttons' }),
+});
 
 export default LinkCard;

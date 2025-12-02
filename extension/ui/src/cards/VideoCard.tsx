@@ -150,6 +150,11 @@ const VideoPlayer: React.FC<{ src: string; title: string }> = ({ src, title }) =
 };
 
 // Register the video card
-registerCard('video', VideoCard);
+registerCard('video', VideoCard, {
+  label: 'Video',
+  orderable: true,
+  category: 'content',
+  defaultSettings: () => ({ src: '', title: '' }),
+});
 
 export default VideoCard;

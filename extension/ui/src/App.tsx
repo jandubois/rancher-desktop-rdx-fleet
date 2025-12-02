@@ -26,7 +26,7 @@ import {
 } from '@dnd-kit/sortable';
 
 // Local imports
-import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, MarkdownCardSettings, HtmlCardSettings, GitRepoCardSettings, ImageCardSettings, VideoCardSettings, LinkCardSettings, DividerCardSettings, CardType } from './manifest';
+import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, GitRepoCardSettings, CardType } from './manifest';
 import { loadExtensionState, saveExtensionState, PersistedExtensionState } from './utils/extensionStateStorage';
 
 // Get initial state from localStorage (synchronous for lazy useState)
@@ -39,7 +39,7 @@ function getInitialState(): PersistedExtensionState | null {
 }
 
 import type { ColorPalette } from './theme';
-import { CardWrapper, getCardComponent } from './cards';
+import { CardWrapper, getCardComponent, getAddCardMenuItems, getDefaultSettingsForType, isCardTypeRegistered } from './cards';
 import {
   SortableCard,
   AddRepoDialog,
@@ -196,8 +196,9 @@ function App() {
   // Compute effective card order: filter deleted cards and add new ones
   const effectiveCardOrder = useMemo(() => {
     const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
+    // Use registry to determine which card types are orderable
     const manifestCardIds = manifestCards
-      .filter((c) => c.type === 'markdown' || c.type === 'html' || c.type === 'image' || c.type === 'video' || c.type === 'link' || c.type === 'divider' || c.type === 'placeholder')
+      .filter((c) => isCardTypeRegistered(c.type) || c.type === 'placeholder')
       .map((c) => c.id);
     const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
 
@@ -391,24 +392,9 @@ function App() {
     });
   };
 
-  // Get default settings for a card type
+  // Get default settings for a card type (uses registry)
   const getDefaultSettingsForCardType = (cardType: CardType): CardDefinition['settings'] => {
-    switch (cardType) {
-      case 'markdown':
-        return { content: '## New Card\n\nEdit this content...' } as MarkdownCardSettings;
-      case 'html':
-        return { content: '<!-- Enter HTML content here -->\n<div>\n  <p>Hello World</p>\n</div>' } as HtmlCardSettings;
-      case 'image':
-        return { src: '', alt: '' } as ImageCardSettings;
-      case 'video':
-        return { src: '', title: '' } as VideoCardSettings;
-      case 'link':
-        return { links: [{ label: 'Example Link', url: 'https://example.com' }], variant: 'buttons' } as LinkCardSettings;
-      case 'divider':
-        return { label: '', style: 'solid' } as DividerCardSettings;
-      default:
-        return {};
-    }
+    return getDefaultSettingsForType(cardType);
   };
 
   // Convert a placeholder card to a specific type
@@ -448,12 +434,14 @@ function App() {
     </Paper>
   );
 
-  // Render a manifest card (markdown, image, etc.)
+  // Render a manifest card (any registered card type except gitrepo)
   const renderManifestCard = (card: CardDefinition, index: number) => {
-    if (card.type === 'gitrepo' || card.type.startsWith('auth-')) {
+    // gitrepo is handled separately with its own rendering logic
+    if (card.type === 'gitrepo') {
       return null;
     }
 
+    // Use registry to get card component
     const CardComponent = getCardComponent(card.type);
     if (!CardComponent) {
       console.warn(`[Cards] Unknown card type: ${card.type}`);
@@ -507,13 +495,10 @@ function App() {
 
   // Render a placeholder card with type selector
   const renderPlaceholderCard = (card: CardDefinition) => {
+    // Get card types from registry + gitrepo (special card not in registry)
+    const registeredTypes = getAddCardMenuItems();
     const cardTypes: { type: CardType; label: string }[] = [
-      { type: 'markdown', label: 'Markdown' },
-      { type: 'html', label: 'HTML' },
-      { type: 'image', label: 'Image' },
-      { type: 'video', label: 'Video' },
-      { type: 'link', label: 'Links' },
-      { type: 'divider', label: 'Divider' },
+      ...registeredTypes,
       { type: 'gitrepo', label: 'Git Repository' },
     ];
 
@@ -662,9 +647,9 @@ function App() {
       );
     }
 
-    // Manifest cards (markdown, html, image, video, link, divider)
+    // Manifest cards (any registered card type)
     const card = manifestCards.find((c) => c.id === cardId);
-    if (card && (card.type === 'markdown' || card.type === 'html' || card.type === 'image' || card.type === 'video' || card.type === 'link' || card.type === 'divider')) {
+    if (card && isCardTypeRegistered(card.type)) {
       if (card.visible === false && !editMode) return null;
       const index = manifestCards.indexOf(card);
       const rendered = renderManifestCard(card, index);

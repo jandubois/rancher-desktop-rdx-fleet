@@ -1,0 +1,30 @@
+#!/bin/sh
+# Check if a Docker credential helper is available
+# Outputs JSON with helper information
+
+DOCKER_CONFIG="${DOCKER_CONFIG:-$HOME/.docker}"
+CONFIG_FILE="$DOCKER_CONFIG/config.json"
+
+# Check if config.json exists and has credsStore set
+if [ -f "$CONFIG_FILE" ]; then
+  # Try to extract credsStore value (simple grep, no jq dependency)
+  creds_store=$(grep -o '"credsStore"[[:space:]]*:[[:space:]]*"[^"]*"' "$CONFIG_FILE" 2>/dev/null | sed 's/.*: *"\([^"]*\)".*/\1/')
+  if [ -n "$creds_store" ]; then
+    helper="docker-credential-$creds_store"
+    if command -v "$helper" >/dev/null 2>&1; then
+      echo "{\"available\":true,\"helper\":\"$creds_store\",\"configured\":true}"
+      exit 0
+    fi
+  fi
+fi
+
+# Check for common credential helpers
+for helper in secretservice pass osxkeychain wincred; do
+  if command -v "docker-credential-$helper" >/dev/null 2>&1; then
+    echo "{\"available\":true,\"helper\":\"$helper\",\"configured\":false}"
+    exit 0
+  fi
+done
+
+# No credential helper found
+echo '{"available":false,"helper":"","configured":false}'
