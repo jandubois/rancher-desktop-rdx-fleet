@@ -655,20 +655,24 @@ function App() {
           {editModeAllowed && (
             editMode ? (
               <Box sx={{ display: 'flex', gap: 1 }}>
-                <IconButton
+                <Button
+                  variant="contained"
+                  size="small"
                   onClick={handleCancelEditMode}
-                  title="Cancel changes"
-                  sx={{ color: 'error.light' }}
+                  startIcon={<CloseIcon />}
+                  color="error"
                 >
-                  <CloseIcon />
-                </IconButton>
-                <IconButton
+                  Cancel
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
                   onClick={handleApplyEditMode}
-                  title="Apply changes"
-                  sx={{ color: 'success.light' }}
+                  startIcon={<CheckIcon />}
+                  color="success"
                 >
-                  <CheckIcon />
-                </IconButton>
+                  Apply
+                </Button>
               </Box>
             ) : (
               <IconButton
