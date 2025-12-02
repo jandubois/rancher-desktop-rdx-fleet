@@ -1129,6 +1129,37 @@ function SdkMethodsPanel() {
       };
     }
 
+    // Check DESKTOP_PLUGIN_IMAGE environment variable in backend container
+    // This should be set by Rancher Desktop but is known to be missing (not expanded)
+    try {
+      const resp = await fetch('http://localhost:8080/env?filter=DESKTOP_PLUGIN_IMAGE');
+      if (resp.ok) {
+        const data = await resp.json() as { count: number; variables: Array<{ name: string; value: string }> };
+        const desktopPluginImage = data.variables?.find((v: { name: string }) => v.name === 'DESKTOP_PLUGIN_IMAGE');
+        if (desktopPluginImage) {
+          newResults['DESKTOP_PLUGIN_IMAGE (env)'] = {
+            status: 'OK',
+            output: desktopPluginImage.value,
+          };
+        } else {
+          newResults['DESKTOP_PLUGIN_IMAGE (env)'] = {
+            status: 'MISSING',
+            output: 'Not set in container (compose.yaml cannot use ${DESKTOP_PLUGIN_IMAGE})',
+          };
+        }
+      } else {
+        newResults['DESKTOP_PLUGIN_IMAGE (env)'] = {
+          status: 'N/A',
+          output: `Backend unavailable (HTTP ${resp.status})`,
+        };
+      }
+    } catch (e) {
+      newResults['DESKTOP_PLUGIN_IMAGE (env)'] = {
+        status: 'N/A',
+        output: `Backend unreachable: ${e instanceof Error ? e.message : String(e)}`,
+      };
+    }
+
     setResults(newResults);
     setLoading(false);
   }, []);
@@ -1432,6 +1463,24 @@ export default function App() {
     const imageValue = ext?.image !== undefined ? String(ext.image) : 'undefined';
     const imageStatus = ext?.image ? (String(ext.image).includes(':') ? 'OK' : 'BROKEN - missing tag') : 'MISSING';
     lines.push(`extension.image: ${imageValue} (${imageStatus})`);
+
+    // Check DESKTOP_PLUGIN_IMAGE environment variable
+    try {
+      const envResp = await fetch('http://localhost:8080/env?filter=DESKTOP_PLUGIN_IMAGE');
+      if (envResp.ok) {
+        const envData = await envResp.json() as { variables: Array<{ name: string; value: string }> };
+        const desktopPluginImage = envData.variables?.find((v: { name: string }) => v.name === 'DESKTOP_PLUGIN_IMAGE');
+        if (desktopPluginImage) {
+          lines.push(`DESKTOP_PLUGIN_IMAGE: ${desktopPluginImage.value} (OK)`);
+        } else {
+          lines.push(`DESKTOP_PLUGIN_IMAGE: not set (MISSING - compose.yaml cannot use \${DESKTOP_PLUGIN_IMAGE})`);
+        }
+      } else {
+        lines.push(`DESKTOP_PLUGIN_IMAGE: backend unavailable (HTTP ${envResp.status})`);
+      }
+    } catch (e) {
+      lines.push(`DESKTOP_PLUGIN_IMAGE: backend unreachable - ${e instanceof Error ? e.message : e}`);
+    }
     lines.push('');
 
     // Footer
@@ -1555,6 +1604,7 @@ export default function App() {
       <Paper sx={{ p: 2, mt: 4, bgcolor: 'background.paper' }}>
         <Typography variant="subtitle2" gutterBottom>Known Issues (Confirmed):</Typography>
         <Box component="ul" sx={{ m: 0, pl: 2 }}>
+          <li><strong>DESKTOP_PLUGIN_IMAGE not set</strong> - env var not available, compose.yaml cannot use {'${DESKTOP_PLUGIN_IMAGE}'}</li>
           <li><strong>extension.image missing tag</strong> - returns name without :version</li>
           <li><strong>extension.id missing</strong> - returns undefined</li>
           <li><strong>extension.version missing</strong> - returns undefined</li>
