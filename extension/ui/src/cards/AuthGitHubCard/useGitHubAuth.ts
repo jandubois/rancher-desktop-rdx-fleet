@@ -76,6 +76,8 @@ export function useGitHubAuth(): UseGitHubAuthResult {
               gitHubService.setAuthToken(token);
               const limit = await gitHubService.getRateLimit(token);
               setRateLimit(limit);
+              // Signal that auth initialization is complete (authenticated via gh CLI)
+              gitHubService.setAuthReady();
               return;
             }
           }
@@ -97,6 +99,8 @@ export function useGitHubAuth(): UseGitHubAuthResult {
             gitHubService.setAuthToken(storedToken);
             const limit = await gitHubService.getRateLimit(storedToken);
             setRateLimit(limit);
+            // Signal that auth initialization is complete (authenticated via PAT)
+            gitHubService.setAuthReady();
             return;
           } else {
             // Token is invalid, clear it
@@ -110,10 +114,14 @@ export function useGitHubAuth(): UseGitHubAuthResult {
       setRateLimit(limit);
 
       setAuthState('unauthenticated');
+      // Signal that auth initialization is complete (unauthenticated)
+      gitHubService.setAuthReady();
     } catch (err) {
       console.error('[useGitHubAuth] Error loading initial state:', err);
       setError('Failed to load authentication status');
       setAuthState('error');
+      // Signal auth ready even on error so path discovery doesn't wait forever
+      gitHubService.setAuthReady();
     }
   }, [credentialService, gitHubService]);
 

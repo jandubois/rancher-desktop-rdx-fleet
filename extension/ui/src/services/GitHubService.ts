@@ -87,8 +87,70 @@ export class GitHubService {
   private authToken: string | null = null;
   private rateLimitCallback: RateLimitCallback | null = null;
 
+  // Auth readiness tracking - allows path discovery to wait for auth to complete
+  private authReadyPromise: Promise<void>;
+  private resolveAuthReady: (() => void) | null = null;
+  private authIsReady = false;
+
   constructor(httpClient?: HttpClient) {
     this.httpClient = httpClient ?? new FetchHttpClient();
+
+    // Create the auth ready promise
+    this.authReadyPromise = new Promise((resolve) => {
+      this.resolveAuthReady = resolve;
+    });
+  }
+
+  /**
+   * Signal that auth initialization is complete.
+   * Called by useGitHubAuth when auth state is determined (authenticated or unauthenticated).
+   */
+  setAuthReady(): void {
+    if (!this.authIsReady) {
+      this.authIsReady = true;
+      console.log('[GitHubService] Auth ready signaled');
+      if (this.resolveAuthReady) {
+        this.resolveAuthReady();
+        this.resolveAuthReady = null;
+      }
+    }
+  }
+
+  /**
+   * Wait for auth initialization to complete.
+   * Returns immediately if auth is already ready.
+   * Has a timeout fallback (default 5 seconds) in case auth card is not present.
+   */
+  async waitForAuthReady(timeoutMs = 5000): Promise<void> {
+    if (this.authIsReady) {
+      return;
+    }
+    console.log('[GitHubService] Waiting for auth ready...');
+
+    // Race between auth ready and timeout
+    // Timeout handles the case where AuthGitHubCard is not in the manifest
+    await Promise.race([
+      this.authReadyPromise,
+      new Promise<void>((resolve) => {
+        setTimeout(() => {
+          if (!this.authIsReady) {
+            console.log('[GitHubService] Auth wait timed out, proceeding without auth');
+          }
+          resolve();
+        }, timeoutMs);
+      }),
+    ]);
+
+    if (this.authIsReady) {
+      console.log('[GitHubService] Auth ready, proceeding');
+    }
+  }
+
+  /**
+   * Check if auth is ready (synchronous check)
+   */
+  isAuthReady(): boolean {
+    return this.authIsReady;
   }
 
   /**
