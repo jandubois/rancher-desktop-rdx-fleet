@@ -1503,17 +1503,21 @@ export default function App() {
       <Paper sx={{ p: 2, mt: 4, bgcolor: 'background.paper' }}>
         <Typography variant="subtitle2" gutterBottom>Known Issues (Confirmed):</Typography>
         <Box component="ul" sx={{ m: 0, pl: 2 }}>
-          <li><strong>extension.image missing tag</strong> - returns name without :version</li>
           <li><strong>extension.id missing</strong> - returns undefined</li>
           <li><strong>extension.version missing</strong> - returns undefined</li>
           <li>Extension sidebar icon caching - requires full RD restart</li>
           <li>GUI uninstall fails silently - CLI works fine</li>
         </Box>
+        <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>Previously Fixed:</Typography>
+        <Box component="ul" sx={{ m: 0, pl: 2 }}>
+          <li><s>extension.image missing tag</s> - now correctly includes :version</li>
+          <li><s>$&#123;DESKTOP_PLUGIN_IMAGE&#125; not expanded</s> - now works in compose.yaml</li>
+          <li><s>Host binaries limited to ~2-3</s> - all 5 passed in stress test</li>
+          <li><s>vm.service not implemented</s> - works with exposes.socket in metadata.json</li>
+        </Box>
         <Typography variant="subtitle2" gutterBottom sx={{ mt: 2 }}>Needs Verification:</Typography>
         <Box component="ul" sx={{ m: 0, pl: 2 }}>
           <li><em>vm.image not supported?</em> - RD may require vm.composefile</li>
-          <li><s>Host binaries limited to ~2-3</s> - all 5 passed in stress test</li>
-          <li><s>vm.service not implemented</s> - works with exposes.socket in metadata.json</li>
         </Box>
       </Paper>
     </Container>
