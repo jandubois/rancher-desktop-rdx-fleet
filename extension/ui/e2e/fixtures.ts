@@ -178,7 +178,8 @@ export const test = base.extend<{
       await clearLocalStorage(page);
       await mockGitHubApi(page);
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      // Wait for the app to render (don't use networkidle - polling prevents it from ever being idle)
+      await page.waitForLoadState('load');
     };
     await use(setup);
   },
@@ -195,7 +196,8 @@ export const test = base.extend<{
       });
       await mockGitHubApi(page);
       await page.goto('/');
-      await page.waitForLoadState('networkidle');
+      // Wait for the app to render (don't use networkidle - polling prevents it from ever being idle)
+      await page.waitForLoadState('load');
     };
     await use(setup);
   },

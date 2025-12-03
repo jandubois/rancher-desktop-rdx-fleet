@@ -17,7 +17,7 @@ test.describe('Edit Mode', () => {
 
   test('should enter and exit edit mode with Cancel', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Verify we start in view mode (edit button visible)
     const editButton = page.getByRole('button', { name: /enter edit mode/i });
@@ -40,7 +40,7 @@ test.describe('Edit Mode', () => {
 
   test('should enter and exit edit mode with Apply', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Enter edit mode
     await page.getByRole('button', { name: /enter edit mode/i }).click();
@@ -73,7 +73,7 @@ test.describe('Edit Mode', () => {
     });
 
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Verify original title is shown
     await expect(page.getByText('Original Title')).toBeVisible();
@@ -114,7 +114,7 @@ test.describe('Edit Mode', () => {
     });
 
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Enter edit mode
     await page.getByRole('button', { name: /enter edit mode/i }).click();
@@ -132,7 +132,7 @@ test.describe('Edit Mode', () => {
 
     // Reload the page
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Verify title persisted
     await expect(page.getByText('New Title')).toBeVisible();
@@ -140,7 +140,7 @@ test.describe('Edit Mode', () => {
 
   test('should show Edit panel with tabs in edit mode', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Enter edit mode
     await page.getByRole('button', { name: /enter edit mode/i }).click();
@@ -156,7 +156,7 @@ test.describe('Edit Mode', () => {
 
   test('should switch between edit panel tabs', async ({ page }) => {
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Enter edit mode
     await page.getByRole('button', { name: /enter edit mode/i }).click();
@@ -177,7 +177,7 @@ test.describe('Edit Mode', () => {
   test('should persist changes to localStorage', async ({ page }) => {
     await clearLocalStorage(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Enter edit mode and make a change
     await page.getByRole('button', { name: /enter edit mode/i }).click();

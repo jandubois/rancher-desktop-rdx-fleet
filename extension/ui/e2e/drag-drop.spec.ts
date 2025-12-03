@@ -37,7 +37,7 @@ test.describe('Drag and Drop Card Reordering', () => {
     });
 
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
   });
 
   test('should show drag handles only in edit mode', async ({ page }) => {
@@ -149,7 +149,7 @@ test.describe('Drag and Drop Card Reordering', () => {
 
     // Reload the page
     await page.reload();
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Get the order after reload
     const stateAfterReload = await getLocalStorageState(page);
@@ -241,7 +241,7 @@ test.describe('Add Card Button in Edit Mode', () => {
   test.beforeEach(async ({ page }) => {
     await clearLocalStorage(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
   });
 
   test('should show Add card buttons in edit mode', async ({ page }) => {
