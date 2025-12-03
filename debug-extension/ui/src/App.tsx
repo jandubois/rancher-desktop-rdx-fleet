@@ -1129,47 +1129,35 @@ function SdkMethodsPanel() {
       };
     }
 
-    // Check DESKTOP_PLUGIN_IMAGE environment variable in host environment
-    // This should be set by Rancher Desktop before running docker compose for extensions
-    // The variable is used to expand ${DESKTOP_PLUGIN_IMAGE} in compose.yaml
-    const host = ddClient.extension?.host;
-    if (host?.cli?.exec) {
-      try {
-        const debugEnvResult = await host.cli.exec('debug-env', []);
-        const envOutput = debugEnvResult.stdout || '';
-        // Parse the environment variables section from debug-env output
-        const envMatch = envOutput.match(/--- All Environment Variables ---\n([\s\S]*?)(?=\n---|\n===)/);
-        if (envMatch) {
-          const envLines = envMatch[1].trim().split('\n');
-          const desktopPluginLine = envLines.find((line: string) => line.startsWith('DESKTOP_PLUGIN_IMAGE='));
-          if (desktopPluginLine) {
-            const value = desktopPluginLine.split('=').slice(1).join('=');
-            newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-              status: 'OK',
-              output: value,
-            };
-          } else {
-            newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-              status: 'MISSING',
-              output: 'Not set by RD (compose.yaml cannot use ${DESKTOP_PLUGIN_IMAGE})',
-            };
-          }
+    // Check DESKTOP_PLUGIN_IMAGE environment variable in backend container
+    // This should be set by Rancher Desktop and passed to the extension container
+    // If set, compose.yaml could potentially use ${DESKTOP_PLUGIN_IMAGE} for the image name
+    try {
+      const resp = await fetch('http://localhost:8080/env?filter=DESKTOP_PLUGIN_IMAGE');
+      if (resp.ok) {
+        const data = await resp.json() as { count: number; variables: Array<{ name: string; value: string }> };
+        const desktopPluginImage = data.variables?.find((v: { name: string }) => v.name === 'DESKTOP_PLUGIN_IMAGE');
+        if (desktopPluginImage) {
+          newResults['DESKTOP_PLUGIN_IMAGE (container)'] = {
+            status: 'OK',
+            output: desktopPluginImage.value,
+          };
         } else {
-          newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-            status: 'N/A',
-            output: 'Could not parse debug-env output',
+          newResults['DESKTOP_PLUGIN_IMAGE (container)'] = {
+            status: 'MISSING',
+            output: 'Not set in container by RD',
           };
         }
-      } catch (e) {
-        newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
+      } else {
+        newResults['DESKTOP_PLUGIN_IMAGE (container)'] = {
           status: 'N/A',
-          output: `debug-env failed: ${e instanceof Error ? e.message : String(e)}`,
+          output: `Backend unavailable (HTTP ${resp.status})`,
         };
       }
-    } else {
-      newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
+    } catch (e) {
+      newResults['DESKTOP_PLUGIN_IMAGE (container)'] = {
         status: 'N/A',
-        output: 'Host binary API not available',
+        output: `Backend unreachable: ${e instanceof Error ? e.message : String(e)}`,
       };
     }
 
@@ -1477,31 +1465,23 @@ export default function App() {
     const imageStatus = ext?.image ? (String(ext.image).includes(':') ? 'OK' : 'BROKEN - missing tag') : 'MISSING';
     lines.push(`extension.image: ${imageValue} (${imageStatus})`);
 
-    // Check DESKTOP_PLUGIN_IMAGE environment variable (from host environment)
-    // This is set by Rancher Desktop before running docker compose for extensions
-    const exportHost = ddClient.extension?.host;
-    if (exportHost?.cli?.exec) {
-      try {
-        const debugEnvResult = await exportHost.cli.exec('debug-env', []);
-        const envOutput = debugEnvResult.stdout || '';
-        const envMatch = envOutput.match(/--- All Environment Variables ---\n([\s\S]*?)(?=\n---|\n===)/);
-        if (envMatch) {
-          const envLines = envMatch[1].trim().split('\n');
-          const desktopPluginLine = envLines.find((line: string) => line.startsWith('DESKTOP_PLUGIN_IMAGE='));
-          if (desktopPluginLine) {
-            const value = desktopPluginLine.split('=').slice(1).join('=');
-            lines.push(`DESKTOP_PLUGIN_IMAGE: ${value} (OK)`);
-          } else {
-            lines.push(`DESKTOP_PLUGIN_IMAGE: not set (MISSING - compose.yaml cannot use \${DESKTOP_PLUGIN_IMAGE})`);
-          }
+    // Check DESKTOP_PLUGIN_IMAGE environment variable (from container environment)
+    // This is set by Rancher Desktop and passed to the extension container
+    try {
+      const envResp = await fetch('http://localhost:8080/env?filter=DESKTOP_PLUGIN_IMAGE');
+      if (envResp.ok) {
+        const envData = await envResp.json() as { variables: Array<{ name: string; value: string }> };
+        const desktopPluginImage = envData.variables?.find((v: { name: string }) => v.name === 'DESKTOP_PLUGIN_IMAGE');
+        if (desktopPluginImage) {
+          lines.push(`DESKTOP_PLUGIN_IMAGE: ${desktopPluginImage.value} (OK)`);
         } else {
-          lines.push(`DESKTOP_PLUGIN_IMAGE: could not parse debug-env output`);
+          lines.push(`DESKTOP_PLUGIN_IMAGE: not set in container (MISSING)`);
         }
-      } catch (e) {
-        lines.push(`DESKTOP_PLUGIN_IMAGE: debug-env failed - ${e instanceof Error ? e.message : e}`);
+      } else {
+        lines.push(`DESKTOP_PLUGIN_IMAGE: backend unavailable (HTTP ${envResp.status})`);
       }
-    } else {
-      lines.push(`DESKTOP_PLUGIN_IMAGE: host binary API not available`);
+    } catch (e) {
+      lines.push(`DESKTOP_PLUGIN_IMAGE: backend unreachable - ${e instanceof Error ? e.message : e}`);
     }
     lines.push('');
 
