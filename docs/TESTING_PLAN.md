@@ -6,10 +6,13 @@ This document tracks the testing implementation plan and progress.
 
 | Tool | Purpose |
 |------|---------|
-| **Vitest** | Test runner (integrates with Vite) |
+| **Vitest** | Test runner for unit/component tests (integrates with Vite) |
 | **@testing-library/react** | Component testing |
 | **@testing-library/user-event** | User interaction simulation |
 | **msw** (Mock Service Worker) | API mocking for GitHub calls |
+| **Playwright** | E2E browser testing (drag-drop, multi-component flows) |
+
+> **E2E Testing**: For end-to-end tests using Playwright, see the [E2E Testing Plan](../extension/ui/e2e/E2E_TESTING_PLAN.md).
 
 ---
 
