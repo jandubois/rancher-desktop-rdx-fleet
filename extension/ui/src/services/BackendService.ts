@@ -122,14 +122,20 @@ export interface BackendStatus {
   lastChecked: string;
 }
 
+/** VM Service interface for backend communication */
+interface VmService {
+  get(url: string): Promise<unknown>;
+  post(url: string, data: unknown): Promise<unknown>;
+}
+
 /**
  * Service for communicating with the extension backend via vm.service.
  */
 export class BackendService {
-  private vmService: typeof ddClient.extension.vm.service | undefined;
+  private vmService: VmService | undefined;
 
   constructor() {
-    this.vmService = ddClient.extension.vm?.service;
+    this.vmService = ddClient.extension.vm?.service as VmService | undefined;
   }
 
   /**
