@@ -11,24 +11,27 @@ echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command start
 
 Before starting, create a todo list with ALL of the following items:
 1. Fetch, check status, and rebase early
-2. Run parallel: npm install + code review agents
-3. Run parallel lint/test/build, then E2E tests
-4. Address any issues found in code review or tests
-5. Push changes
-6. Generate `gh pr create` command for user
-7. Display elapsed time
+2. Start npm install in background
+3. Check test coverage for code changes
+4. Verify test comment headers are up-to-date
+5. Check for library reimplementations
+6. Check for historical/refactoring comments in code
+7. Check for new dependencies and license compatibility
+8. Check if documentation needs updates
+9. Run parallel lint/test/build, then E2E tests
+10. Push changes
+11. Generate `gh pr create` command for user
+12. Display elapsed time
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
 ## Parallelization Strategy
 
-This PR command uses parallelization to reduce total time from ~7-8 minutes to ~3-4 minutes:
+This PR command uses parallelization to reduce total time:
 
-1. **Steps 2-6 (Code Review)**: Run as 5 parallel Task agents simultaneously
-2. **Step 7 (Lint/Test/Build)**: Run lint, test, and build in parallel Bash calls, then E2E
-3. **Overlap**: Start the parallel lint/test/build while reviewing Task agent results
-
-The parallel Task agents will each analyze the code independently and report back findings.
+1. **npm install**: Runs in background while code review happens (Step 2)
+2. **lint/test/build**: Run in parallel Bash calls (Step 9)
+3. **E2E**: Starts immediately after build completes, doesn't wait for lint/test
 
 ## IMPORTANT: Explain All Decisions
 
@@ -74,13 +77,9 @@ git log --oneline origin/main..HEAD
 
 ---
 
-## PARALLEL EXECUTION: Code Review + Dependency Install
+## 2. Start npm install in Background
 
-**Run these TWO things in parallel:**
-
-### A. Ensure Dependencies Are Installed (Bash call)
-
-Start this IMMEDIATELY - it runs in the background while code review happens:
+**Start this IMMEDIATELY after rebase** - it runs while you do code review:
 
 ```bash
 npm --prefix extension/ui install --prefer-offline --no-audit 2>/dev/null || npm --prefix extension/ui install
@@ -88,124 +87,15 @@ npm --prefix extension/ui install --prefer-offline --no-audit 2>/dev/null || npm
 
 This uses cached packages when possible (`--prefer-offline`) and skips audit for speed. Falls back to full install if cache fails.
 
-### B. Code Review Task Agents (5 parallel agents)
-
-Launch all 5 Task agents simultaneously (see below).
+**Continue with code review steps (3-8) while npm install runs in the background.**
 
 ---
 
-## Code Review: Steps 2-6 as Task Agents
+## 3. Check Test Coverage and Test Comments
 
-**IMPORTANT: Run ALL FIVE code review checks as parallel Task agents in a SINGLE message.**
+**IMPORTANT: Do this BEFORE running tests.**
 
-Use the Task tool to spawn 5 parallel agents. Each agent should:
-1. Perform its specific code review check
-2. Report findings (issues found or "no issues")
-3. Suggest specific fixes if issues are found
-
-Launch all 5 Task agents simultaneously with these prompts:
-
-### Task Agent 1: Test Coverage Check
-```
-Analyze test coverage for this PR. Run:
-git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | grep -v '\.test\.'
-
-For each changed code file, check if corresponding tests exist. Report:
-- Files that need new tests (and why)
-- Files with existing test coverage (name the test files)
-- Files that don't need tests (explain why: config-only, types-only, etc.)
-```
-
-### Task Agent 2: Test Comment Headers Check
-```
-Verify test descriptions are accurate. Run:
-git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.test\.(ts|tsx)$'
-
-For each changed test file, check if describe() and it() blocks accurately describe what's tested.
-Report any outdated descriptions that need updating.
-```
-
-### Task Agent 3: Library Reimplementation Check
-```
-Check for custom implementations that should use npm packages. Run:
-git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | grep -v '\.test\.'
-
-Look for: custom parsing (use js-yaml, papaparse), custom validation (use zod),
-custom deep clone (use lodash/structuredClone), custom HTTP wrappers (use fetch/axios).
-Report any reimplementations found.
-```
-
-### Task Agent 4: Historical Comments Check
-```
-Find comments referencing past implementations. Run:
-git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | xargs grep -l -i -E '(refactor|previous|formerly|used to|was changed|backwards.?compat|migrat|deprecat)' 2>/dev/null
-
-Report any comments that describe historical state rather than current behavior.
-```
-
-### Task Agent 5: Dependencies and Documentation Check
-```
-Check for new dependencies and documentation needs.
-
-For dependencies, run:
-git diff origin/main...HEAD --name-only | grep -E '(package\.json|go\.mod|go\.sum)$'
-If found, check new deps with: git diff origin/main...HEAD -- '**/package.json' | grep -E '^\+.*"[^"]+":.*"[\^~]?[0-9]'
-Verify licenses are Apache 2.0 compatible (MIT, BSD, ISC, Apache-2.0 OK; GPL, AGPL, SSPL not OK).
-
-For documentation, review if changes affect:
-- docs/PRD.md, docs/NEXT_STEPS.md, docs/TESTING_PLAN.md (developer docs)
-- docs/user-guide/README.md, docs/user-guide/card-types.md (user docs)
-- .claude/instructions.md (AI context)
-
-Report any license issues or documentation updates needed.
-```
-
-**After all 5 agents complete**: Review their findings. If any agent found issues requiring code changes:
-1. Make the necessary fixes
-2. Commit the changes
-3. Note what was fixed for the PR description
-
-## OVERLAP: Start Tests While Reviewing
-
-**To maximize parallelization**, start the lint/test/build in background BEFORE fully reviewing agent results:
-
-1. **Immediately after agents return**, start lint/test/build in parallel (3 Bash calls):
-```bash
-npm --prefix extension/ui run lint
-```
-```bash
-npm --prefix extension/ui test
-```
-```bash
-npm --prefix extension/ui run build
-```
-
-2. **As soon as build completes**, start E2E (don't wait for lint/test):
-```bash
-npm --prefix extension/ui run test:e2e
-```
-
-3. **While E2E runs**, review agent findings and make any needed fixes
-
-4. **If fixes were made**, check if tests passed:
-   - If lint/test/E2E all passed: proceed to rebase
-   - If any failed due to your fixes: re-run only the failing command(s)
-
-This overlap can save 2-3 minutes by running E2E concurrently with code review.
-
----
-
-## Reference: Detailed Check Instructions
-
-The sections below (2-6) provide detailed context for each code review check. The parallel Task agents above will perform these checks. Use these sections as reference when reviewing agent results or if you need to perform checks manually.
-
----
-
-## 2. Check Test Coverage and Test Comments
-
-**Note: This is performed by Task Agents 1 and 2 in parallel.**
-
-### 2.1 Verify Test Coverage for Code Changes
+### 3.1 Verify Test Coverage for Code Changes
 
 For any code changes (non-test files), verify that corresponding tests exist:
 
@@ -231,7 +121,7 @@ Common patterns for this project:
 - Bug fixes → Should add regression tests
 - Refactoring → Existing tests should still pass and may need updates
 
-### 2.2 Verify Test Comment Headers
+### 3.2 Verify Test Comment Headers
 
 For any changed test files, verify the test descriptions are accurate:
 
@@ -249,9 +139,9 @@ For each changed test file:
 - If no test files changed: State that no test files were modified in this PR.
 - If descriptions are accurate: Confirm you reviewed the test file(s) and the descriptions match the test behavior.
 
-## 3. Check for Library Reimplementations
+## 4. Check for Library Reimplementations
 
-**Note: This is performed by Task Agent 3 in parallel.**
+**IMPORTANT: Verify that no functionality has been reimplemented that is already available in popular npm packages.**
 
 Review the changed files for any custom implementations that should use existing libraries instead:
 
@@ -278,9 +168,9 @@ If you find reimplementations:
 
 **Rationale**: See `.claude/instructions.md` Development Guidelines for more details.
 
-## 4. Check for Historical/Refactoring Comments in Code
+## 5. Check for Historical/Refactoring Comments in Code
 
-**Note: This is performed by Task Agent 4 in parallel.**
+**IMPORTANT: Code comments should only describe the current state of the code, not its history.**
 
 Search for comments that reference refactoring, previous implementations, API changes, or backwards compatibility:
 
@@ -309,9 +199,9 @@ If you find such comments, remove or rewrite them to describe only the current b
 - If historical comments found: List which files and what changes you made to fix them.
 - If no issues found: Confirm you searched for historical comments and none were found.
 
-## 5. Check for New Dependencies and License Compatibility
+## 6. Check for New Dependencies and License Compatibility
 
-**Note: This is performed by Task Agent 5 in parallel (along with documentation check).**
+**IMPORTANT: Verify that any newly added dependencies are compatible with our Apache 2.0 license.**
 
 Check if any dependency files were modified:
 
@@ -345,9 +235,7 @@ For each new dependency:
 - If dependencies were removed: Note this and update `docs/reference/license-compatibility.md` to remove them.
 - If no dependency changes: State that no dependency files were modified.
 
-## 6. Check Documentation
-
-**Note: This is performed by Task Agent 5 in parallel (along with dependency check).**
+## 7. Check Documentation
 
 Review if any documentation needs updates based on the changes:
 
@@ -373,7 +261,7 @@ Review if any documentation needs updates based on the changes:
 
 If docs need updates, make the changes and commit before proceeding.
 
-## 7. Run Tests, Linting, Build, and E2E Tests
+## 8. Run Tests, Linting, Build, and E2E Tests
 
 **IMPORTANT: Run lint, test, and build in PARALLEL using three separate Bash tool calls in a single message.**
 
@@ -416,7 +304,7 @@ If any step fails, fix the issues and commit before proceeding.
 npx --prefix extension/ui playwright install chromium
 ```
 
-## 8. Push Changes
+## 9. Push Changes
 
 We already rebased in Step 1, so just push:
 
@@ -429,7 +317,7 @@ git push -f
 git fetch origin main && git rebase origin/main && git push -f
 ```
 
-## 9. Create PR Command
+## 10. Create PR Command
 Provide a copyable `gh pr create` command using HEREDOC format:
 
 ```bash
@@ -489,7 +377,7 @@ EOF
 - Keep summary concise (3-5 bullet points)
 - **NEVER use triple backticks (```) inside the PR body** - use 4-space indentation or inline backticks instead
 
-## 10. Display Elapsed Time
+## 11. Display Elapsed Time
 After generating the PR command, display how long the PR process took:
 
 ```bash
