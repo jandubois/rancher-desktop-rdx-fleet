@@ -126,7 +126,7 @@ export interface BackendStatus {
  * Service for communicating with the extension backend via vm.service.
  */
 export class BackendService {
-  private vmService: typeof ddClient.extension.vm.service;
+  private vmService: typeof ddClient.extension.vm.service | undefined;
 
   constructor() {
     this.vmService = ddClient.extension.vm?.service;
