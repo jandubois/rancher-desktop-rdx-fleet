@@ -69,23 +69,18 @@ function setupDefaultResponses() {
 // Initialize default responses
 setupDefaultResponses();
 
-// Expose mock control to window for debugging
-if (typeof window !== 'undefined') {
-  (window as Window & { __mockDdClient?: typeof mockControl }).
-    __mockDdClient = {
-      setResponse,
-      setDefaultResponse,
-      getExecCalls,
-      reset,
-    };
-}
-
+// Mock control interface for debugging
 const mockControl = {
   setResponse,
   setDefaultResponse,
   getExecCalls,
   reset,
 };
+
+// Expose mock control to window for debugging
+if (typeof window !== 'undefined') {
+  (window as Window & { __mockDdClient?: typeof mockControl }).__mockDdClient = mockControl;
+}
 
 /**
  * Mock Docker Desktop client that provides the same interface as the real client.
