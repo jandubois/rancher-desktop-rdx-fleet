@@ -88,41 +88,79 @@ export async function setupLocalStorage(
     dynamicCardTitles?: Record<string, string>;
   }
 ) {
-  await page.addInitScript((state) => {
-    const extensionState = {
-      manifest: state.manifest ?? {
-        app: { name: 'Fleet GitOps' },
-        branding: {
-          palette: {
-            header: { background: '#1976d2', text: '#ffffff' },
-            body: { background: '#f5f5f5' },
-            card: { border: '#e0e0e0', title: '#333333' },
+  // Use addInitScript with a guard to only set up state once.
+  // We use a separate localStorage key as a flag to track if setup has been done.
+  // This survives page reloads and prevents overwriting app state.
+  await page.addInitScript(
+    (state) => {
+      const STORAGE_KEY = 'fleet-extension-state:default';
+      const SETUP_FLAG_KEY = '__e2e_initial_setup_done__';
+
+      // If setup was already done, don't overwrite app state
+      if (localStorage.getItem(SETUP_FLAG_KEY)) {
+        return;
+      }
+
+      // Mark setup as done
+      localStorage.setItem(SETUP_FLAG_KEY, 'true');
+
+      const extensionState = {
+        manifest: state.manifest ?? {
+          app: { name: 'Fleet GitOps' },
+          branding: {
+            palette: {
+              header: { background: '#1976d2', text: '#ffffff' },
+              body: { background: '#f5f5f5' },
+              card: { border: '#e0e0e0', title: '#333333' },
+            },
           },
+          cards: [],
+          layout: { edit_mode: true },
         },
-        cards: [],
-        layout: { edit_mode: true },
-      },
-      manifestCards: state.manifestCards ?? [],
-      cardOrder: state.cardOrder ?? ['fleet-status'],
-      dynamicCardTitles: state.dynamicCardTitles ?? {},
-      iconState: null,
-      timestamp: Date.now(),
-    };
-    localStorage.setItem('fleet-extension-state', JSON.stringify(extensionState));
-  }, state);
+        manifestCards: state.manifestCards ?? [],
+        cardOrder: state.cardOrder ?? ['fleet-status'],
+        dynamicCardTitles: state.dynamicCardTitles ?? {},
+        iconState: null,
+        timestamp: Date.now(),
+      };
+      // Key must match the app's storage key format: 'fleet-extension-state:{extensionImage}'
+      // When running outside Docker Desktop, detectCurrentExtensionImage() returns null,
+      // which results in the key 'fleet-extension-state:default'
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(extensionState));
+    },
+    state
+  );
 }
 
 /** Helper to clear localStorage */
 export async function clearLocalStorage(page: Page) {
+  // Use addInitScript with a guard to only clear once.
+  // This prevents clearing app state on page reload.
   await page.addInitScript(() => {
-    localStorage.clear();
+    const CLEAR_FLAG_KEY = '__e2e_clear_done__';
+
+    // If clear was already done, don't clear again
+    if (localStorage.getItem(CLEAR_FLAG_KEY)) {
+      return;
+    }
+
+    // Mark clear as done BEFORE clearing (so it persists)
+    // We need to clear everything EXCEPT our flag
+    const keys = Object.keys(localStorage);
+    for (const key of keys) {
+      if (key !== CLEAR_FLAG_KEY) {
+        localStorage.removeItem(key);
+      }
+    }
+    localStorage.setItem(CLEAR_FLAG_KEY, 'true');
   });
 }
 
 /** Helper to get current localStorage state */
 export async function getLocalStorageState(page: Page) {
   return await page.evaluate(() => {
-    const state = localStorage.getItem('fleet-extension-state');
+    // Key must match the app's storage key format
+    const state = localStorage.getItem('fleet-extension-state:default');
     return state ? JSON.parse(state) : null;
   });
 }
