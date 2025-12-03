@@ -2,19 +2,22 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
   base: './',
   resolve: {
     alias: {
-      // Mock the Docker extension API client during development/E2E testing.
+      // Mock the Docker extension API client during development/E2E testing only.
       // This allows the app to run outside of Docker Desktop for testing.
       // The browser-compatible mock provides a stub implementation that
       // doesn't throw errors and can be controlled via window.__mockDdClient.
-      '@docker/extension-api-client': path.resolve(
-        __dirname,
-        'src/__mocks__/docker-extension-api-client-browser.ts'
-      ),
+      // In production builds, the real @docker/extension-api-client is used.
+      ...(mode !== 'production' && {
+        '@docker/extension-api-client': path.resolve(
+          __dirname,
+          'src/__mocks__/docker-extension-api-client-browser.ts'
+        ),
+      }),
     },
   },
   build: {
@@ -25,4 +28,4 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
   },
-});
+}));
