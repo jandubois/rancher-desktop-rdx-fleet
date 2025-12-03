@@ -11,19 +11,25 @@ echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command start
 
 Before starting, create a todo list with ALL of the following items:
 1. Gather information (fetch, status, log, diff)
-2. Check test coverage for code changes
-3. Verify test comment headers are up-to-date
-4. Check for library reimplementations
-5. Check for historical/refactoring comments in code
-6. Check for new dependencies and license compatibility
-7. Check if documentation needs updates
-8. Run tests, lint, build, and E2E tests
-9. Rebase on main branch
-10. Push changes
-11. Generate `gh pr create` command for user
-12. Display elapsed time
+2. Run parallel code review checks (steps 2-6)
+3. Run parallel lint/test/build, then E2E tests
+4. Address any issues found in code review or tests
+5. Rebase on main branch
+6. Push changes
+7. Generate `gh pr create` command for user
+8. Display elapsed time
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
+
+## Parallelization Strategy
+
+This PR command uses parallelization to reduce total time from ~7-8 minutes to ~3-4 minutes:
+
+1. **Steps 2-6 (Code Review)**: Run as 5 parallel Task agents simultaneously
+2. **Step 7 (Lint/Test/Build)**: Run lint, test, and build in parallel Bash calls, then E2E
+3. **Overlap**: Start the parallel lint/test/build while reviewing Task agent results
+
+The parallel Task agents will each analyze the code independently and report back findings.
 
 ## IMPORTANT: Explain All Decisions
 
@@ -55,9 +61,118 @@ Then gather info (can run in parallel):
 - `git log --oneline origin/main..HEAD` - see all commits to include
 - `git diff origin/main...HEAD --stat` - summary of all changes
 
+---
+
+## PARALLEL EXECUTION: Steps 2-6 as Task Agents
+
+**IMPORTANT: Run ALL FIVE code review checks as parallel Task agents in a SINGLE message.**
+
+Use the Task tool to spawn 5 parallel agents. Each agent should:
+1. Perform its specific code review check
+2. Report findings (issues found or "no issues")
+3. Suggest specific fixes if issues are found
+
+Launch all 5 Task agents simultaneously with these prompts:
+
+### Task Agent 1: Test Coverage Check
+```
+Analyze test coverage for this PR. Run:
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | grep -v '\.test\.'
+
+For each changed code file, check if corresponding tests exist. Report:
+- Files that need new tests (and why)
+- Files with existing test coverage (name the test files)
+- Files that don't need tests (explain why: config-only, types-only, etc.)
+```
+
+### Task Agent 2: Test Comment Headers Check
+```
+Verify test descriptions are accurate. Run:
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.test\.(ts|tsx)$'
+
+For each changed test file, check if describe() and it() blocks accurately describe what's tested.
+Report any outdated descriptions that need updating.
+```
+
+### Task Agent 3: Library Reimplementation Check
+```
+Check for custom implementations that should use npm packages. Run:
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | grep -v '\.test\.'
+
+Look for: custom parsing (use js-yaml, papaparse), custom validation (use zod),
+custom deep clone (use lodash/structuredClone), custom HTTP wrappers (use fetch/axios).
+Report any reimplementations found.
+```
+
+### Task Agent 4: Historical Comments Check
+```
+Find comments referencing past implementations. Run:
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | xargs grep -l -i -E '(refactor|previous|formerly|used to|was changed|backwards.?compat|migrat|deprecat)' 2>/dev/null
+
+Report any comments that describe historical state rather than current behavior.
+```
+
+### Task Agent 5: Dependencies and Documentation Check
+```
+Check for new dependencies and documentation needs.
+
+For dependencies, run:
+git diff origin/main...HEAD --name-only | grep -E '(package\.json|go\.mod|go\.sum)$'
+If found, check new deps with: git diff origin/main...HEAD -- '**/package.json' | grep -E '^\+.*"[^"]+":.*"[\^~]?[0-9]'
+Verify licenses are Apache 2.0 compatible (MIT, BSD, ISC, Apache-2.0 OK; GPL, AGPL, SSPL not OK).
+
+For documentation, review if changes affect:
+- docs/PRD.md, docs/NEXT_STEPS.md, docs/TESTING_PLAN.md (developer docs)
+- docs/user-guide/README.md, docs/user-guide/card-types.md (user docs)
+- .claude/instructions.md (AI context)
+
+Report any license issues or documentation updates needed.
+```
+
+**After all 5 agents complete**: Review their findings. If any agent found issues requiring code changes:
+1. Make the necessary fixes
+2. Commit the changes
+3. Note what was fixed for the PR description
+
+## OVERLAP: Start Tests While Reviewing
+
+**To maximize parallelization**, start the lint/test/build in background BEFORE fully reviewing agent results:
+
+1. **Immediately after agents return**, start lint/test/build in parallel (3 Bash calls):
+```bash
+cd extension/ui && npm run lint
+```
+```bash
+cd extension/ui && npm test
+```
+```bash
+cd extension/ui && npm run build
+```
+
+2. **As soon as build completes**, start E2E (don't wait for lint/test):
+```bash
+cd extension/ui && npm run test:e2e
+```
+
+3. **While E2E runs**, review agent findings and make any needed fixes
+
+4. **If fixes were made**, check if tests passed:
+   - If lint/test/E2E all passed: proceed to rebase
+   - If any failed due to your fixes: re-run only the failing command(s)
+
+This overlap can save 2-3 minutes by running E2E concurrently with code review.
+
+---
+
+## Reference: Detailed Check Instructions
+
+The sections below (2-6) provide detailed context for each code review check. The parallel Task agents above will perform these checks. Use these sections as reference when reviewing agent results or if you need to perform checks manually.
+
+---
+
 ## 2. Check Test Coverage and Test Comments
 
-**IMPORTANT: Do this BEFORE running tests.**
+**Note: This is performed by Task Agents 1 and 2 in parallel.**
 
 ### 2.1 Verify Test Coverage for Code Changes
 
@@ -105,7 +220,7 @@ For each changed test file:
 
 ## 3. Check for Library Reimplementations
 
-**IMPORTANT: Verify that no functionality has been reimplemented that is already available in popular npm packages.**
+**Note: This is performed by Task Agent 3 in parallel.**
 
 Review the changed files for any custom implementations that should use existing libraries instead:
 
@@ -134,7 +249,7 @@ If you find reimplementations:
 
 ## 4. Check for Historical/Refactoring Comments in Code
 
-**IMPORTANT: Code comments should only describe the current state of the code, not its history.**
+**Note: This is performed by Task Agent 4 in parallel.**
 
 Search for comments that reference refactoring, previous implementations, API changes, or backwards compatibility:
 
@@ -165,7 +280,7 @@ If you find such comments, remove or rewrite them to describe only the current b
 
 ## 5. Check for New Dependencies and License Compatibility
 
-**IMPORTANT: Verify that any newly added dependencies are compatible with our Apache 2.0 license.**
+**Note: This is performed by Task Agent 5 in parallel (along with documentation check).**
 
 Check if any dependency files were modified:
 
@@ -200,6 +315,9 @@ For each new dependency:
 - If no dependency changes: State that no dependency files were modified.
 
 ## 6. Check Documentation
+
+**Note: This is performed by Task Agent 5 in parallel (along with dependency check).**
+
 Review if any documentation needs updates based on the changes:
 
 ### Developer Documentation
@@ -225,17 +343,38 @@ Review if any documentation needs updates based on the changes:
 If docs need updates, make the changes and commit before proceeding.
 
 ## 7. Run Tests, Linting, Build, and E2E Tests
-Run the checks from the extension/ui directory:
 
+**IMPORTANT: Run lint, test, and build in PARALLEL using three separate Bash tool calls in a single message.**
+
+From the extension/ui directory, execute these three commands simultaneously (in parallel Bash calls):
+
+1. **Lint** (Bash call 1):
 ```bash
-cd extension/ui && npm run lint && npm test && npm run build && npm run test:e2e
+cd extension/ui && npm run lint
 ```
 
-This will:
-- Run ESLint to check code quality
-- Run all Vitest unit/component tests
-- Build the TypeScript project
-- Run Playwright E2E tests
+2. **Unit Tests** (Bash call 2):
+```bash
+cd extension/ui && npm test
+```
+
+3. **Build** (Bash call 3):
+```bash
+cd extension/ui && npm run build
+```
+
+**CRITICAL: Start E2E as soon as build completes** - don't wait for lint/test to finish!
+
+E2E tests only depend on the build output, not on lint or unit tests. As soon as the build Bash call returns successfully:
+```bash
+cd extension/ui && npm run test:e2e
+```
+
+While E2E runs (~2-3 min), lint and unit tests will likely complete. Check their results after E2E finishes.
+
+This parallel approach saves significant time:
+- lint (~10s), test (~30s), and build (~20s) run in parallel
+- E2E (~2-3 min) starts immediately after build, overlapping with any still-running lint/test
 
 If any step fails, fix the issues and commit before proceeding.
 
