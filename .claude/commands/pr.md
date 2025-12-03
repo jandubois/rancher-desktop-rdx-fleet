@@ -10,14 +10,13 @@ echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command start
 **IMPORTANT: Use TodoWrite to track progress through ALL steps below.**
 
 Before starting, create a todo list with ALL of the following items:
-1. Gather information (fetch, status, log, diff)
-2. Run parallel code review checks (steps 2-6)
+1. Fetch, check status, and rebase early
+2. Run parallel: npm install + code review agents
 3. Run parallel lint/test/build, then E2E tests
 4. Address any issues found in code review or tests
-5. Rebase on main branch
-6. Push changes
-7. Generate `gh pr create` command for user
-8. Display elapsed time
+5. Push changes
+6. Generate `gh pr create` command for user
+7. Display elapsed time
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
@@ -50,16 +49,28 @@ The explanation should include:
 
 Follow these steps exactly when creating a PR:
 
-## 1. Gather Information and Ensure Dependencies
-First, fetch the base branch:
+## 1. Fetch, Check Status, and Rebase Early
+
+**Rebase early to catch conflicts before wasting time on checks.**
+
+First, fetch and check for uncommitted changes:
 ```bash
-git fetch origin main
+git fetch origin main && git status --short
 ```
 
-Then gather info (can run in parallel):
-- `git status` - check for uncommitted changes
-- `git log --oneline origin/main..HEAD` - see all commits to include
-- `git diff origin/main...HEAD --stat` - summary of all changes
+**If there are uncommitted changes**: Stop and ask the user to commit or stash them first. Rebase won't work with uncommitted changes.
+
+**If working tree is clean**: Rebase immediately:
+```bash
+git rebase origin/main
+```
+
+If conflicts occur, resolve them before proceeding. This catches merge conflicts early instead of after running all the checks.
+
+Then get the commit log (useful for writing PR description later):
+```bash
+git log --oneline origin/main..HEAD
+```
 
 ---
 
@@ -405,26 +416,20 @@ If any step fails, fix the issues and commit before proceeding.
 npx --prefix extension/ui playwright install chromium
 ```
 
-## 8. Rebase on Main
-Rebase your branch on the latest main:
+## 8. Push Changes
 
-```bash
-git fetch origin main && git rebase origin/main
-```
-
-If conflicts occur, resolve them, then:
-```bash
-git add . && git rebase --continue
-```
-
-## 9. Push Changes
-Push your rebased branch:
+We already rebased in Step 1, so just push:
 
 ```bash
 git push -f
 ```
 
-## 10. Create PR Command
+**Note**: If significant time has passed or you made fixes during the PR process, you may want to rebase again:
+```bash
+git fetch origin main && git rebase origin/main && git push -f
+```
+
+## 9. Create PR Command
 Provide a copyable `gh pr create` command using HEREDOC format:
 
 ```bash
@@ -484,7 +489,7 @@ EOF
 - Keep summary concise (3-5 bullet points)
 - **NEVER use triple backticks (```) inside the PR body** - use 4-space indentation or inline backticks instead
 
-## 11. Display Elapsed Time
+## 10. Display Elapsed Time
 After generating the PR command, display how long the PR process took:
 
 ```bash
