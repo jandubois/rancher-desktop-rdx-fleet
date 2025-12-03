@@ -67,11 +67,8 @@ initRouter.post('/', async (req, res) => {
     log(`  Container: ${c.name} | Image: ${c.image} | Fleet label: ${hasFleetLabel}`);
   });
 
+  // First, enrich extensions from rdctl with Docker labels
   installedFleetExtensions = installedExtensions.map((ext: InstalledExtension) => {
-    // Try multiple matching strategies:
-    // 1. Extension name in container image
-    // 2. Extension name (with special chars replaced) in container name
-    // 3. Extension name is a prefix of image name
     const extNameNormalized = ext.name.replace(/[/:]/g, '-').toLowerCase();
 
     const matchingContainer = dockerContainers.find(c => {
@@ -107,6 +104,37 @@ initRouter.post('/', async (req, res) => {
     log(`  - ${ext.name} (fleet.type: ${fleetType})`);
     return ext;
   });
+
+  // Second, add Fleet extensions detected from Docker that weren't in the rdctl list
+  // This handles the case when rdctl extension ls returns empty or fails
+  const fleetContainersFromDocker = dockerContainers.filter(c =>
+    c.labels['io.rancher-desktop.fleet.type'] ||
+    c.labels['io.rancher-desktop.fleet.name']
+  );
+
+  log(`Found ${fleetContainersFromDocker.length} Fleet containers from Docker`);
+
+  for (const container of fleetContainersFromDocker) {
+    // Extract extension name from container name or image
+    const imageName = container.image.split(':')[0]; // Remove tag
+    const fleetName = container.labels['io.rancher-desktop.fleet.name'] || imageName;
+
+    // Check if this extension is already in the list
+    const alreadyExists = installedFleetExtensions.some(ext =>
+      ext.name.includes(imageName) || imageName.includes(ext.name.split(':')[0])
+    );
+
+    if (!alreadyExists) {
+      log(`  + Adding Fleet extension from Docker: ${fleetName} (image: ${container.image})`);
+      installedFleetExtensions.push({
+        name: fleetName,
+        tag: container.image.split(':')[1] || 'latest',
+        labels: container.labels,
+      });
+    }
+  }
+
+  log(`Total Fleet extensions after enrichment: ${installedFleetExtensions.length}`);
 
   // Initialize kubernetes client if kubeconfig provided
   if (kubeconfig) {

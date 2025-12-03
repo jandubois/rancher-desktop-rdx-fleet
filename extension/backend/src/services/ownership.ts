@@ -75,11 +75,22 @@ export class OwnershipService {
    */
   async initialize(kubeconfig: string): Promise<void> {
     this.log(`Initializing with kubeconfig (${kubeconfig.length} bytes)`);
-    this.kubeconfig = kubeconfig;
+
+    // Patch kubeconfig to work from inside Docker container
+    // Replace localhost/127.0.0.1 with host.docker.internal
+    let patchedKubeconfig = kubeconfig
+      .replace(/server:\s*https?:\/\/127\.0\.0\.1:/g, 'server: https://host.docker.internal:')
+      .replace(/server:\s*https?:\/\/localhost:/g, 'server: https://host.docker.internal:');
+
+    if (patchedKubeconfig !== kubeconfig) {
+      this.log('Patched kubeconfig: replaced localhost/127.0.0.1 with host.docker.internal');
+    }
+
+    this.kubeconfig = patchedKubeconfig;
 
     try {
       const kc = new k8s.KubeConfig();
-      kc.loadFromString(kubeconfig);
+      kc.loadFromString(patchedKubeconfig);
       this.k8sApi = kc.makeApiClient(k8s.CoreV1Api);
       this.initialized = true;
       this.log('Kubernetes client initialized successfully');
