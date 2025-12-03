@@ -30,8 +30,11 @@ Mark each todo as `in_progress` when you start it and `completed` when done. Do 
 This PR command uses parallelization to reduce total time:
 
 1. **npm install**: Runs in background while code review happens (Step 2)
-2. **lint/test/build**: Run in parallel Bash calls (Step 9)
-3. **E2E**: Starts immediately after build completes, doesn't wait for lint/test
+2. **lint + test + build/E2E**: Run in parallel (Step 8)
+   - lint (~10s) runs as a Bash call
+   - test (~60s) runs as a Bash call
+   - build+E2E runs in a Task agent (build ~8s, then E2E ~60s)
+   - E2E starts immediately after build, runs in parallel with unit tests
 
 ## IMPORTANT: Explain All Decisions
 
@@ -263,39 +266,47 @@ If docs need updates, make the changes and commit before proceeding.
 
 ## 8. Run Tests, Linting, Build, and E2E Tests
 
-**IMPORTANT: Run lint, test, and build in PARALLEL using three separate Bash tool calls in a single message.**
+**IMPORTANT: Run lint, test, and build+E2E in PARALLEL using a combination of Bash and Task tool calls.**
 
 **NOTE: Use `--prefix` to avoid working directory issues. Never use `cd extension/ui &&`.**
 
-Execute these three commands simultaneously (in parallel Bash calls):
+Execute these three operations simultaneously in a single message:
 
-1. **Lint** (Bash call 1):
+1. **Lint** (Bash call):
 ```bash
 npm --prefix extension/ui run lint
 ```
 
-2. **Unit Tests** (Bash call 2):
+2. **Unit Tests** (Bash call):
 ```bash
 npm --prefix extension/ui test
 ```
 
-3. **Build** (Bash call 3):
-```bash
-npm --prefix extension/ui run build
+3. **Build + E2E** (Task agent with subagent_type=general-purpose):
+Use a Task agent to run build followed by E2E tests. This allows E2E to start immediately after build (~8s) without waiting for unit tests (~60s) to complete.
+
+Prompt for the Task agent:
 ```
+Run the build and E2E tests for the extension/ui project. Do NOT do any code review or analysis.
 
-**CRITICAL: Start E2E as soon as build completes** - don't wait for lint/test to finish!
+1. First run the build:
+   npm --prefix extension/ui run build
 
-E2E tests only depend on the build output, not on lint or unit tests. As soon as the build Bash call returns successfully:
-```bash
-npm --prefix extension/ui run test:e2e
+2. If build succeeds, immediately run E2E tests:
+   npm --prefix extension/ui run test:e2e
+
+3. Report back:
+   - Build result (success/failure, any errors)
+   - E2E result (success/failure, test summary)
+   - If E2E fails due to missing Playwright browsers, note this for the user
+
+Do not attempt to fix any failures - just report them.
 ```
-
-While E2E runs (~2-3 min), lint and unit tests will likely complete. Check their results after E2E finishes.
 
 This parallel approach saves significant time:
-- lint (~10s), test (~30s), and build (~20s) run in parallel
-- E2E (~2-3 min) starts immediately after build, overlapping with any still-running lint/test
+- lint (~10s) runs in parallel with everything
+- test (~60s) runs in parallel with build+E2E
+- build (~8s) + E2E (~60s) runs in the subagent, overlapping with unit tests
 
 If any step fails, fix the issues and commit before proceeding.
 
