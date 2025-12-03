@@ -19,4 +19,16 @@ export default defineConfig({
     port: 3000,
     strictPort: true,
   },
+  resolve: {
+    alias: {
+      // Mock the Docker extension API client during development/E2E testing.
+      // This allows the app to run outside of Docker Desktop for testing.
+      // The browser-compatible mock provides a stub implementation that
+      // doesn't throw errors and can be controlled via window.__mockDdClient.
+      '@docker/extension-api-client': path.resolve(
+        __dirname,
+        'src/__mocks__/docker-extension-api-client-browser.ts'
+      ),
+    },
+  },
 });

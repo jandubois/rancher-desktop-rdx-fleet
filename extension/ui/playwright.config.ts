@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'path';
 
 /**
  * Playwright configuration for E2E tests.
@@ -10,6 +11,31 @@ import { defineConfig, devices } from '@playwright/test';
  * - Edit mode snapshot/restore
  * - localStorage persistence
  */
+
+// Browser args differ between local VM and GitHub CI
+// --single-process is needed in local VMs due to IPC permission issues
+// but causes crashes in GitHub CI due to resource exhaustion
+const isCI = !!process.env.CI;
+const isGitHubActions = !!process.env.GITHUB_ACTIONS;
+
+// Base args for sandboxed environments
+const baseArgs = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-gpu',
+  '--disable-dev-shm-usage',
+];
+
+// Add --single-process for local VM environments (not GitHub CI)
+// This is required due to IPC permission restrictions in VMs
+const chromiumArgs = isGitHubActions ? baseArgs : [...baseArgs, '--single-process'];
+
+// Use the full Chromium browser (not headless_shell) for better stability
+const chromiumPath = path.join(
+  process.env.HOME || '',
+  '.cache/ms-playwright/chromium-1194/chrome-linux/chrome'
+);
+
 export default defineConfig({
   testDir: './e2e',
 
@@ -17,16 +43,17 @@ export default defineConfig({
   fullyParallel: true,
 
   /* Fail the build on CI if you accidentally left test.only in the source code */
-  forbidOnly: !!process.env.CI,
+  forbidOnly: isCI,
 
   /* Retry on CI only */
-  retries: process.env.CI ? 2 : 0,
+  retries: isCI ? 2 : 0,
 
-  /* Limit parallel workers on CI to avoid flakiness */
-  workers: process.env.CI ? 1 : undefined,
+  /* Limit parallel workers to avoid browser crashes in single-process mode */
+  /* Using single worker for local VMs (--single-process mode) and CI */
+  workers: 1,
 
   /* Reporter to use */
-  reporter: process.env.CI
+  reporter: isCI
     ? [['html', { open: 'never' }], ['github']]
     : [['html', { open: 'never' }]],
 
@@ -40,13 +67,26 @@ export default defineConfig({
 
     /* Take screenshot on failure */
     screenshot: 'only-on-failure',
+
+    /* Ignore HTTPS errors */
+    ignoreHTTPSErrors: true,
   },
 
   /* Configure projects for major browsers */
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          executablePath: chromiumPath,
+          args: chromiumArgs,
+          env: {
+            ...process.env,
+            TMPDIR: process.env.HOME + '/tmp',
+          },
+        },
+      },
     },
     // Uncomment to add more browsers:
     // {
@@ -63,7 +103,7 @@ export default defineConfig({
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: !isCI,
     timeout: 120 * 1000,
   },
 });
