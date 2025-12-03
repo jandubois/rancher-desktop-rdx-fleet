@@ -180,6 +180,7 @@ export class BackendService {
   async initialize(data: {
     installedExtensions: InstalledExtension[];
     kubeconfig?: string;
+    debugInfo?: string[];
   }): Promise<OwnershipStatus> {
     if (!this.vmService) {
       throw new Error('vm.service not available');

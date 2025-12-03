@@ -14,13 +14,6 @@
     }
   },
   "host": {
-    "permissions": [
-      {
-        "connect": {
-          "allowed": ["*"]
-        }
-      }
-    ],
     "binaries": [
       {
         "darwin": [{ "path": "/host/darwin/rd-exec" }],
