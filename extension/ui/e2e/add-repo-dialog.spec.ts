@@ -18,7 +18,7 @@ test.describe('Add Repository Dialog', () => {
     await clearLocalStorage(page);
     await mockGitHubApi(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
   });
 
   test('should open dialog from Configure Repository button', async ({ page }) => {
@@ -182,7 +182,7 @@ test.describe('Add Card Menu for Git Repository', () => {
   test('should show Git Repository option in placeholder card menu', async ({ page }) => {
     await clearLocalStorage(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Enter edit mode
     await page.getByRole('button', { name: /enter edit mode/i }).click();
@@ -201,7 +201,7 @@ test.describe('Add Card Menu for Git Repository', () => {
   test('should open Add Repo Dialog when Git Repository type is selected', async ({ page }) => {
     await clearLocalStorage(page);
     await page.goto('/');
-    await page.waitForLoadState('networkidle');
+    await page.waitForLoadState('load');
 
     // Enter edit mode
     await page.getByRole('button', { name: /enter edit mode/i }).click();
