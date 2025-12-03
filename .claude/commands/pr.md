@@ -50,7 +50,7 @@ The explanation should include:
 
 Follow these steps exactly when creating a PR:
 
-## 1. Gather Information
+## 1. Gather Information and Ensure Dependencies
 First, fetch the base branch:
 ```bash
 git fetch origin main
@@ -63,7 +63,27 @@ Then gather info (can run in parallel):
 
 ---
 
-## PARALLEL EXECUTION: Steps 2-6 as Task Agents
+## PARALLEL EXECUTION: Code Review + Dependency Install
+
+**Run these TWO things in parallel:**
+
+### A. Ensure Dependencies Are Installed (Bash call)
+
+Start this IMMEDIATELY - it runs in the background while code review happens:
+
+```bash
+npm --prefix extension/ui install --prefer-offline --no-audit 2>/dev/null || npm --prefix extension/ui install
+```
+
+This uses cached packages when possible (`--prefer-offline`) and skips audit for speed. Falls back to full install if cache fails.
+
+### B. Code Review Task Agents (5 parallel agents)
+
+Launch all 5 Task agents simultaneously (see below).
+
+---
+
+## Code Review: Steps 2-6 as Task Agents
 
 **IMPORTANT: Run ALL FIVE code review checks as parallel Task agents in a SINGLE message.**
 
@@ -140,18 +160,18 @@ Report any license issues or documentation updates needed.
 
 1. **Immediately after agents return**, start lint/test/build in parallel (3 Bash calls):
 ```bash
-cd extension/ui && npm run lint
+npm --prefix extension/ui run lint
 ```
 ```bash
-cd extension/ui && npm test
+npm --prefix extension/ui test
 ```
 ```bash
-cd extension/ui && npm run build
+npm --prefix extension/ui run build
 ```
 
 2. **As soon as build completes**, start E2E (don't wait for lint/test):
 ```bash
-cd extension/ui && npm run test:e2e
+npm --prefix extension/ui run test:e2e
 ```
 
 3. **While E2E runs**, review agent findings and make any needed fixes
@@ -346,28 +366,30 @@ If docs need updates, make the changes and commit before proceeding.
 
 **IMPORTANT: Run lint, test, and build in PARALLEL using three separate Bash tool calls in a single message.**
 
-From the extension/ui directory, execute these three commands simultaneously (in parallel Bash calls):
+**NOTE: Use `--prefix` to avoid working directory issues. Never use `cd extension/ui &&`.**
+
+Execute these three commands simultaneously (in parallel Bash calls):
 
 1. **Lint** (Bash call 1):
 ```bash
-cd extension/ui && npm run lint
+npm --prefix extension/ui run lint
 ```
 
 2. **Unit Tests** (Bash call 2):
 ```bash
-cd extension/ui && npm test
+npm --prefix extension/ui test
 ```
 
 3. **Build** (Bash call 3):
 ```bash
-cd extension/ui && npm run build
+npm --prefix extension/ui run build
 ```
 
 **CRITICAL: Start E2E as soon as build completes** - don't wait for lint/test to finish!
 
 E2E tests only depend on the build output, not on lint or unit tests. As soon as the build Bash call returns successfully:
 ```bash
-cd extension/ui && npm run test:e2e
+npm --prefix extension/ui run test:e2e
 ```
 
 While E2E runs (~2-3 min), lint and unit tests will likely complete. Check their results after E2E finishes.
@@ -380,7 +402,7 @@ If any step fails, fix the issues and commit before proceeding.
 
 **Note**: E2E tests require Playwright browsers to be installed. If not installed, run:
 ```bash
-npx playwright install chromium
+npx --prefix extension/ui playwright install chromium
 ```
 
 ## 8. Rebase on Main
