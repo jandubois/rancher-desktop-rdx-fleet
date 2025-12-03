@@ -1129,50 +1129,6 @@ function SdkMethodsPanel() {
       };
     }
 
-    // Check DESKTOP_PLUGIN_IMAGE environment variable in host environment
-    // This should be set by Rancher Desktop before running docker compose for extensions
-    // The variable is used to expand ${DESKTOP_PLUGIN_IMAGE} in compose.yaml
-    const host = ddClient.extension?.host;
-    if (host?.cli?.exec) {
-      try {
-        const debugEnvResult = await host.cli.exec('debug-env', []);
-        const envOutput = debugEnvResult.stdout || '';
-        // Parse the environment variables section from debug-env output
-        const envMatch = envOutput.match(/--- All Environment Variables ---\n([\s\S]*?)(?=\n---|\n===)/);
-        if (envMatch) {
-          const envLines = envMatch[1].trim().split('\n');
-          const desktopPluginLine = envLines.find((line: string) => line.startsWith('DESKTOP_PLUGIN_IMAGE='));
-          if (desktopPluginLine) {
-            const value = desktopPluginLine.split('=').slice(1).join('=');
-            newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-              status: 'OK',
-              output: value,
-            };
-          } else {
-            newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-              status: 'MISSING',
-              output: 'Not set by RD (compose.yaml cannot use ${DESKTOP_PLUGIN_IMAGE})',
-            };
-          }
-        } else {
-          newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-            status: 'N/A',
-            output: 'Could not parse debug-env output',
-          };
-        }
-      } catch (e) {
-        newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-          status: 'N/A',
-          output: `debug-env failed: ${e instanceof Error ? e.message : String(e)}`,
-        };
-      }
-    } else {
-      newResults['DESKTOP_PLUGIN_IMAGE (host env)'] = {
-        status: 'N/A',
-        output: 'Host binary API not available',
-      };
-    }
-
     setResults(newResults);
     setLoading(false);
   }, []);
@@ -1477,32 +1433,6 @@ export default function App() {
     const imageStatus = ext?.image ? (String(ext.image).includes(':') ? 'OK' : 'BROKEN - missing tag') : 'MISSING';
     lines.push(`extension.image: ${imageValue} (${imageStatus})`);
 
-    // Check DESKTOP_PLUGIN_IMAGE environment variable (from host environment)
-    // This is set by Rancher Desktop before running docker compose for extensions
-    const exportHost = ddClient.extension?.host;
-    if (exportHost?.cli?.exec) {
-      try {
-        const debugEnvResult = await exportHost.cli.exec('debug-env', []);
-        const envOutput = debugEnvResult.stdout || '';
-        const envMatch = envOutput.match(/--- All Environment Variables ---\n([\s\S]*?)(?=\n---|\n===)/);
-        if (envMatch) {
-          const envLines = envMatch[1].trim().split('\n');
-          const desktopPluginLine = envLines.find((line: string) => line.startsWith('DESKTOP_PLUGIN_IMAGE='));
-          if (desktopPluginLine) {
-            const value = desktopPluginLine.split('=').slice(1).join('=');
-            lines.push(`DESKTOP_PLUGIN_IMAGE: ${value} (OK)`);
-          } else {
-            lines.push(`DESKTOP_PLUGIN_IMAGE: not set (MISSING - compose.yaml cannot use \${DESKTOP_PLUGIN_IMAGE})`);
-          }
-        } else {
-          lines.push(`DESKTOP_PLUGIN_IMAGE: could not parse debug-env output`);
-        }
-      } catch (e) {
-        lines.push(`DESKTOP_PLUGIN_IMAGE: debug-env failed - ${e instanceof Error ? e.message : e}`);
-      }
-    } else {
-      lines.push(`DESKTOP_PLUGIN_IMAGE: host binary API not available`);
-    }
     lines.push('');
 
     // Footer
@@ -1626,7 +1556,6 @@ export default function App() {
       <Paper sx={{ p: 2, mt: 4, bgcolor: 'background.paper' }}>
         <Typography variant="subtitle2" gutterBottom>Known Issues (Confirmed):</Typography>
         <Box component="ul" sx={{ m: 0, pl: 2 }}>
-          <li><strong>DESKTOP_PLUGIN_IMAGE not set</strong> - env var not available, compose.yaml cannot use {'${DESKTOP_PLUGIN_IMAGE}'}</li>
           <li><strong>extension.image missing tag</strong> - returns name without :version</li>
           <li><strong>extension.id missing</strong> - returns undefined</li>
           <li><strong>extension.version missing</strong> - returns undefined</li>
