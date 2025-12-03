@@ -21,6 +21,15 @@ export interface CommandExecutor {
    * @throws Error if command fails
    */
   exec(command: string, args: string[]): Promise<ExecResult>;
+
+  /**
+   * Execute a command via rd-exec, which ensures ~/.rd/bin is in PATH.
+   * This is used for kubectl, helm, rdctl, and other Rancher Desktop CLI tools.
+   * @param command The command to execute (e.g., 'kubectl', 'helm', 'rdctl')
+   * @param args Arguments to pass to the command
+   * @returns Promise resolving to execution result
+   */
+  rdExec(command: string, args: string[]): Promise<ExecResult>;
 }
 
 /**
@@ -43,10 +52,27 @@ export class DdClientExecutor implements CommandExecutor {
   }
 
   async exec(command: string, args: string[]): Promise<ExecResult> {
-    const result = await this.ddClient.extension.host?.cli.exec(command, args);
+    // Check if host CLI is available
+    if (!this.ddClient.extension.host) {
+      console.warn('[CommandExecutor] ddClient.extension.host is undefined - host binaries not available');
+      return {
+        stdout: '',
+        stderr: 'ERROR: ddClient.extension.host is undefined',
+      };
+    }
+
+    console.log(`[CommandExecutor] exec: ${command} ${args.join(' ')}`);
+    const result = await this.ddClient.extension.host.cli.exec(command, args);
+    console.log(`[CommandExecutor] result: stdout=${result?.stdout?.length ?? 'undefined'}, stderr=${result?.stderr?.length ?? 'undefined'}`);
+
     return {
       stdout: result?.stdout || '',
       stderr: result?.stderr || '',
     };
+  }
+
+  async rdExec(command: string, args: string[]): Promise<ExecResult> {
+    console.log(`[CommandExecutor] rdExec: ${command} ${args.join(' ')}`);
+    return this.exec('rd-exec', [command, ...args]);
   }
 }

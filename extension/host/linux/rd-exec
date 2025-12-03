@@ -1,4 +1,18 @@
 #!/bin/sh
 # Generic forwarder that adds Rancher Desktop bin to PATH and executes the command
 export PATH="$HOME/.rd/bin:$PATH"
-exec "$@"
+
+# Get the command to run
+CMD="$1"
+shift
+
+# Check if command exists
+if ! command -v "$CMD" >/dev/null 2>&1; then
+  echo "rd-exec: command not found: $CMD" >&2
+  echo "rd-exec: PATH=$PATH" >&2
+  echo "rd-exec: HOME=$HOME" >&2
+  exit 127
+fi
+
+# Execute the command
+exec "$CMD" "$@"

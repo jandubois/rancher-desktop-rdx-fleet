@@ -60,6 +60,11 @@ export class MockCommandExecutor implements CommandExecutor {
     return response;
   }
 
+  async rdExec(command: string, args: string[]): Promise<ExecResult> {
+    // Route through exec with rd-exec prefix for consistent mock behavior
+    return this.exec('rd-exec', [command, ...args]);
+  }
+
   /** Get all recorded calls */
   getCalls(): Array<{ command: string; args: string[] }> {
     return [...this.calls];
@@ -203,6 +208,7 @@ export class MockCredentialService extends CredentialService {
     // Create a mock executor that does nothing
     const mockExecutor = {
       exec: async () => ({ stdout: '', stderr: '' }),
+      rdExec: async () => ({ stdout: '', stderr: '' }),
     };
     super(mockExecutor);
   }
