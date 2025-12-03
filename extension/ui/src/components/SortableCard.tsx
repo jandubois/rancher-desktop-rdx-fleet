@@ -34,7 +34,7 @@ export function SortableCard({ id, editMode, isVisible = true, onDelete, onVisib
   };
 
   return (
-    <Box ref={setNodeRef} style={style}>
+    <Box ref={setNodeRef} style={style} data-testid={`card-${id}`}>
       {editMode && (
         <Box
           sx={{
@@ -50,6 +50,7 @@ export function SortableCard({ id, editMode, isVisible = true, onDelete, onVisib
           <Box
             {...attributes}
             {...listeners}
+            data-testid={`drag-handle-${id}`}
             sx={{
               display: 'flex',
               alignItems: 'center',

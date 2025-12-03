@@ -2,7 +2,7 @@
 
 This document tracks all external dependencies and verifies their compatibility with the project's Apache 2.0 license.
 
-**Last reviewed**: 2025-12-01
+**Last reviewed**: 2025-12-03
 
 ## License Compatibility Summary
 
@@ -68,6 +68,7 @@ Dev dependencies don't ship with the final product but are included for complete
 | Package | License | Compatible |
 |---------|---------|------------|
 | @eslint/js | MIT | Yes |
+| @playwright/test | Apache-2.0 | Yes |
 | @testing-library/jest-dom | MIT | Yes |
 | @testing-library/react | MIT | Yes |
 | @testing-library/user-event | MIT | Yes |
