@@ -19,6 +19,8 @@ E2E tests complement our existing unit/component tests (Vitest + React Testing L
 - [x] Drag-and-drop reordering tests (`e2e/drag-drop.spec.ts`)
 - [x] Add repository dialog tests (`e2e/add-repo-dialog.spec.ts`)
 - [x] Data-testid attributes on SortableCard for reliable DnD targeting
+- [x] GitHub auth card UI tests (`e2e/auth-github.spec.ts`)
+- [x] AppCo auth card UI tests (`e2e/auth-appco.spec.ts`)
 
 ---
 
@@ -53,41 +55,33 @@ These flows are essential to the core functionality and have complex state manag
 
 ### Priority 2: Authentication Flows (Medium-High Value)
 
-#### 2.1 GitHub Authentication Flow
-**Suggested file:** `e2e/auth-github.spec.ts`
+#### 2.1 GitHub Authentication Flow ✅ (Implemented)
+**File:** `e2e/auth-github.spec.ts`
+- Display GitHub auth card with title
+- Show description about authentication benefits
+- Display PAT input section
+- "Create token on GitHub" link with correct URL
+- PAT input placeholder text
+- Scope recommendations display
 
-```typescript
-// Test scenarios:
-- Display unauthenticated state with PAT input form
-- "Create token on GitHub" link opens new tab
-- PAT validation with error handling
-- Transition to authenticated state
-- Display username after authentication
-- "Disconnect" button clears credentials
-- Rate limit info display
-- Refresh rate limit button
-```
+**Note:** Full authentication flow tests (PAT submission, credential storage) require complex CLI mocking and are deferred.
 
-**Why E2E:** Tests external link behavior, form submission, state transitions, credential storage.
+#### 2.2 AppCo Authentication Flow ✅ (Implemented)
+**File:** `e2e/auth-appco.spec.ts`
+- Display AppCo auth card with title
+- Show description about AppCo authentication
+- Display AppCo Credentials section
+- Username and token input fields
+- "Authenticate" button
+- External links to AppCo (Get Account, Documentation)
 
-#### 2.2 AppCo Authentication Flow
-**Suggested file:** `e2e/auth-appco.spec.ts`
-
-```typescript
-// Test scenarios:
-- Display form with username + token fields
-- Both fields required for "Enable All" button
-- Invalid credentials error handling
-- Successful auth shows account type
-- External links to AppCo catalog/docs
-- Disconnect functionality
-```
-
-**Why E2E:** Similar to GitHub auth, plus multi-field form validation.
+**Note:** Form interaction tests require credential helper mocking and are deferred.
 
 ---
 
-### Priority 3: Path Discovery and Dependencies (Medium Value)
+### Priority 3: Path Discovery and Dependencies (Medium Value) - Deferred
+
+**Status:** Deferred - requires enhanced mock infrastructure for kubectl and GitRepo card rendering.
 
 #### 3.1 Path Discovery Flow
 **Suggested file:** `e2e/path-discovery.spec.ts`
