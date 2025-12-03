@@ -7,8 +7,8 @@
  * - Manual refresh capability
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { BackendService, BackendStatus } from '../services/BackendService';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { BackendService, BackendStatus, backendService as defaultBackendService } from '../services/BackendService';
 
 /** Options for the useBackendStatus hook */
 export interface UseBackendStatusOptions {
@@ -43,10 +43,15 @@ export interface UseBackendStatusResult {
  */
 export function useBackendStatus(options: UseBackendStatusOptions = {}): UseBackendStatusResult {
   const {
-    backendService = new BackendService(),
     pollInterval = 10000, // 10 seconds default
     autoStart = true,
   } = options;
+
+  // Use provided backendService or the singleton - memoize to maintain stable reference
+  const backendService = useMemo(
+    () => options.backendService ?? defaultBackendService,
+    [options.backendService]
+  );
 
   const [status, setStatus] = useState<BackendStatus | null>(null);
   const [loading, setLoading] = useState(false);
