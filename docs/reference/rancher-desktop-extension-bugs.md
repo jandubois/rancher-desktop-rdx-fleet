@@ -70,40 +70,53 @@ if err := os.MkdirAll(socketDir, 0755); err != nil {
 }
 ```
 
-### `ddClient.extension.vm.service` Not Implemented
+### `ddClient.extension.vm.service` Requires `exposes.socket`
 
-**Status:** Confirmed
+**Status:** Resolved
 
-**Issue:** The `ddClient.extension.vm.service.get()` and `ddClient.extension.vm.service.post()` APIs are not implemented in Rancher Desktop. Calls to these methods fail silently or throw errors.
+**Issue:** The `ddClient.extension.vm.service.get()` and `ddClient.extension.vm.service.post()` APIs only work when the extension properly declares `exposes.socket` in `metadata.json`. Without this declaration, calls to these methods fail.
 
-**Workaround:** Expose an HTTP port in your backend container and use `fetch()` directly:
+**Solution:** Add `exposes.socket` to the `vm` section of `metadata.json`:
 
-```yaml
-# compose.yaml
-services:
-  backend:
-    ports:
-      - "8080:8080"
-```
-
-```typescript
-// Frontend - fallback to HTTP when vm.service fails
-const queryBackend = async (path: string) => {
-  const vm = ddClient.extension?.vm;
-  if (vm?.service) {
-    try {
-      return await vm.service.get(path);
-    } catch {
-      // Fall through to HTTP
+```json
+{
+  "vm": {
+    "composefile": "compose.yaml",
+    "exposes": {
+      "socket": "my-extension.sock"
     }
   }
-  // HTTP fallback
-  const resp = await fetch(`http://localhost:8080${path}`);
-  return resp.json();
-};
+}
 ```
 
-**Note:** `ddClient.extension.vm.cli.exec()` DOES work for executing commands in the backend container.
+The backend service must listen on the corresponding Unix socket at `/run/guest-services/my-extension.sock`.
+
+**Example backend (Go):**
+
+```go
+ln, err := net.Listen("unix", "/run/guest-services/my-extension.sock")
+if err != nil {
+    log.Fatal(err)
+}
+router.Listener = ln
+router.Start("")
+```
+
+**Example backend (Node.js/Express):**
+
+```typescript
+const SOCKET_PATH = '/run/guest-services/my-extension.sock';
+// Ensure socket directory exists
+fs.mkdirSync(path.dirname(SOCKET_PATH), { recursive: true });
+// Remove stale socket
+if (fs.existsSync(SOCKET_PATH)) fs.unlinkSync(SOCKET_PATH);
+// Listen on socket
+app.listen(SOCKET_PATH, () => {
+  fs.chmodSync(SOCKET_PATH, 0o666);
+});
+```
+
+**Note:** `ddClient.extension.vm.cli.exec()` also works for executing commands in the backend container.
 
 ## Extension Properties Issues
 

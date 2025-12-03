@@ -1,7 +1,10 @@
 {
   "icon": "/icons/fleet-icon.svg",
   "vm": {
-    "composefile": "compose.yaml"
+    "composefile": "compose.yaml",
+    "exposes": {
+      "socket": "fleet-gitops.sock"
+    }
   },
   "ui": {
     "dashboard-tab": {

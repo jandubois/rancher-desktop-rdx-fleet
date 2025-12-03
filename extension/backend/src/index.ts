@@ -1,11 +1,12 @@
 import express from 'express';
+import fs from 'fs';
 import os from 'os';
 import { healthRouter } from './routes/health';
 import { identityRouter } from './routes/identity';
 import { initRouter } from './routes/init';
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const SOCKET_PATH = process.env.SOCKET_PATH || '/run/guest-services/fleet-gitops.sock';
 
 // Middleware
 app.use(express.json());
@@ -41,9 +42,20 @@ app.get('/', (req, res) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Fleet GitOps backend listening on port ${PORT}`);
+// Ensure socket directory exists and remove stale socket
+const socketDir = SOCKET_PATH.substring(0, SOCKET_PATH.lastIndexOf('/'));
+if (!fs.existsSync(socketDir)) {
+  fs.mkdirSync(socketDir, { recursive: true });
+}
+if (fs.existsSync(SOCKET_PATH)) {
+  fs.unlinkSync(SOCKET_PATH);
+}
+
+// Start server on Unix socket
+app.listen(SOCKET_PATH, () => {
+  // Make socket accessible
+  fs.chmodSync(SOCKET_PATH, 0o666);
+  console.log(`Fleet GitOps backend listening on socket ${SOCKET_PATH}`);
   console.log(`Container ID: ${os.hostname()}`);
   console.log(`Extension name: ${process.env.EXTENSION_NAME || 'fleet-gitops'}`);
 });

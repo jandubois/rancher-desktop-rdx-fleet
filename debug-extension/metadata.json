@@ -1,7 +1,10 @@
 {
   "icon": "/icons/debug-icon.svg",
   "vm": {
-    "composefile": "compose.yaml"
+    "composefile": "compose.yaml",
+    "exposes": {
+      "socket": "rd-extension-debugger.sock"
+    }
   },
   "ui": {
     "dashboard-tab": {

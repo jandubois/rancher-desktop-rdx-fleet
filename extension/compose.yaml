@@ -3,7 +3,6 @@
 # RANCHER DESKTOP WORKAROUNDS:
 # 1. ${DESKTOP_PLUGIN_IMAGE} is not expanded - must use a pre-processed compose file
 # 2. pull_policy: never - required for locally-built images
-# 3. ports: 8080 exposed - ddClient.extension.vm.service is not implemented
 #
 # See docs/rancher-desktop-bugs.md for details
 
@@ -16,11 +15,6 @@ services:
     image: ${DESKTOP_PLUGIN_IMAGE}
     pull_policy: never
 
-    # Expose HTTP port for frontend communication
-    # Frontend will call http://localhost:8080/... directly
-    ports:
-      - "8080:8080"
-
     # Mount Docker socket to check running containers
     # Uses .raw variant as recommended for extensions in Docker Desktop VM
     volumes:
@@ -31,11 +25,10 @@ services:
       - EXTENSION_NAME=fleet-gitops
       - EXTENSION_TYPE=base
       - EXTENSION_VERSION=1.0.0
-      - PORT=8080
 
-    # Health check
+    # Health check - verify socket exists
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/health/live"]
+      test: ["CMD", "test", "-S", "/run/guest-services/fleet-gitops.sock"]
       interval: 30s
       timeout: 10s
       retries: 3
