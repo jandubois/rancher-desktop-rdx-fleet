@@ -53,20 +53,7 @@ export interface BuildResult {
 
 // Get the current extension's image name from the SDK
 export function detectCurrentExtensionImage(): string | null {
-  // Rancher Desktop Extension interface has:
-  // - id: image ID excluding tag
-  // - version: image tag
-  // - image: should be full image but appears buggy (missing tag)
-  const ext = ddClient.extension as { id?: string; version?: string; image?: string };
-
-  // Try combining id + version first
-  if (ext.id && ext.version) {
-    return `${ext.id}:${ext.version}`;
-  }
-  // Fall back to image if it has a tag
-  if (ext.image?.includes(':')) {
-    return ext.image;
-  }
+  const ext = ddClient.extension as { image?: string };
   return ext.image || null;
 }
 
@@ -79,24 +66,9 @@ export interface DetectionResult {
 
 // Async detection - just wraps the sync version for API compatibility
 export async function detectCurrentExtensionImageAsync(): Promise<DetectionResult> {
-  const ext = ddClient.extension as { id?: string; version?: string; image?: string };
+  const ext = ddClient.extension as { image?: string };
 
-  // Try combining id + version first (workaround for buggy image property)
-  if (ext.id && ext.version) {
-    const fullImage = `${ext.id}:${ext.version}`;
-    return { image: fullImage, source: 'sdk', details: `id=${ext.id}, version=${ext.version}` };
-  }
-
-  // Fall back to image property
   if (ext.image) {
-    // Check if tag is missing (Rancher Desktop bug)
-    if (!ext.image.includes(':')) {
-      return {
-        image: ext.image,
-        source: 'sdk',
-        details: 'WARNING: tag missing - please add manually (e.g., :next or :latest)'
-      };
-    }
     return { image: ext.image, source: 'sdk' };
   }
 

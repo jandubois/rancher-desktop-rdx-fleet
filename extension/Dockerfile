@@ -45,15 +45,8 @@ COPY --from=backend-builder /app/package.json ./
 COPY metadata.json /
 COPY icons/ /icons/
 
-# Copy and process compose.yaml - substitute ${DESKTOP_PLUGIN_IMAGE}
-# Docker Desktop expands this at runtime, but Rancher Desktop does not.
-# We substitute it at build time using the IMAGE_NAME build arg.
-ARG IMAGE_NAME=fleet-gitops-extension:latest
-COPY compose.yaml /compose.yaml.template
-RUN apk add --no-cache gettext && \
-    DESKTOP_PLUGIN_IMAGE=${IMAGE_NAME} envsubst < /compose.yaml.template > /compose.yaml && \
-    rm /compose.yaml.template && \
-    apk del gettext
+# Copy compose.yaml for backend service
+COPY compose.yaml /
 
 # Copy host binary wrapper scripts
 COPY host/ /host/

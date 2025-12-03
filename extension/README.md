@@ -130,8 +130,7 @@ See:
 Add a backend service container (like in debug-extension) that can:
 
 1. **Auto-install Fleet on extension load** - The backend can run `helm install` without requiring the UI to be opened first
-2. **Get accurate image tag** - Use `docker inspect` on the container ID (from hostname) to get the full image name with tag, working around the `ddClient.extension.image` bug that returns the image name without version
-3. **Background health monitoring** - Continuously monitor Fleet status and cluster health
+2. **Background health monitoring** - Continuously monitor Fleet status and cluster health
 
 Implementation notes:
 - Use `vm.composefile` (not `vm.image`) - RD ignores `vm.image`
