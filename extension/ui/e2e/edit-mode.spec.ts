@@ -130,6 +130,18 @@ test.describe('Edit Mode', () => {
     // Verify new title is shown
     await expect(page.getByText('New Title')).toBeVisible();
 
+    // Wait for localStorage to be updated with the new title (deterministic wait)
+    await page.waitForFunction(
+      (expectedTitle) => {
+        const state = localStorage.getItem('fleet-extension-state:default');
+        if (!state) return false;
+        const parsed = JSON.parse(state);
+        return parsed?.manifest?.app?.name === expectedTitle;
+      },
+      'New Title',
+      { timeout: 5000 }
+    );
+
     // Reload the page
     await page.reload();
     await page.waitForLoadState('load');
