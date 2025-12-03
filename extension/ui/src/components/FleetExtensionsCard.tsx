@@ -98,6 +98,16 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
   const initStatus = status?.initStatus;
   const ownership = status?.ownership;
   const isOwner = ownership?.isOwner ?? false;
+  const kubernetesReady = initStatus?.kubernetesReady ?? false;
+
+  // Only show ownership status when it's meaningful:
+  // - K8s is ready (required for ownership ConfigMap)
+  // - Ownership has been determined (not pending/waiting/error)
+  const ownershipDetermined = ownership &&
+    kubernetesReady &&
+    ownership.status !== 'pending' &&
+    ownership.status !== 'waiting' &&
+    ownership.status !== 'error';
 
   // Get Fleet extensions from installed extensions list
   const fleetExtensions = initStatus?.installedExtensions.filter(ext => ext.hasFleetLabel) ?? [];
@@ -118,8 +128,9 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
   // Determine card border color based on status
   const getBorderColor = () => {
     if (!connected) return 'grey.400';
-    if (isOwner) return 'success.main';
-    if (ownership?.status === 'yielded') return 'warning.main';
+    if (!kubernetesReady) return 'grey.400';
+    if (ownershipDetermined && isOwner) return 'success.main';
+    if (ownershipDetermined && ownership?.status === 'yielded') return 'warning.main';
     return 'primary.main';
   };
 
@@ -148,7 +159,7 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
         {loading ? (
           <CircularProgress size={20} />
         ) : (
-          <ExtensionIcon color={connected ? (isOwner ? 'success' : 'primary') : 'disabled'} />
+          <ExtensionIcon color={connected && kubernetesReady ? (ownershipDetermined && isOwner ? 'success' : 'primary') : 'disabled'} />
         )}
 
         <Typography variant="subtitle1" sx={{ fontWeight: 600, flexGrow: 1 }}>
@@ -163,14 +174,24 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
           variant="outlined"
         />
 
-        {/* Ownership status chip */}
-        {ownership && (
+        {/* Ownership status chip - only show when ownership is determined */}
+        {ownershipDetermined && (
           <Chip
             size="small"
             icon={isOwner ? <StarIcon /> : <StarOutlineIcon />}
             label={getStatusText(ownership.status)}
             color={getStatusColor(ownership.status)}
             variant={isOwner ? 'filled' : 'outlined'}
+          />
+        )}
+
+        {/* Show initializing chip when K8s not ready or ownership pending */}
+        {connected && !ownershipDetermined && (
+          <Chip
+            size="small"
+            label={!kubernetesReady ? 'K8s not ready' : 'Initializing...'}
+            color="default"
+            variant="outlined"
           />
         )}
 
@@ -195,8 +216,18 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
             </Box>
           )}
 
-          {/* Ownership explanation */}
-          {connected && ownership && (
+          {/* K8s not ready message */}
+          {connected && !kubernetesReady && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2, color: 'text.secondary' }}>
+              <CircularProgress size={16} />
+              <Typography variant="body2">
+                Waiting for Kubernetes to be ready...
+              </Typography>
+            </Box>
+          )}
+
+          {/* Ownership explanation - only show when determined */}
+          {ownershipDetermined && (
             <Box
               sx={{
                 mb: 2,
@@ -217,7 +248,7 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {isOwner
                     ? 'This extension controls Fleet'
-                    : `Another extension controls Fleet: ${ownership.currentOwner || 'Unknown'}`
+                    : `Another extension controls Fleet: ${ownership.currentOwner}`
                   }
                 </Typography>
                 <Typography variant="caption" color="text.secondary">
