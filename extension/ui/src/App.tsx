@@ -50,6 +50,7 @@ import {
   GitRepoCard,
   FleetStatusCard,
   BackendStatusCard,
+  FleetExtensionsCard,
   DependencyConfirmationDialog,
   INITIAL_DEPENDENCY_DIALOG_STATE,
   DependencyDialogState,
@@ -780,12 +781,21 @@ function App() {
             />
           )}
 
-          {/* Backend Status Card - debug info */}
-          <BackendStatusCard
+          {/* Fleet Extensions Card - shows installed Fleet extensions and ownership */}
+          <FleetExtensionsCard
             status={backendStatus}
             loading={backendLoading}
             onRefresh={refreshBackend}
           />
+
+          {/* Backend Status Card - debug info (only shown in development) */}
+          {import.meta.env.DEV && (
+            <BackendStatusCard
+              status={backendStatus}
+              loading={backendLoading}
+              onRefresh={refreshBackend}
+            />
+          )}
 
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={effectiveCardOrder} strategy={verticalListSortingStrategy}>
