@@ -110,7 +110,7 @@ export function useBackendInit({
 
       try {
         // Try rdctl extension ls with JSON output
-        const rdctlResult = await commandExecutor.exec('rdctl', [
+        const rdctlResult = await commandExecutor.rdExec('rdctl', [
           'extension',
           'ls',
           '--output',
@@ -135,8 +135,7 @@ export function useBackendInit({
       let kubeconfig: string | undefined;
 
       try {
-        const kubeconfigResult = await commandExecutor.exec('rd-exec', [
-          'kubectl',
+        const kubeconfigResult = await commandExecutor.rdExec('kubectl', [
           'config',
           'view',
           '--raw',

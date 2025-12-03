@@ -28,24 +28,6 @@ This document tracks known bugs and required workarounds when developing Docker 
 }
 ```
 
-### `${DESKTOP_PLUGIN_IMAGE}` Variable Not Expanded
-
-**Status:** Confirmed
-
-**Issue:** The `${DESKTOP_PLUGIN_IMAGE}` variable in `compose.yaml` is not expanded by Rancher Desktop. The container fails to start because the image name is literally `${DESKTOP_PLUGIN_IMAGE}`.
-
-**Workaround:** Hardcode the image name in `compose.yaml`:
-
-```yaml
-services:
-  backend:
-    # DOES NOT WORK: image: ${DESKTOP_PLUGIN_IMAGE}
-    image: my-extension:dev  # Must be hardcoded
-    pull_policy: never       # Required for local images
-    ports:
-      - "8080:8080"
-```
-
 ### `pull_policy: never` Required for Local Images
 
 **Status:** Confirmed
@@ -120,20 +102,6 @@ app.listen(SOCKET_PATH, () => {
 
 ## Extension Properties Issues
 
-### `extension.image` Missing Tag
-
-**Status:** Confirmed
-
-**Issue:** `ddClient.extension.image` returns the image name without the version tag (e.g., `my-extension` instead of `my-extension:1.0.0`).
-
-**Workaround:** Use the container's hostname (which equals the container ID) and `docker inspect` to get the full image name:
-
-```go
-// In backend service
-hostname, _ := os.Hostname()  // Returns container ID
-// Frontend can then call docker inspect via the Docker API
-```
-
 ### `extension.id` and `extension.version` Missing
 
 **Status:** Confirmed
@@ -178,6 +146,22 @@ Remove-Item -Recurse "$env:LOCALAPPDATA\rancher-desktop\extensions\*"
 ```
 
 ## Previously Suspected Issues (Now Resolved)
+
+### `extension.image` Missing Tag
+
+**Status:** Fixed in Rancher Desktop
+
+**Issue:** `ddClient.extension.image` returned the image name without the version tag (e.g., `my-extension` instead of `my-extension:1.0.0`).
+
+**Resolution:** Rancher Desktop now correctly includes the tag in `ddClient.extension.image`, matching Docker Desktop's behavior.
+
+### `${DESKTOP_PLUGIN_IMAGE}` Variable Not Expanded
+
+**Status:** Fixed in Rancher Desktop
+
+**Issue:** The `${DESKTOP_PLUGIN_IMAGE}` variable in `compose.yaml` was not expanded by Rancher Desktop. The container would fail to start because the image name was literally `${DESKTOP_PLUGIN_IMAGE}`.
+
+**Resolution:** Rancher Desktop now properly sets `DESKTOP_PLUGIN_IMAGE` inside the backend container, matching Docker Desktop's behavior.
 
 ### Host Binaries Limited to 2-3
 

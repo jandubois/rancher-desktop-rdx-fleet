@@ -15,10 +15,14 @@ This extension helps debug and understand the Rancher Desktop extension runtime 
 
 ## Known Issues Being Investigated
 
-- `ddClient.extension.image` returns name without `:version` tag
-- Host binaries limited to ~2-3 scripts (4th+ fails with ENOENT)
 - Extension sidebar icon caching (requires full RD restart)
 - GUI uninstall fails silently (CLI `rdctl extension uninstall` works)
+
+## Previously Fixed Issues
+
+- `ddClient.extension.image` - now correctly includes `:version` tag
+- `${DESKTOP_PLUGIN_IMAGE}` - now properly expanded in compose.yaml
+- Host binaries - all 5 work correctly (ENOENT issue not reproducible)
 
 ## Building
 

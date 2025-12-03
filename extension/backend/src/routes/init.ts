@@ -39,9 +39,15 @@ function log(message: string): void {
  * Body: { installedExtensions: [...], kubeconfig?: string }
  */
 initRouter.post('/', async (req, res) => {
-  const { installedExtensions, kubeconfig } = req.body;
+  const { installedExtensions, kubeconfig, debugInfo } = req.body;
 
   log('=== Initialization request received ===');
+
+  // Log frontend debug info if provided
+  if (debugInfo && Array.isArray(debugInfo) && debugInfo.length > 0) {
+    log('Frontend debug info:');
+    debugInfo.forEach((info: string) => log(`  ${info}`));
+  }
 
   // Validate input
   if (!installedExtensions || !Array.isArray(installedExtensions)) {
