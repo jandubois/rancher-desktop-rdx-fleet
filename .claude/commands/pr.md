@@ -17,7 +17,7 @@ Before starting, create a todo list with ALL of the following items:
 5. Check for historical/refactoring comments in code
 6. Check for new dependencies and license compatibility
 7. Check if documentation needs updates
-8. Run tests, lint, and build
+8. Run tests, lint, build, and E2E tests
 9. Rebase on main branch
 10. Push changes
 11. Generate `gh pr create` command for user
@@ -224,19 +224,25 @@ Review if any documentation needs updates based on the changes:
 
 If docs need updates, make the changes and commit before proceeding.
 
-## 7. Run Tests, Linting, and Build
+## 7. Run Tests, Linting, Build, and E2E Tests
 Run the checks from the extension/ui directory:
 
 ```bash
-cd extension/ui && npm run lint && npm test && npm run build
+cd extension/ui && npm run lint && npm test && npm run build && npm run test:e2e
 ```
 
 This will:
 - Run ESLint to check code quality
-- Run all Vitest tests
+- Run all Vitest unit/component tests
 - Build the TypeScript project
+- Run Playwright E2E tests
 
 If any step fails, fix the issues and commit before proceeding.
+
+**Note**: E2E tests require Playwright browsers to be installed. If not installed, run:
+```bash
+npx playwright install chromium
+```
 
 ## 8. Rebase on Main
 Rebase your branch on the latest main:
