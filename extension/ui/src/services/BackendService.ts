@@ -6,9 +6,11 @@
  * - Health status
  * - Ownership management (future)
  *
- * Communication is via HTTP on localhost:8080 since ddClient.extension.vm.service
- * is not implemented in Rancher Desktop.
+ * Communication is via ddClient.extension.vm.service which routes requests
+ * to the backend's Unix socket (defined in metadata.json exposes.socket).
  */
+
+import { ddClient } from '../lib/ddClient';
 
 /** Health status from the backend */
 export interface BackendHealth {
@@ -121,25 +123,25 @@ export interface BackendStatus {
 }
 
 /**
- * Service for communicating with the extension backend.
+ * Service for communicating with the extension backend via vm.service.
  */
 export class BackendService {
-  private baseUrl: string;
+  private vmService: typeof ddClient.extension.vm.service;
 
-  constructor(baseUrl: string = 'http://localhost:8080') {
-    this.baseUrl = baseUrl;
+  constructor() {
+    this.vmService = ddClient.extension.vm?.service;
   }
 
   /**
    * Check if the backend is reachable
    */
   async isAvailable(): Promise<boolean> {
+    if (!this.vmService) {
+      return false;
+    }
     try {
-      const response = await fetch(`${this.baseUrl}/health/live`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(2000),
-      });
-      return response.ok;
+      await this.vmService.get('/health/live');
+      return true;
     } catch {
       return false;
     }
@@ -149,22 +151,20 @@ export class BackendService {
    * Get backend health status
    */
   async getHealth(): Promise<BackendHealth> {
-    const response = await fetch(`${this.baseUrl}/health`);
-    if (!response.ok) {
-      throw new Error(`Health check failed: ${response.status}`);
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
     }
-    return response.json();
+    return await this.vmService.get('/health') as BackendHealth;
   }
 
   /**
    * Get extension identity (container ID, extension name, etc.)
    */
   async getIdentity(): Promise<ExtensionIdentity> {
-    const response = await fetch(`${this.baseUrl}/identity`);
-    if (!response.ok) {
-      throw new Error(`Identity check failed: ${response.status}`);
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
     }
-    return response.json();
+    return await this.vmService.get('/identity') as ExtensionIdentity;
   }
 
   /**
@@ -175,50 +175,40 @@ export class BackendService {
     installedExtensions: InstalledExtension[];
     kubeconfig?: string;
   }): Promise<OwnershipStatus> {
-    const response = await fetch(`${this.baseUrl}/api/init`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) {
-      throw new Error(`Initialize failed: ${response.status}`);
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
     }
-    return response.json();
+    return await this.vmService.post('/api/init', data) as OwnershipStatus;
   }
 
   /**
    * Get initialization status from backend
    */
   async getInitStatus(): Promise<InitStatus> {
-    const response = await fetch(`${this.baseUrl}/api/init`);
-    if (!response.ok) {
-      throw new Error(`Init status check failed: ${response.status}`);
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
     }
-    return response.json();
+    return await this.vmService.get('/api/init') as InitStatus;
   }
 
   /**
    * Get detailed ownership debug info
    */
   async getOwnershipDebugInfo(): Promise<OwnershipDebugInfo> {
-    const response = await fetch(`${this.baseUrl}/api/init/ownership`);
-    if (!response.ok) {
-      throw new Error(`Ownership debug info failed: ${response.status}`);
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
     }
-    return response.json();
+    return await this.vmService.get('/api/init/ownership') as OwnershipDebugInfo;
   }
 
   /**
    * Manually re-run ownership check
    */
   async recheckOwnership(): Promise<OwnershipStatus> {
-    const response = await fetch(`${this.baseUrl}/api/init/check-ownership`, {
-      method: 'POST',
-    });
-    if (!response.ok) {
-      throw new Error(`Ownership recheck failed: ${response.status}`);
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
     }
-    const data = await response.json();
+    const data = await this.vmService.post('/api/init/check-ownership', {}) as { ownership: OwnershipStatus };
     return data.ownership;
   }
 
