@@ -10,20 +10,31 @@ echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command start
 **IMPORTANT: Use TodoWrite to track progress through ALL steps below.**
 
 Before starting, create a todo list with ALL of the following items:
-1. Gather information (fetch, status, log, diff)
-2. Check test coverage for code changes
-3. Verify test comment headers are up-to-date
-4. Check for library reimplementations
-5. Check for historical/refactoring comments in code
-6. Check for new dependencies and license compatibility
-7. Check if documentation needs updates
-8. Run tests, lint, build, and E2E tests
-9. Rebase on main branch
+1. Fetch, check status, and rebase early
+2. Start npm install in background
+3. Check test coverage for code changes
+4. Verify test comment headers are up-to-date
+5. Check for library reimplementations
+6. Check for historical/refactoring comments in code
+7. Check for new dependencies and license compatibility
+8. Check if documentation needs updates
+9. Run parallel lint/test/build, then E2E tests
 10. Push changes
 11. Generate `gh pr create` command for user
 12. Display elapsed time
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
+
+## Parallelization Strategy
+
+This PR command uses parallelization to reduce total time:
+
+1. **npm install**: Runs in background while code review happens (Step 2)
+2. **lint + test + build/E2E**: Run in parallel (Step 8)
+   - lint (~10s) runs as a Bash call
+   - test (~60s) runs as a Bash call
+   - build+E2E runs in a Task agent (build ~8s, then E2E ~60s)
+   - E2E starts immediately after build, runs in parallel with unit tests
 
 ## IMPORTANT: Explain All Decisions
 
@@ -44,22 +55,50 @@ The explanation should include:
 
 Follow these steps exactly when creating a PR:
 
-## 1. Gather Information
-First, fetch the base branch:
+## 1. Fetch, Check Status, and Rebase Early
+
+**Rebase early to catch conflicts before wasting time on checks.**
+
+First, fetch and check for uncommitted changes:
 ```bash
-git fetch origin main
+git fetch origin main && git status --short
 ```
 
-Then gather info (can run in parallel):
-- `git status` - check for uncommitted changes
-- `git log --oneline origin/main..HEAD` - see all commits to include
-- `git diff origin/main...HEAD --stat` - summary of all changes
+**If there are uncommitted changes**: Stop and ask the user to commit or stash them first. Rebase won't work with uncommitted changes.
 
-## 2. Check Test Coverage and Test Comments
+**If working tree is clean**: Rebase immediately:
+```bash
+git rebase origin/main
+```
+
+If conflicts occur, resolve them before proceeding. This catches merge conflicts early instead of after running all the checks.
+
+Then get the commit log (useful for writing PR description later):
+```bash
+git log --oneline origin/main..HEAD
+```
+
+---
+
+## 2. Start npm install in Background
+
+**Start this IMMEDIATELY after rebase** - it runs while you do code review:
+
+```bash
+npm --prefix extension/ui install --prefer-offline --no-audit 2>/dev/null || npm --prefix extension/ui install
+```
+
+This uses cached packages when possible (`--prefer-offline`) and skips audit for speed. Falls back to full install if cache fails.
+
+**Continue with code review steps (3-8) while npm install runs in the background.**
+
+---
+
+## 3. Check Test Coverage and Test Comments
 
 **IMPORTANT: Do this BEFORE running tests.**
 
-### 2.1 Verify Test Coverage for Code Changes
+### 3.1 Verify Test Coverage for Code Changes
 
 For any code changes (non-test files), verify that corresponding tests exist:
 
@@ -85,7 +124,7 @@ Common patterns for this project:
 - Bug fixes → Should add regression tests
 - Refactoring → Existing tests should still pass and may need updates
 
-### 2.2 Verify Test Comment Headers
+### 3.2 Verify Test Comment Headers
 
 For any changed test files, verify the test descriptions are accurate:
 
@@ -103,7 +142,7 @@ For each changed test file:
 - If no test files changed: State that no test files were modified in this PR.
 - If descriptions are accurate: Confirm you reviewed the test file(s) and the descriptions match the test behavior.
 
-## 3. Check for Library Reimplementations
+## 4. Check for Library Reimplementations
 
 **IMPORTANT: Verify that no functionality has been reimplemented that is already available in popular npm packages.**
 
@@ -132,7 +171,7 @@ If you find reimplementations:
 
 **Rationale**: See `.claude/instructions.md` Development Guidelines for more details.
 
-## 4. Check for Historical/Refactoring Comments in Code
+## 5. Check for Historical/Refactoring Comments in Code
 
 **IMPORTANT: Code comments should only describe the current state of the code, not its history.**
 
@@ -163,7 +202,7 @@ If you find such comments, remove or rewrite them to describe only the current b
 - If historical comments found: List which files and what changes you made to fix them.
 - If no issues found: Confirm you searched for historical comments and none were found.
 
-## 5. Check for New Dependencies and License Compatibility
+## 6. Check for New Dependencies and License Compatibility
 
 **IMPORTANT: Verify that any newly added dependencies are compatible with our Apache 2.0 license.**
 
@@ -199,7 +238,8 @@ For each new dependency:
 - If dependencies were removed: Note this and update `docs/reference/license-compatibility.md` to remove them.
 - If no dependency changes: State that no dependency files were modified.
 
-## 6. Check Documentation
+## 7. Check Documentation
+
 Review if any documentation needs updates based on the changes:
 
 ### Developer Documentation
@@ -224,43 +264,68 @@ Review if any documentation needs updates based on the changes:
 
 If docs need updates, make the changes and commit before proceeding.
 
-## 7. Run Tests, Linting, Build, and E2E Tests
-Run the checks from the extension/ui directory:
+## 8. Run Tests, Linting, Build, and E2E Tests
 
+**IMPORTANT: Run lint, test, and build+E2E in PARALLEL using a combination of Bash and Task tool calls.**
+
+**NOTE: Use `--prefix` to avoid working directory issues. Never use `cd extension/ui &&`.**
+
+Execute these three operations simultaneously in a single message:
+
+1. **Lint** (Bash call):
 ```bash
-cd extension/ui && npm run lint && npm test && npm run build && npm run test:e2e
+npm --prefix extension/ui run lint
 ```
 
-This will:
-- Run ESLint to check code quality
-- Run all Vitest unit/component tests
-- Build the TypeScript project
-- Run Playwright E2E tests
+2. **Unit Tests** (Bash call):
+```bash
+npm --prefix extension/ui test
+```
+
+3. **Build + E2E** (Task agent with subagent_type=general-purpose):
+Use a Task agent to run build followed by E2E tests. This allows E2E to start immediately after build (~8s) without waiting for unit tests (~60s) to complete.
+
+Prompt for the Task agent:
+```
+Run the build and E2E tests for the extension/ui project. Do NOT do any code review or analysis.
+
+1. First run the build:
+   npm --prefix extension/ui run build
+
+2. If build succeeds, immediately run E2E tests:
+   npm --prefix extension/ui run test:e2e
+
+3. Report back:
+   - Build result (success/failure, any errors)
+   - E2E result (success/failure, test summary)
+   - If E2E fails due to missing Playwright browsers, note this for the user
+
+Do not attempt to fix any failures - just report them.
+```
+
+This parallel approach saves significant time:
+- lint (~10s) runs in parallel with everything
+- test (~60s) runs in parallel with build+E2E
+- build (~8s) + E2E (~60s) runs in the subagent, overlapping with unit tests
 
 If any step fails, fix the issues and commit before proceeding.
 
 **Note**: E2E tests require Playwright browsers to be installed. If not installed, run:
 ```bash
-npx playwright install chromium
-```
-
-## 8. Rebase on Main
-Rebase your branch on the latest main:
-
-```bash
-git fetch origin main && git rebase origin/main
-```
-
-If conflicts occur, resolve them, then:
-```bash
-git add . && git rebase --continue
+npx --prefix extension/ui playwright install chromium
 ```
 
 ## 9. Push Changes
-Push your rebased branch:
+
+We already rebased in Step 1, so just push:
 
 ```bash
 git push -f
+```
+
+**Note**: If significant time has passed or you made fixes during the PR process, you may want to rebase again:
+```bash
+git fetch origin main && git rebase origin/main && git push -f
 ```
 
 ## 10. Create PR Command
