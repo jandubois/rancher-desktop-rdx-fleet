@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'path';
+import os from 'os';
+import fs from 'fs';
 
 /**
  * Playwright configuration for E2E tests.
@@ -17,6 +19,11 @@ import path from 'path';
 // but causes crashes in GitHub CI due to resource exhaustion
 const isCI = !!process.env.CI;
 const isGitHubActions = !!process.env.GITHUB_ACTIONS;
+
+// Create a writable temp directory for browser processes
+// This fixes "Failed to create socket directory" errors in CI
+const tmpDir = path.join(os.homedir(), 'tmp', 'playwright');
+fs.mkdirSync(tmpDir, { recursive: true });
 
 // Base args for sandboxed environments
 const baseArgs = [
@@ -83,7 +90,9 @@ export default defineConfig({
           args: chromiumArgs,
           env: {
             ...process.env,
-            TMPDIR: process.env.HOME + '/tmp',
+            // Set writable temp directories to avoid "Failed to create socket directory" errors
+            TMPDIR: tmpDir,
+            XDG_RUNTIME_DIR: tmpDir,
           },
         },
       },
