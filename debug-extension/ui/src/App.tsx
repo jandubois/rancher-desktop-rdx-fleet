@@ -443,9 +443,9 @@ function BackendServicePanel() {
         }
       }
 
-      // Try direct HTTP fetch to localhost:8080
+      // Try direct HTTP fetch to localhost:8081
       try {
-        const resp = await fetch('http://localhost:8080/health');
+        const resp = await fetch('http://localhost:8081/health');
         if (resp.ok) {
           setHttpStatus('available');
         } else {
@@ -482,7 +482,7 @@ function BackendServicePanel() {
 
     // Try direct HTTP fetch
     try {
-      const resp = await fetch(`http://localhost:8080${path}`);
+      const resp = await fetch(`http://localhost:8081${path}`);
       const data = await resp.json();
       setResults(prev => ({
         ...prev,
@@ -525,7 +525,7 @@ function BackendServicePanel() {
       if (!success) {
         // Try direct HTTP fetch
         try {
-          const resp = await fetch(`http://localhost:8080${ep.path}`);
+          const resp = await fetch(`http://localhost:8081${ep.path}`);
           const data = await resp.json();
           setResults(prev => ({
             ...prev,
@@ -577,7 +577,7 @@ function BackendServicePanel() {
           size="small"
         />
         <Chip
-          label={`HTTP :8080: ${httpStatus}`}
+          label={`HTTP :8081: ${httpStatus}`}
           color={httpStatus === 'available' ? 'success' : httpStatus === 'unavailable' ? 'error' : 'default'}
           size="small"
         />
@@ -587,7 +587,7 @@ function BackendServicePanel() {
         <Alert severity="info" sx={{ mb: 2 }}>
           <Typography variant="body2">
             <strong>ddClient.extension.vm.service</strong> is not available, but HTTP fallback on port 8080 works.
-            Queries will use direct HTTP fetch to localhost:8080.
+            Queries will use direct HTTP fetch to localhost:8081.
           </Typography>
         </Alert>
       )}
@@ -596,7 +596,7 @@ function BackendServicePanel() {
         <Alert severity="warning" sx={{ mb: 2 }}>
           <Typography variant="body2">
             Neither <code>vm.service</code> nor HTTP fallback is available.
-            The backend container may not be running or port 8080 may not be exposed.
+            The backend container may not be running or port 8081 may not be exposed.
           </Typography>
         </Alert>
       )}
@@ -1290,12 +1290,12 @@ export default function App() {
     // 3b. Backend Service API (HTTP fallback)
     setExportProgress('Querying backend service API...');
     lines.push('-'.repeat(80));
-    lines.push('3b. BACKEND SERVICE API (via HTTP :8080)');
+    lines.push('3b. BACKEND SERVICE API (via HTTP :8081)');
     lines.push('-'.repeat(80));
     const backendEndpoints = ['/info', '/env', '/system', '/network', '/processes'];
     for (const endpoint of backendEndpoints) {
       try {
-        const resp = await fetch(`http://localhost:8080${endpoint}`);
+        const resp = await fetch(`http://localhost:8081${endpoint}`);
         if (resp.ok) {
           const data = await resp.json();
           lines.push(`\n--- ${endpoint} ---`);
