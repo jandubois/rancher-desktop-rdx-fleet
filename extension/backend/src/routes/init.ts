@@ -52,13 +52,60 @@ initRouter.post('/', async (req, res) => {
   }
 
   // Store the extensions list
-  installedFleetExtensions = installedExtensions;
   lastInitTime = new Date().toISOString();
 
   log(`Received ${installedExtensions.length} installed extensions`);
-  installedExtensions.forEach((ext: InstalledExtension) => {
+
+  // Enrich extensions with labels from Docker containers
+  // rdctl extension ls doesn't include image labels, so we get them from running containers
+  const dockerContainers = await dockerService.listContainers();
+  log(`Found ${dockerContainers.length} Docker containers for label enrichment`);
+
+  // Log container info for debugging
+  dockerContainers.forEach(c => {
+    const hasFleetLabel = c.labels['io.rancher-desktop.fleet.type'] ? 'YES' : 'no';
+    log(`  Container: ${c.name} | Image: ${c.image} | Fleet label: ${hasFleetLabel}`);
+  });
+
+  installedFleetExtensions = installedExtensions.map((ext: InstalledExtension) => {
+    // Try multiple matching strategies:
+    // 1. Extension name in container image
+    // 2. Extension name (with special chars replaced) in container name
+    // 3. Extension name is a prefix of image name
+    const extNameNormalized = ext.name.replace(/[/:]/g, '-').toLowerCase();
+
+    const matchingContainer = dockerContainers.find(c => {
+      const containerNameNormalized = c.name.toLowerCase();
+      const imageNameNormalized = c.image.toLowerCase();
+
+      return (
+        imageNameNormalized.includes(ext.name.toLowerCase()) ||
+        containerNameNormalized.includes(extNameNormalized) ||
+        imageNameNormalized.startsWith(ext.name.split(':')[0].toLowerCase())
+      );
+    });
+
+    if (matchingContainer) {
+      const fleetLabels = Object.entries(matchingContainer.labels)
+        .filter(([k]) => k.startsWith('io.rancher-desktop.fleet'))
+        .map(([k, v]) => `${k}=${v}`)
+        .join(', ');
+
+      log(`  - ${ext.name}: matched container ${matchingContainer.name} (fleet labels: ${fleetLabels || 'none'})`);
+
+      if (Object.keys(matchingContainer.labels).length > 0) {
+        return {
+          ...ext,
+          labels: { ...ext.labels, ...matchingContainer.labels },
+        };
+      }
+    } else {
+      log(`  - ${ext.name}: no matching container found`);
+    }
+
     const fleetType = ext.labels?.['io.rancher-desktop.fleet.type'] || 'none';
     log(`  - ${ext.name} (fleet.type: ${fleetType})`);
+    return ext;
   });
 
   // Initialize kubernetes client if kubeconfig provided
