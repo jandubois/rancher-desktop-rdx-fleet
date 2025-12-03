@@ -108,7 +108,10 @@ export async function setupLocalStorage(
       iconState: null,
       timestamp: Date.now(),
     };
-    localStorage.setItem('fleet-extension-state', JSON.stringify(extensionState));
+    // Key must match the app's storage key format: 'fleet-extension-state:{extensionImage}'
+    // When running outside Docker Desktop, detectCurrentExtensionImage() returns null,
+    // which results in the key 'fleet-extension-state:default'
+    localStorage.setItem('fleet-extension-state:default', JSON.stringify(extensionState));
   }, state);
 }
 
@@ -122,7 +125,8 @@ export async function clearLocalStorage(page: Page) {
 /** Helper to get current localStorage state */
 export async function getLocalStorageState(page: Page) {
   return await page.evaluate(() => {
-    const state = localStorage.getItem('fleet-extension-state');
+    // Key must match the app's storage key format
+    const state = localStorage.getItem('fleet-extension-state:default');
     return state ? JSON.parse(state) : null;
   });
 }

@@ -45,8 +45,8 @@ export default defineConfig({
   /* Fail the build on CI if you accidentally left test.only in the source code */
   forbidOnly: isCI,
 
-  /* Retry on CI only */
-  retries: isCI ? 2 : 0,
+  /* Retry failed tests to handle browser instability in VM environments */
+  retries: 2,
 
   /* Limit parallel workers to avoid browser crashes in single-process mode */
   /* Using single worker for local VMs (--single-process mode) and CI */
