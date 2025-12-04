@@ -672,7 +672,7 @@ export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]>
       const labels = img.Config?.Labels || {};
       const fleetType = labels['io.rancher-desktop.fleet.type'];
 
-      if (fleetType === 'custom') {
+      if (fleetType) {
         // Get repository and tag from RepoTags
         const repoTag = img.RepoTags?.[0] || '';
         const [repository, tag] = repoTag.includes(':')
@@ -683,7 +683,7 @@ export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]>
           id: img.Id?.substring(7, 19) || '', // Short ID (remove sha256: prefix)
           repository,
           tag,
-          type: fleetType,
+          type: fleetType as 'base' | 'custom',
           title: labels['org.opencontainers.image.title'],
           baseImage: labels['io.rancher-desktop.fleet.base-image'],
         });
