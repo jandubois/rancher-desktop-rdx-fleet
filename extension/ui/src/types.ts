@@ -1,6 +1,6 @@
 // Shared type definitions
 
-export type FleetStatus = 'checking' | 'not-installed' | 'initializing' | 'running' | 'error';
+export type FleetStatus = 'checking' | 'not-installed' | 'installing' | 'initializing' | 'running' | 'error';
 
 // Bundle information for dependency resolution
 export interface BundleInfo {

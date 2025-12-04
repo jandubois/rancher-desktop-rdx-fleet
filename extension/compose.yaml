@@ -12,16 +12,19 @@ services:
     image: ${DESKTOP_PLUGIN_IMAGE}
     pull_policy: never
 
-    # Mount Docker socket to check running containers
+    # Mount Docker socket and kubeconfig for backend operations
     # Uses .raw variant as recommended for extensions in Docker Desktop VM
     volumes:
       - /var/run/docker.sock.raw:/var/run/docker.sock
+      # Mount kubeconfig for kubectl/helm access to cluster
+      - /root/.kube:/root/.kube:ro
 
     # Environment variables for extension identification
     environment:
       - EXTENSION_NAME=fleet-gitops
       - EXTENSION_TYPE=base
       - EXTENSION_VERSION=1.0.0
+      - KUBECONFIG=/root/.kube/config
 
     # Health check - verify socket exists
     healthcheck:

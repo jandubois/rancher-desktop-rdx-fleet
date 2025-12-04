@@ -3,11 +3,13 @@
  *
  * This is a pure presentational component that receives all data via props,
  * making it easily testable without complex mocking.
+ *
+ * Fleet is auto-installed by the backend service, so no manual install button
+ * is shown. The card displays the current status and any installation progress.
  */
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -21,8 +23,6 @@ import { EditableTitle } from './EditableTitle';
 export interface FleetStatusCardProps {
   /** Current Fleet state */
   fleetState: FleetState;
-  /** Whether Fleet is currently being installed */
-  installing: boolean;
   /** Whether edit mode is active */
   editMode: boolean;
   /** Current card title */
@@ -31,8 +31,6 @@ export interface FleetStatusCardProps {
   repoError: string | null;
   /** Callback when title changes */
   onTitleChange: (title: string) => void;
-  /** Callback to install Fleet */
-  onInstallFleet: () => void;
   /** Callback to clear repo error */
   onClearRepoError: () => void;
 }
@@ -43,6 +41,8 @@ function StatusIcon({ status }: { status: FleetState['status'] }) {
     case 'checking':
       return <CircularProgress size={24} />;
     case 'initializing':
+    case 'installing':
+    case 'not-installed':
       return (
         <SyncIcon
           color="info"
@@ -73,8 +73,11 @@ function getStatusSuffix(fleetState: FleetState): string {
       return ': Checking...';
     case 'initializing':
       return ': Initializing...';
+    case 'installing':
+      return ': Installing...';
     case 'not-installed':
-      return ': Not Installed';
+      // Fleet auto-installs, so "not-installed" means installation is pending
+      return ': Installing...';
     case 'error':
       return ': Error';
     default:
@@ -87,15 +90,16 @@ function getStatusSuffix(fleetState: FleetState): string {
  *
  * This component is a pure presentational component that receives
  * all data and callbacks via props, making it fully testable.
+ *
+ * Fleet is auto-installed by the backend, so no manual install button
+ * is needed. When Fleet is not installed, we show "Installing..." status.
  */
 export function FleetStatusCard({
   fleetState,
-  installing,
   editMode,
   title,
   repoError,
   onTitleChange,
-  onInstallFleet,
   onClearRepoError,
 }: FleetStatusCardProps) {
   const statusSuffix = getStatusSuffix(fleetState);
@@ -115,6 +119,13 @@ export function FleetStatusCard({
         {editMode && <Typography variant="h6">{statusSuffix}</Typography>}
       </Box>
 
+      {/* Show installation progress message */}
+      {(fleetState.status === 'installing' || fleetState.status === 'not-installed') && (
+        <Alert severity="info" sx={{ mt: 1 }}>
+          {fleetState.message || 'Fleet is being installed automatically...'}
+        </Alert>
+      )}
+
       {fleetState.status === 'initializing' && fleetState.message && (
         <Alert severity="info" sx={{ mt: 1 }}>
           {fleetState.message}
@@ -125,19 +136,6 @@ export function FleetStatusCard({
         <Alert severity="error" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }}>
           {fleetState.error}
         </Alert>
-      )}
-
-      {fleetState.status === 'not-installed' && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
-          <Button
-            variant="contained"
-            size="small"
-            onClick={onInstallFleet}
-            disabled={installing}
-          >
-            {installing ? 'Installing...' : 'Install Fleet'}
-          </Button>
-        </Box>
       )}
 
       {repoError && (
