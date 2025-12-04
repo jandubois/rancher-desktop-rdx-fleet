@@ -140,8 +140,9 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     ownership.status !== 'waiting' &&
     ownership.status !== 'error';
 
-  // Get Fleet extensions from installed extensions list
-  const fleetExtensions = initStatus?.installedExtensions.filter(ext => ext.hasFleetLabel) ?? [];
+  // Get all installed extensions (not just Fleet-labeled ones, for matching purposes)
+  const allInstalledExtensions = initStatus?.installedExtensions ?? [];
+  const fleetExtensions = allInstalledExtensions.filter(ext => ext.hasFleetLabel);
   const totalExtensions = initStatus?.installedExtensionsCount ?? 0;
 
   // Load Fleet extension images from Docker
@@ -162,22 +163,35 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     loadFleetImages();
   }, [loadFleetImages, status]);
 
+  // Normalize image reference to full form: repository:tag
+  // e.g., "ghcr.io/foo/bar" -> "ghcr.io/foo/bar:latest"
+  // e.g., "my-ext:dev" -> "my-ext:dev"
+  const normalizeImageRef = (name: string): string => {
+    const lower = name.toLowerCase();
+    return lower.includes(':') ? lower : `${lower}:latest`;
+  };
+
   // Create unified list of all images with their status
   const unifiedImages: UnifiedImageInfo[] = fleetImages.map(img => {
     const imageName = img.repository + (img.tag ? `:${img.tag}` : ':latest');
-    const imgNameLower = img.repository.toLowerCase();
+    const normalizedImageName = normalizeImageRef(imageName);
 
     // Check if this image is installed as an extension
-    const installedExt = fleetExtensions.find(ext => {
-      const extName = ext.name.toLowerCase();
-      return extName.includes(imgNameLower) || imgNameLower.includes(extName.split(':')[0]);
+    // Compare normalized full image names (repository:tag)
+    const installedExt = allInstalledExtensions.find(ext => {
+      const normalizedExtName = normalizeImageRef(ext.name);
+      return normalizedExtName === normalizedImageName;
     });
 
-    // Check if this is the currently active (owner) extension
-    const isActive = installedExt && ownership?.ownExtensionName === installedExt.name;
+    // Check if this is the extension we're currently running in
+    const isThisExtension = !!installedExt && initStatus?.ownIdentity.extensionName === installedExt.name;
 
-    // Check if this is the extension we're running in
-    const isThisExtension = installedExt && initStatus?.ownIdentity.extensionName === installedExt.name;
+    // Check if this is the currently active (owner) extension
+    // Either it's the current owner, or it's "this" extension and we're the owner
+    const isActive = !!installedExt && (
+      ownership?.ownExtensionName === installedExt.name ||
+      (isThisExtension && isOwner)
+    );
 
     return {
       imageName,
@@ -485,8 +499,8 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                           </IconButton>
                         </Tooltip>
                       )}
-                      {/* Uninstall button - show if installed */}
-                      {img.isInstalled && (
+                      {/* Uninstall button - show if installed and not base image */}
+                      {img.isInstalled && img.type !== 'base' && (
                         <Tooltip title="Uninstall extension">
                           <IconButton
                             size="small"
