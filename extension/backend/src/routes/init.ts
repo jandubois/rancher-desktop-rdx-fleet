@@ -10,10 +10,15 @@
 
 import { Router } from 'express';
 import os from 'os';
+import * as fs from 'fs';
 import { ownershipService, InstalledExtension, OwnershipStatus } from '../services/ownership';
 import { dockerService } from '../services/docker';
+import { fleetService } from '../services/fleet';
 
 export const initRouter = Router();
+
+// Shared kubeconfig path for fleet service
+export const SHARED_KUBECONFIG_PATH = '/tmp/kubeconfig-patched';
 
 // Store initialization state
 let initialized = false;
@@ -148,6 +153,29 @@ initRouter.post('/', async (req, res) => {
     try {
       await ownershipService.initialize(kubeconfig);
       log('Kubernetes client initialized successfully');
+
+      // Also save patched kubeconfig for fleet service (kubectl/helm)
+      let patchedKubeconfig = kubeconfig;
+      patchedKubeconfig = patchedKubeconfig.replace(/https:\/\/localhost:/g, 'https://host.docker.internal:');
+      patchedKubeconfig = patchedKubeconfig.replace(/https:\/\/127\.0\.0\.1:/g, 'https://host.docker.internal:');
+      patchedKubeconfig = patchedKubeconfig.replace(
+        /(server: https:\/\/host\.docker\.internal:[0-9]+)/g,
+        '$1\n    insecure-skip-tls-verify: true'
+      );
+      fs.writeFileSync(SHARED_KUBECONFIG_PATH, patchedKubeconfig);
+      log(`Wrote patched kubeconfig to ${SHARED_KUBECONFIG_PATH}`);
+
+      // Initialize fleet service with the patched kubeconfig
+      fleetService.initialize(patchedKubeconfig);
+
+      // Trigger Fleet auto-install now that kubeconfig is available
+      log('Triggering Fleet auto-install...');
+      fleetService.ensureFleetInstalled().then(() => {
+        const state = fleetService.getState();
+        log(`Fleet install result: ${state.status}`);
+      }).catch(err => {
+        log(`Fleet install error: ${err}`);
+      });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       log(`ERROR initializing Kubernetes client: ${msg}`);

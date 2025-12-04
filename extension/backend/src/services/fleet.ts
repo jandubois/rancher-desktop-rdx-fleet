@@ -2,23 +2,18 @@
  * Fleet Installation Service
  *
  * Handles automatic Fleet installation and status checking.
- * Uses kubectl and helm commands to manage Fleet in the cluster.
+ * Uses Kubernetes client library and HelmChart CRDs (via k3s Helm Controller)
+ * to manage Fleet in the cluster - no kubectl or helm CLI needed.
  */
 
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as k8s from '@kubernetes/client-node';
 
-const execAsync = promisify(exec);
-
-// Path for patched kubeconfig (container-friendly)
-const PATCHED_KUBECONFIG = '/tmp/kubeconfig-patched';
-
-// Constants matching the frontend
-const KUBE_CONTEXT = 'rancher-desktop';
+// Constants
 const FLEET_NAMESPACE = 'fleet-local';
 const FLEET_SYSTEM_NAMESPACE = 'cattle-fleet-system';
+const HELM_CHART_GROUP = 'helm.cattle.io';
+const HELM_CHART_VERSION = 'v1';
+const HELM_CHART_PLURAL = 'helmcharts';
 
 export type FleetStatus = 'checking' | 'not-installed' | 'installing' | 'running' | 'error';
 
@@ -33,7 +28,11 @@ class FleetService {
   private currentState: FleetState = { status: 'checking' };
   private installPromise: Promise<void> | null = null;
   private debugLog: string[] = [];
-  private kubeconfigReady = false;
+  private k8sApi: k8s.CoreV1Api | null = null;
+  private k8sCustomApi: k8s.CustomObjectsApi | null = null;
+  private k8sAppsApi: k8s.AppsV1Api | null = null;
+  private kubeConfig: k8s.KubeConfig | null = null;
+  private initialized = false;
 
   private log(message: string): void {
     const timestamp = new Date().toISOString();
@@ -54,51 +53,32 @@ class FleetService {
   }
 
   /**
-   * Ensure kubeconfig is patched for container use.
-   * Replaces localhost/127.0.0.1 with host.docker.internal so kubectl
-   * can reach the Kubernetes API server from inside the container.
+   * Initialize with kubeconfig (called from init route after patching).
    */
-  private async ensureKubeconfigPatched(): Promise<boolean> {
-    if (this.kubeconfigReady) {
-      return true;
-    }
-
-    const originalKubeconfig = process.env.KUBECONFIG || '/root/.kube/config';
-    this.log(`Patching kubeconfig from ${originalKubeconfig}`);
+  initialize(patchedKubeconfig: string): void {
+    this.log(`Initializing Fleet service with kubeconfig (${patchedKubeconfig.length} bytes)`);
 
     try {
-      if (!fs.existsSync(originalKubeconfig)) {
-        this.log(`Kubeconfig not found at ${originalKubeconfig}`);
-        return false;
-      }
-
-      let content = fs.readFileSync(originalKubeconfig, 'utf8');
-
-      // Replace localhost/127.0.0.1 with host.docker.internal
-      const originalContent = content;
-      content = content.replace(/https:\/\/localhost:/g, 'https://host.docker.internal:');
-      content = content.replace(/https:\/\/127\.0\.0\.1:/g, 'https://host.docker.internal:');
-
-      if (content !== originalContent) {
-        this.log('Replaced localhost/127.0.0.1 with host.docker.internal');
-
-        // Add insecure-skip-tls-verify for the patched clusters
-        // This is needed because the cert is for localhost, not host.docker.internal
-        content = content.replace(
-          /(server: https:\/\/host\.docker\.internal:[0-9]+)/g,
-          '$1\n    insecure-skip-tls-verify: true'
-        );
-        this.log('Added insecure-skip-tls-verify for host.docker.internal');
-      }
-
-      fs.writeFileSync(PATCHED_KUBECONFIG, content);
-      this.log(`Wrote patched kubeconfig to ${PATCHED_KUBECONFIG}`);
-      this.kubeconfigReady = true;
-      return true;
-    } catch (err) {
-      this.log(`Failed to patch kubeconfig: ${err}`);
-      return false;
+      const kc = new k8s.KubeConfig();
+      kc.loadFromString(patchedKubeconfig);
+      this.kubeConfig = kc;
+      this.k8sApi = kc.makeApiClient(k8s.CoreV1Api);
+      this.k8sCustomApi = kc.makeApiClient(k8s.CustomObjectsApi);
+      this.k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
+      this.initialized = true;
+      this.log('Kubernetes clients initialized successfully');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.log(`Failed to initialize Kubernetes clients: ${msg}`);
+      throw error;
     }
+  }
+
+  /**
+   * Check if service is ready.
+   */
+  isReady(): boolean {
+    return this.initialized && this.k8sApi !== null;
   }
 
   private setState(state: FleetState): void {
@@ -107,63 +87,20 @@ class FleetService {
   }
 
   /**
-   * Execute a kubectl command
-   */
-  private async kubectl(args: string[]): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    // Ensure kubeconfig is patched before running kubectl
-    await this.ensureKubeconfigPatched();
-
-    const cmd = `kubectl --kubeconfig ${PATCHED_KUBECONFIG} --context ${KUBE_CONTEXT} ${args.join(' ')}`;
-    this.log(`Executing: ${cmd}`);
-    try {
-      const result = await execAsync(cmd, { timeout: 60000 });
-      this.log(`  stdout: ${result.stdout.substring(0, 200)}`);
-      if (result.stderr) this.log(`  stderr: ${result.stderr.substring(0, 200)}`);
-      return { ...result, exitCode: 0 };
-    } catch (error) {
-      const err = error as { stdout?: string; stderr?: string; message?: string; code?: number };
-      this.log(`  error: ${err.message || 'Unknown error'}`);
-      if (err.stdout) this.log(`  stdout: ${err.stdout.substring(0, 200)}`);
-      if (err.stderr) this.log(`  stderr: ${err.stderr.substring(0, 200)}`);
-      return {
-        stdout: err.stdout || '',
-        stderr: err.stderr || err.message || 'Unknown error',
-        exitCode: err.code || 1,
-      };
-    }
-  }
-
-  /**
-   * Execute a helm command
-   */
-  private async helm(args: string[]): Promise<{ stdout: string; stderr: string }> {
-    // Ensure kubeconfig is patched before running helm
-    await this.ensureKubeconfigPatched();
-
-    const cmd = `helm --kubeconfig ${PATCHED_KUBECONFIG} --kube-context ${KUBE_CONTEXT} ${args.join(' ')}`;
-    this.log(`Executing: ${cmd}`);
-    try {
-      const result = await execAsync(cmd, { timeout: 120000 });
-      return result;
-    } catch (error) {
-      const err = error as { stdout?: string; stderr?: string; message?: string };
-      return {
-        stdout: err.stdout || '',
-        stderr: err.stderr || err.message || 'Unknown error',
-      };
-    }
-  }
-
-  /**
    * Check if the Kubernetes cluster is accessible
    */
   async isClusterAccessible(): Promise<boolean> {
+    if (!this.k8sApi) {
+      this.log('Kubernetes client not initialized');
+      return false;
+    }
+
     try {
-      // Use 'get nodes' as a simple connectivity check - cleaner than cluster-info
-      const result = await this.kubectl(['get', 'nodes', '-o', 'name']);
-      // Success if exit code is 0 and we got some output
-      return result.exitCode === 0 && result.stdout.length > 0;
-    } catch {
+      await this.k8sApi.listNode();
+      return true;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.log(`Cluster not accessible: ${msg}`);
       return false;
     }
   }
@@ -172,62 +109,113 @@ class FleetService {
    * Check if Fleet CRD exists in the cluster
    */
   async checkFleetCrdExists(): Promise<boolean> {
-    const result = await this.kubectl([
-      'get', 'crd', 'gitrepos.fleet.cattle.io',
-      '-o', 'jsonpath={.metadata.name}',
-    ]);
-    return !result.stderr && result.stdout.includes('gitrepos.fleet.cattle.io');
+    if (!this.k8sCustomApi) return false;
+
+    try {
+      // Check for the gitrepos.fleet.cattle.io CRD
+      await this.k8sCustomApi.getClusterCustomObject(
+        'apiextensions.k8s.io',
+        'v1',
+        'customresourcedefinitions',
+        'gitrepos.fleet.cattle.io'
+      );
+      return true;
+    } catch (error) {
+      // 404 means CRD doesn't exist
+      if (this.isNotFoundError(error)) {
+        return false;
+      }
+      const msg = error instanceof Error ? error.message : String(error);
+      this.log(`Error checking Fleet CRD: ${msg}`);
+      return false;
+    }
   }
 
   /**
-   * Check if Fleet controller pod is running
+   * Check if Fleet controller deployment is running
    */
   async checkFleetPodRunning(): Promise<boolean> {
-    const result = await this.kubectl([
-      'get', 'pods', '-n', FLEET_SYSTEM_NAMESPACE,
-      '-l', 'app=fleet-controller',
-      '-o', 'jsonpath={.items[0].status.phase}',
-    ]);
-    return result.stdout === 'Running';
+    if (!this.k8sAppsApi) return false;
+
+    try {
+      const response = await this.k8sAppsApi.readNamespacedDeployment(
+        'fleet-controller',
+        FLEET_SYSTEM_NAMESPACE
+      );
+      const status = response.body.status;
+      return (status?.readyReplicas || 0) > 0;
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        return false;
+      }
+      const msg = error instanceof Error ? error.message : String(error);
+      this.log(`Error checking Fleet deployment: ${msg}`);
+      return false;
+    }
   }
 
   /**
    * Check if the Fleet namespace exists
    */
   async checkFleetNamespaceExists(): Promise<boolean> {
-    const result = await this.kubectl([
-      'get', 'namespace', FLEET_NAMESPACE,
-      '-o', 'jsonpath={.metadata.name}',
-    ]);
-    return !result.stderr && result.stdout === FLEET_NAMESPACE;
+    if (!this.k8sApi) return false;
+
+    try {
+      await this.k8sApi.readNamespace(FLEET_NAMESPACE);
+      return true;
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        return false;
+      }
+      throw error;
+    }
   }
 
   /**
    * Create the Fleet namespace
    */
   async createFleetNamespace(): Promise<void> {
-    const result = await this.kubectl(['create', 'namespace', FLEET_NAMESPACE]);
-    if (result.stderr && !result.stderr.includes('already exists')) {
-      throw new Error(result.stderr);
+    if (!this.k8sApi) {
+      throw new Error('Kubernetes client not initialized');
+    }
+
+    try {
+      await this.k8sApi.createNamespace({
+        metadata: { name: FLEET_NAMESPACE },
+      });
+      this.log(`Created namespace ${FLEET_NAMESPACE}`);
+    } catch (error) {
+      if (this.isConflictError(error)) {
+        this.log(`Namespace ${FLEET_NAMESPACE} already exists`);
+        return;
+      }
+      throw error;
     }
   }
 
   /**
-   * Get Fleet version from Helm release
+   * Get Fleet version from HelmChart status or deployment
    */
   async getFleetVersion(): Promise<string> {
+    if (!this.k8sAppsApi) return 'unknown';
+
     try {
-      const result = await this.helm([
-        'list', '-n', FLEET_SYSTEM_NAMESPACE,
-        '-f', 'fleet',
-        '-o', 'json',
-      ]);
-      const releases = JSON.parse(result.stdout || '[]');
-      if (releases.length > 0) {
-        return releases[0].app_version || releases[0].chart || 'unknown';
+      const response = await this.k8sAppsApi.readNamespacedDeployment(
+        'fleet-controller',
+        FLEET_SYSTEM_NAMESPACE
+      );
+      // Try to get version from image tag
+      const containers = response.body.spec?.template?.spec?.containers || [];
+      for (const container of containers) {
+        if (container.name === 'fleet-controller' && container.image) {
+          const parts = container.image.split(':');
+          if (parts.length > 1) {
+            return parts[1];
+          }
+        }
       }
     } catch {
-      // Ignore parse errors
+      // Ignore errors
     }
     return 'unknown';
   }
@@ -237,6 +225,11 @@ class FleetService {
    */
   async checkStatus(): Promise<FleetState> {
     this.log('Checking Fleet status...');
+
+    if (!this.isReady()) {
+      this.log('Kubernetes client not ready');
+      return { status: 'error', error: 'Kubernetes client not initialized' };
+    }
 
     // First check if cluster is accessible
     const clusterAccessible = await this.isClusterAccessible();
@@ -255,7 +248,7 @@ class FleetService {
     // Check if pod is running
     const podRunning = await this.checkFleetPodRunning();
     if (!podRunning) {
-      this.log('Fleet pod not running');
+      this.log('Fleet deployment not ready');
       return { status: 'not-installed' };
     }
 
@@ -277,47 +270,163 @@ class FleetService {
   }
 
   /**
-   * Install Fleet using Helm
+   * Check if a HelmChart resource exists
+   */
+  private async helmChartExists(name: string): Promise<boolean> {
+    if (!this.k8sCustomApi) return false;
+
+    try {
+      await this.k8sCustomApi.getNamespacedCustomObject(
+        HELM_CHART_GROUP,
+        HELM_CHART_VERSION,
+        'kube-system',
+        HELM_CHART_PLURAL,
+        name
+      );
+      return true;
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Create a HelmChart resource for the Helm Controller to process
+   */
+  private async createHelmChart(
+    name: string,
+    chart: string,
+    repo: string,
+    targetNamespace: string,
+    options: { createNamespace?: boolean; wait?: boolean } = {}
+  ): Promise<void> {
+    if (!this.k8sCustomApi) {
+      throw new Error('Kubernetes client not initialized');
+    }
+
+    // Check if already exists
+    if (await this.helmChartExists(name)) {
+      this.log(`HelmChart ${name} already exists`);
+      return;
+    }
+
+    const helmChart = {
+      apiVersion: `${HELM_CHART_GROUP}/${HELM_CHART_VERSION}`,
+      kind: 'HelmChart',
+      metadata: {
+        name,
+        namespace: 'kube-system',
+      },
+      spec: {
+        repo,
+        chart,
+        targetNamespace,
+        createNamespace: options.createNamespace ?? true,
+      },
+    };
+
+    this.log(`Creating HelmChart ${name} for chart ${chart} from ${repo}`);
+    await this.k8sCustomApi.createNamespacedCustomObject(
+      HELM_CHART_GROUP,
+      HELM_CHART_VERSION,
+      'kube-system',
+      HELM_CHART_PLURAL,
+      helmChart
+    );
+    this.log(`HelmChart ${name} created successfully`);
+  }
+
+  /**
+   * Wait for a HelmChart to be deployed (job completed)
+   */
+  private async waitForHelmChart(name: string, timeoutMs: number = 120000): Promise<boolean> {
+    if (!this.k8sCustomApi) return false;
+
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      try {
+        const response = await this.k8sCustomApi.getNamespacedCustomObject(
+          HELM_CHART_GROUP,
+          HELM_CHART_VERSION,
+          'kube-system',
+          HELM_CHART_PLURAL,
+          name
+        );
+
+        const helmChart = response.body as { status?: { jobName?: string } };
+        if (helmChart.status?.jobName) {
+          // Job was created, check if it completed
+          // The Helm Controller creates a job and removes it on success
+          // If status.jobName exists and the deployment exists, it's likely done
+          this.log(`HelmChart ${name} has job: ${helmChart.status.jobName}`);
+        }
+
+        // For Fleet, check if the actual resources are ready
+        if (name === 'fleet-crd') {
+          if (await this.checkFleetCrdExists()) {
+            this.log(`HelmChart ${name} deployment verified (CRD exists)`);
+            return true;
+          }
+        } else if (name === 'fleet') {
+          if (await this.checkFleetPodRunning()) {
+            this.log(`HelmChart ${name} deployment verified (controller running)`);
+            return true;
+          }
+        }
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        this.log(`Error checking HelmChart ${name}: ${msg}`);
+      }
+
+      await this.sleep(5000);
+    }
+
+    this.log(`Timeout waiting for HelmChart ${name}`);
+    return false;
+  }
+
+  /**
+   * Install Fleet using HelmChart CRDs (processed by k3s Helm Controller)
    */
   async installFleet(): Promise<void> {
-    this.log('Starting Fleet installation...');
+    this.log('Starting Fleet installation via HelmChart CRDs...');
 
-    // Add Helm repo
-    this.setState({ status: 'installing', message: 'Adding Fleet Helm repository...' });
-    let result = await this.helm([
-      'repo', 'add', 'fleet', 'https://rancher.github.io/fleet-helm-charts/',
-    ]);
-    if (result.stderr && !result.stderr.includes('already exists')) {
-      this.log(`Helm repo add output: ${result.stderr}`);
-    }
+    const FLEET_REPO = 'https://rancher.github.io/fleet-helm-charts/';
 
-    // Update repos
-    this.setState({ status: 'installing', message: 'Updating Helm repositories...' });
-    result = await this.helm(['repo', 'update']);
-    if (result.stderr) {
-      this.log(`Helm repo update output: ${result.stderr}`);
-    }
-
-    // Install Fleet CRD
+    // Install Fleet CRD chart
     this.setState({ status: 'installing', message: 'Installing Fleet CRDs...' });
-    result = await this.helm([
-      'install', '--create-namespace', '-n', FLEET_SYSTEM_NAMESPACE,
-      'fleet-crd', 'fleet/fleet-crd',
-      '--wait',
-    ]);
-    if (result.stderr && !result.stderr.includes('already exists') && !result.stderr.includes('cannot re-use')) {
-      this.log(`Helm install fleet-crd output: ${result.stderr}`);
+    await this.createHelmChart(
+      'fleet-crd',
+      'fleet-crd',
+      FLEET_REPO,
+      FLEET_SYSTEM_NAMESPACE,
+      { createNamespace: true }
+    );
+
+    // Wait for CRDs to be available
+    this.setState({ status: 'installing', message: 'Waiting for Fleet CRDs...' });
+    const crdReady = await this.waitForHelmChart('fleet-crd', 120000);
+    if (!crdReady) {
+      this.log('Warning: Fleet CRD installation may still be in progress');
     }
 
-    // Install Fleet controller
+    // Install Fleet controller chart
     this.setState({ status: 'installing', message: 'Installing Fleet controller...' });
-    result = await this.helm([
-      'install', '--create-namespace', '-n', FLEET_SYSTEM_NAMESPACE,
-      'fleet', 'fleet/fleet',
-      '--wait',
-    ]);
-    if (result.stderr && !result.stderr.includes('already exists') && !result.stderr.includes('cannot re-use')) {
-      this.log(`Helm install fleet output: ${result.stderr}`);
+    await this.createHelmChart(
+      'fleet',
+      'fleet',
+      FLEET_REPO,
+      FLEET_SYSTEM_NAMESPACE,
+      { createNamespace: true }
+    );
+
+    // Wait for controller to be ready
+    this.setState({ status: 'installing', message: 'Waiting for Fleet controller...' });
+    const controllerReady = await this.waitForHelmChart('fleet', 180000);
+    if (!controllerReady) {
+      this.log('Warning: Fleet controller installation may still be in progress');
     }
 
     // Create Fleet namespace
@@ -374,6 +483,26 @@ class FleetService {
       this.log(`Installation failed: ${errorMessage}`);
       this.setState({ status: 'error', error: errorMessage });
     }
+  }
+
+  private isNotFoundError(error: unknown): boolean {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const httpError = error as { response?: { statusCode?: number } };
+      return httpError.response?.statusCode === 404;
+    }
+    return false;
+  }
+
+  private isConflictError(error: unknown): boolean {
+    if (error && typeof error === 'object' && 'response' in error) {
+      const httpError = error as { response?: { statusCode?: number } };
+      return httpError.response?.statusCode === 409;
+    }
+    return false;
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
 

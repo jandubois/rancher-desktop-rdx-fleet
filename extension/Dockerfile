@@ -17,18 +17,6 @@ RUN npm run build
 # Final image - uses Node.js to run the backend service
 FROM node:22-alpine
 
-# Install kubectl and helm for backend Fleet management
-ARG TARGETARCH
-RUN apk add --no-cache curl bash openssl && \
-    # Install kubectl (arch-aware)
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/${TARGETARCH}/kubectl" && \
-    chmod +x kubectl && \
-    mv kubectl /usr/local/bin/ && \
-    # Install helm
-    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash && \
-    # Clean up
-    rm -rf /var/cache/apk/*
-
 # Standard OCI labels
 LABEL org.opencontainers.image.title="Fleet GitOps"
 LABEL org.opencontainers.image.description="GitOps-based developer environment provisioning using Fleet"
