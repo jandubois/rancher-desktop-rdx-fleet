@@ -128,9 +128,11 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
                        fleetState.status === 'installing';
     if (!shouldPoll) return;
 
+    // Poll faster during installation to show progress updates
+    const pollInterval = fleetState.status === 'installing' ? 1000 : 3000;
     const interval = setInterval(() => {
       checkFleetStatus();
-    }, 3000); // Poll every 3 seconds while installing/initializing
+    }, pollInterval);
 
     return () => clearInterval(interval);
   }, [fleetState.status, checkFleetStatus]);

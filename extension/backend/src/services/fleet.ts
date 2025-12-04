@@ -529,9 +529,9 @@ class FleetService {
           }
         }
 
-        // Log progress every 10 seconds
+        // Update progress every 2 seconds for responsive UI
         const now = Date.now();
-        if (now - lastLogTime >= 10000) {
+        if (now - lastLogTime >= 2000) {
           this.setState({
             status: 'installing',
             message: `${stepInfo} (${elapsed}s elapsed${jobStatusStr})`,
