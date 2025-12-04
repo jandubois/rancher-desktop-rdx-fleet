@@ -54,6 +54,7 @@ interface EditModePanelProps {
   resolvedPalette?: ReturnType<typeof import('../hooks/usePalette').usePalette>;
   onConfigLoaded?: (manifest: Manifest) => void;
   onPaletteChange?: (palette: ColorPalette) => void;
+  onIconStateChange?: (iconState: IconState) => void;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -81,7 +82,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedPalette, onConfigLoaded, onPaletteChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -544,6 +545,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     setImportSuccess('Configuration reset to defaults');
     if (onConfigLoaded) {
       onConfigLoaded(DEFAULT_MANIFEST);
+    }
+    if (onIconStateChange) {
+      onIconStateChange(null);
     }
   };
 
