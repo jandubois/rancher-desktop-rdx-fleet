@@ -7,8 +7,8 @@ import { detectCurrentExtensionImage } from './extensionBuilder';
 
 // Default icon height in pixels
 export const DEFAULT_ICON_HEIGHT = 40;
-// Maximum icon height (fills header)
-export const MAX_ICON_HEIGHT = 80;
+// Maximum icon height (fills header with minimal margins)
+export const MAX_ICON_HEIGHT = 120;
 // Minimum icon height
 export const MIN_ICON_HEIGHT = 24;
 

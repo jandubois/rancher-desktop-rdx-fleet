@@ -2,10 +2,9 @@
  * EditableHeaderIcon component - Header icon with edit mode support.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import Slider from '@mui/material/Slider';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -50,8 +49,42 @@ export function EditableHeaderIcon({
 }: EditableHeaderIconProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
-  const [showResizeSlider, setShowResizeSlider] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeStartY = useRef<number>(0);
+  const resizeStartHeight = useRef<number>(iconHeight);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle resize drag
+  useEffect(() => {
+    if (!isResizing || !onIconHeightChange) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Moving up = larger icon, moving down = smaller icon
+      const deltaY = resizeStartY.current - e.clientY;
+      const newHeight = Math.min(MAX_ICON_HEIGHT, Math.max(MIN_ICON_HEIGHT, resizeStartHeight.current + deltaY));
+      onIconHeightChange(newHeight);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, onIconHeightChange]);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizeStartY.current = e.clientY;
+    resizeStartHeight.current = iconHeight;
+    setIsResizing(true);
+  }, [iconHeight]);
 
   // Use the shared file upload hook with auto-clearing errors
   const { error, validateAndProcessFile } = useFileUpload({
@@ -154,12 +187,11 @@ export function EditableHeaderIcon({
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 1,
-          transition: 'all 0.2s ease',
+          transition: isResizing ? 'none' : 'all 0.2s ease',
           ...(editMode && {
             border: '2px dashed',
             borderColor: isDragging ? 'warning.light' : isHovering ? 'rgba(255,255,255,0.5)' : isDeleted ? 'rgba(255,255,255,0.3)' : 'transparent',
             bgcolor: isDragging ? 'rgba(255,255,255,0.1)' : 'transparent',
-            p: 0.5,
           }),
         }}
       >
@@ -252,23 +284,21 @@ export function EditableHeaderIcon({
         </Tooltip>
       )}
 
-      {/* Resize button - shown when there's an icon in edit mode */}
-      {editMode && !isDeleted && isHovering && onIconHeightChange && (
-        <Tooltip title="Resize icon">
+      {/* Resize button - drag up/down to resize icon */}
+      {editMode && !isDeleted && (isHovering || isResizing) && onIconHeightChange && (
+        <Tooltip title="Drag to resize">
           <IconButton
             size="small"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowResizeSlider(!showResizeSlider);
-            }}
+            onMouseDown={handleResizeStart}
             sx={{
               position: 'absolute',
               top: -8,
               right: 16,
-              bgcolor: 'primary.main',
+              bgcolor: isResizing ? 'primary.dark' : 'primary.main',
               color: 'white',
               width: 20,
               height: 20,
+              cursor: 'ns-resize',
               '&:hover': {
                 bgcolor: 'primary.dark',
               },
@@ -277,39 +307,6 @@ export function EditableHeaderIcon({
             <HeightIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
-      )}
-
-      {/* Resize slider - shown when resize button is clicked */}
-      {editMode && showResizeSlider && onIconHeightChange && (
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '100%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            mt: 1,
-            px: 2,
-            py: 1,
-            bgcolor: 'background.paper',
-            borderRadius: 1,
-            boxShadow: 3,
-            zIndex: 1000,
-            minWidth: 150,
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
-            Icon Height: {iconHeight}px
-          </Typography>
-          <Slider
-            size="small"
-            value={iconHeight}
-            min={MIN_ICON_HEIGHT}
-            max={MAX_ICON_HEIGHT}
-            onChange={(_, value) => onIconHeightChange(value as number)}
-            sx={{ width: '100%' }}
-          />
-        </Box>
       )}
 
       {/* Error tooltip */}

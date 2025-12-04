@@ -772,7 +772,7 @@ function App() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: palette.body.background, display: 'flex', flexDirection: 'column' }}>
       {/* Fixed Header */}
-      <Box sx={{ bgcolor: palette.header.background, color: palette.header.text, py: 2, boxShadow: 1 }}>
+      <Box sx={{ bgcolor: palette.header.background, color: palette.header.text, py: 0.5, boxShadow: 1 }}>
         <Box sx={{ maxWidth: 900, margin: '0 auto', px: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <EditableHeaderIcon
