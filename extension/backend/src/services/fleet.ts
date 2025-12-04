@@ -272,25 +272,84 @@ class FleetService {
   }
 
   /**
-   * Check if a HelmChart resource exists
+   * Check if a HelmChart resource exists and get its spec
    */
-  private async helmChartExists(name: string): Promise<boolean> {
-    if (!this.k8sCustomApi) return false;
+  private async getHelmChart(name: string): Promise<{
+    exists: boolean;
+    hasValuesContent?: boolean;
+    jobName?: string;
+  }> {
+    if (!this.k8sCustomApi) return { exists: false };
 
     try {
-      await this.k8sCustomApi.getNamespacedCustomObject(
+      const response = await this.k8sCustomApi.getNamespacedCustomObject(
         HELM_CHART_GROUP,
         HELM_CHART_VERSION,
         'kube-system',
         HELM_CHART_PLURAL,
         name
       );
-      return true;
+      const helmChart = response.body as {
+        spec?: { valuesContent?: string };
+        status?: { jobName?: string };
+      };
+      return {
+        exists: true,
+        hasValuesContent: 'valuesContent' in (helmChart.spec || {}),
+        jobName: helmChart.status?.jobName,
+      };
     } catch (error) {
       if (this.isNotFoundError(error)) {
-        return false;
+        return { exists: false };
       }
       throw error;
+    }
+  }
+
+  /**
+   * Delete a HelmChart resource
+   */
+  private async deleteHelmChart(name: string): Promise<void> {
+    if (!this.k8sCustomApi) return;
+
+    try {
+      await this.k8sCustomApi.deleteNamespacedCustomObject(
+        HELM_CHART_GROUP,
+        HELM_CHART_VERSION,
+        'kube-system',
+        HELM_CHART_PLURAL,
+        name
+      );
+      this.log(`Deleted HelmChart ${name}`);
+    } catch (error) {
+      if (!this.isNotFoundError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  /**
+   * Delete a Job resource (for cleaning up stuck Helm install jobs)
+   */
+  private async deleteJob(name: string): Promise<void> {
+    if (!this.k8sBatchApi) return;
+
+    try {
+      await this.k8sBatchApi.deleteNamespacedJob(
+        name,
+        'kube-system',
+        undefined,
+        undefined,
+        0, // grace period
+        undefined,
+        'Background' // propagation policy to delete pods
+      );
+      this.log(`Deleted Job ${name}`);
+    } catch (error) {
+      if (!this.isNotFoundError(error)) {
+        const msg = error instanceof Error ? error.message : String(error);
+        this.log(`Warning: Failed to delete job ${name}: ${msg}`);
+      }
     }
   }
 
@@ -309,11 +368,33 @@ class FleetService {
     }
 
     // Check if already exists
-    if (await this.helmChartExists(name)) {
-      this.log(`HelmChart ${name} already exists`);
-      return;
+    const existing = await this.getHelmChart(name);
+    if (existing.exists) {
+      // Check if it has the problematic valuesContent field (should NOT have it)
+      if (!existing.hasValuesContent) {
+        this.log(`HelmChart ${name} already exists (no valuesContent - correct)`);
+        return;
+      }
+
+      // Old HelmChart with valuesContent - need to delete and recreate without it
+      this.log(`HelmChart ${name} exists with valuesContent field, recreating without it...`);
+
+      // Delete stuck job first if it exists
+      if (existing.jobName) {
+        await this.deleteJob(existing.jobName);
+        // Wait for job deletion to propagate
+        await this.sleep(2000);
+      }
+
+      // Delete the HelmChart
+      await this.deleteHelmChart(name);
+      // Wait for deletion to propagate
+      await this.sleep(2000);
     }
 
+    // Note: Do NOT include valuesContent field at all - including an empty string
+    // causes the Helm Controller to expect a values secret that won't exist.
+    // Omitting the field entirely makes it use chart defaults without a secret.
     const helmChart = {
       apiVersion: `${HELM_CHART_GROUP}/${HELM_CHART_VERSION}`,
       kind: 'HelmChart',
@@ -326,8 +407,6 @@ class FleetService {
         chart,
         targetNamespace,
         createNamespace: options.createNamespace ?? true,
-        // Empty valuesContent to use chart defaults (required by Helm Controller)
-        valuesContent: '',
       },
     };
 
