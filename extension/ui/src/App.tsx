@@ -51,7 +51,6 @@ import {
   GitRepoCard,
   FleetStatusCard,
   BackendStatusCard,
-  FleetExtensionsCard,
   DependencyConfirmationDialog,
   INITIAL_DEPENDENCY_DIALOG_STATE,
   DependencyDialogState,
@@ -841,15 +840,11 @@ function App() {
               onPaletteChange={handlePaletteChange}
               onIconStateChange={setIconState}
               onIconHeightChange={setIconHeight}
+              backendStatus={backendStatus}
+              backendLoading={backendLoading}
+              onBackendRefresh={refreshBackend}
             />
           )}
-
-          {/* Fleet Extensions Card - shows installed Fleet extensions and ownership */}
-          <FleetExtensionsCard
-            status={backendStatus}
-            loading={backendLoading}
-            onRefresh={refreshBackend}
-          />
 
           {/* Backend Status Card - debug info (only shown in development) */}
           {import.meta.env.DEV && (
