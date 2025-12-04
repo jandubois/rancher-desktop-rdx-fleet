@@ -791,6 +791,7 @@ function App() {
               validationWarning={titleWarning}
               backgroundColor={palette.header.background}
               textColor={palette.header.text}
+              bold
             />
           </Box>
           {editModeAllowed && (
