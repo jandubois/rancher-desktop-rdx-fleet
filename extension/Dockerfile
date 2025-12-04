@@ -52,9 +52,10 @@ COPY compose.yaml /
 COPY host/ /host/
 RUN chmod +x /host/darwin/* /host/linux/*
 
-# Copy scripts for config export
+# Copy scripts for config export and set entrypoint
 COPY scripts/ /scripts/
 RUN chmod +x /scripts/*.sh
+ENTRYPOINT ["/scripts/entrypoint.sh"]
 
 # Environment variables for backend service
 ENV PORT=8080
