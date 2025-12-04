@@ -789,6 +789,7 @@ function App() {
               placeholder="Extension Name"
               variant="h6"
               validationWarning={titleWarning}
+              backgroundColor={palette.header.background}
             />
           </Box>
           {editModeAllowed && (

@@ -86,14 +86,14 @@ export function EditModeBuildTab({
 
       {/* Image name validation warning */}
       {imageNameWarning && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {imageNameWarning}
         </Alert>
       )}
 
       {/* Title validation warning (shown in build tab in case title is scrolled out of view) */}
       {titleWarning && !imageNameWarning && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }}>
           {titleWarning}
         </Alert>
       )}
