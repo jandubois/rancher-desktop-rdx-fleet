@@ -49,6 +49,24 @@ describe('extensionStateStorage', () => {
     timestamp: Date.now(),
   });
 
+  const createStateWithEditMode = (): PersistedExtensionState => ({
+    manifest: DEFAULT_MANIFEST,
+    manifestCards: DEFAULT_MANIFEST.cards,
+    cardOrder: ['fleet-status', 'card-1'],
+    dynamicCardTitles: { 'fleet-status': 'Custom Title' },
+    iconState: null,
+    editMode: true,
+    editModeSnapshot: {
+      manifest: DEFAULT_MANIFEST,
+      manifestCards: DEFAULT_MANIFEST.cards,
+      cardOrder: ['fleet-status'],
+      iconState: null,
+      iconHeight: 40,
+      dynamicCardTitles: {},
+    },
+    timestamp: Date.now(),
+  });
+
   describe('getStorageKey', () => {
     it('returns key with extension image name', () => {
       expect(getStorageKey('my-extension:latest')).toBe('fleet-extension-state:my-extension:latest');
@@ -102,6 +120,18 @@ describe('extensionStateStorage', () => {
       expect(consoleSpy).toHaveBeenCalled();
 
       consoleSpy.mockRestore();
+    });
+
+    it('saves editMode and editModeSnapshot fields', () => {
+      const state = createStateWithEditMode();
+      saveExtensionState(state);
+
+      const savedValue = localStorageMock.setItem.mock.calls[0][1];
+      const parsed = JSON.parse(savedValue);
+      expect(parsed.editMode).toBe(true);
+      expect(parsed.editModeSnapshot).toBeDefined();
+      expect(parsed.editModeSnapshot.cardOrder).toEqual(['fleet-status']);
+      expect(parsed.editModeSnapshot.iconHeight).toBe(40);
     });
   });
 
@@ -162,6 +192,28 @@ describe('extensionStateStorage', () => {
       expect(result).toBeNull();
 
       consoleSpy.mockRestore();
+    });
+
+    it('loads editMode and editModeSnapshot when present', () => {
+      const state = createStateWithEditMode();
+      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(state));
+
+      const result = loadExtensionState();
+      expect(result).not.toBeNull();
+      expect(result?.editMode).toBe(true);
+      expect(result?.editModeSnapshot).toBeDefined();
+      expect(result?.editModeSnapshot?.cardOrder).toEqual(['fleet-status']);
+      expect(result?.editModeSnapshot?.iconHeight).toBe(40);
+    });
+
+    it('loads state without editMode fields (backwards compatible)', () => {
+      const state = createValidState();
+      localStorageMock.getItem.mockReturnValueOnce(JSON.stringify(state));
+
+      const result = loadExtensionState();
+      expect(result).not.toBeNull();
+      expect(result?.editMode).toBeUndefined();
+      expect(result?.editModeSnapshot).toBeUndefined();
     });
   });
 
