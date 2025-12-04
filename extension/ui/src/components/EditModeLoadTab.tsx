@@ -2,7 +2,7 @@
  * EditModeLoadTab - Load configuration from image or ZIP file.
  */
 
-import { useRef } from 'react';
+import { RefObject } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -26,6 +26,8 @@ export interface EditModeLoadTabProps {
   loadingImages: boolean;
   /** Whether an import is in progress */
   importing: boolean;
+  /** Ref to the file input element (for resetting after upload) */
+  fileInputRef: RefObject<HTMLInputElement>;
   /** Callback when selected image changes */
   onSelectedImageChange: (image: string) => void;
   /** Callback to refresh image list */
@@ -45,6 +47,7 @@ export function EditModeLoadTab({
   selectedImage,
   loadingImages,
   importing,
+  fileInputRef,
   onSelectedImageChange,
   onRefreshImages,
   onLoadFromImage,
@@ -52,8 +55,6 @@ export function EditModeLoadTab({
   onResetToDefaults,
   getImageDisplayName,
 }: EditModeLoadTabProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   return (
     <>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
