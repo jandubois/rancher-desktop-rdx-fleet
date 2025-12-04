@@ -178,7 +178,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
           fullWidth
           sx={{
             typography: variant,
-            fontWeight: variant === 'h6' ? 500 : undefined,
+            fontWeight: 700,
             color: 'inherit', // Inherit color from parent (e.g., header text color)
             '& .MuiInputBase-input': {
               p: 0,
@@ -205,7 +205,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
   }
 
   return (
-    <Typography variant={variant}>
+    <Typography variant={variant} sx={{ fontWeight: 700 }}>
       {value}
       {children}
     </Typography>
