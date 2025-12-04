@@ -49,11 +49,13 @@ export interface EditModeEditTabProps {
   /** Color names map (hex -> name) */
   colorNames: Map<string, string>;
   /** Currently selected harmony type */
-  selectedHarmony: HarmonyType;
+  selectedHarmony: HarmonyType | 'icon';
   /** Whether palette is being generated */
   generatingPalette: boolean;
   /** Whether palette can be changed */
   canChangePalette: boolean;
+  /** Preview for icon color option (Analogous harmony from icon) */
+  iconColorPreview: HarmonyPreview | null;
   /** Palette menu anchor element */
   paletteMenuAnchor: HTMLElement | null;
   /** Preview palettes for all harmony types */
@@ -63,13 +65,13 @@ export interface EditModeEditTabProps {
   /** Callback to reset a color to default */
   onResetColor: (field: ColorFieldConfig) => void;
   /** Callback to generate palette */
-  onGeneratePalette: (harmony: HarmonyType) => void;
+  onGeneratePalette: (harmony: HarmonyType | 'icon') => void;
   /** Callback to open palette menu */
   onOpenPaletteMenu: (event: React.MouseEvent<HTMLElement>) => void;
   /** Callback to close palette menu */
   onClosePaletteMenu: () => void;
   /** Callback when hovering over a harmony option */
-  onHarmonyHover: (harmony: HarmonyType | null) => void;
+  onHarmonyHover: (harmony: HarmonyType | 'icon' | null) => void;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -86,6 +88,7 @@ export function EditModeEditTab({
   selectedHarmony,
   generatingPalette,
   canChangePalette,
+  iconColorPreview,
   paletteMenuAnchor,
   harmonyPreviews,
   onColorChange,
@@ -133,6 +136,93 @@ export function EditModeEditTab({
               Hover to preview • Click to apply
             </Typography>
           </Box>
+          <Divider />
+          {/* Icon Color option - uses Analogous harmony from icon's dominant color */}
+          <MenuItem
+            onClick={() => onGeneratePalette('icon')}
+            onMouseEnter={() => onHarmonyHover('icon')}
+            selected={selectedHarmony === 'icon'}
+            sx={{ py: 1 }}
+          >
+            {selectedHarmony === 'icon' && (
+              <ListItemIcon>
+                <CheckIcon fontSize="small" />
+              </ListItemIcon>
+            )}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, width: '100%', ml: selectedHarmony !== 'icon' ? 4 : 0 }}>
+              {/* Color swatch preview */}
+              {iconColorPreview && (
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, flexShrink: 0 }}>
+                  {/* Header preview */}
+                  <Box sx={{ display: 'flex', gap: '1px' }}>
+                    <Box
+                      sx={{
+                        width: 18,
+                        height: 12,
+                        bgcolor: iconColorPreview.headerBg,
+                        borderRadius: '2px 0 0 0',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                      title="Header Background"
+                    />
+                    <Box
+                      sx={{
+                        width: 10,
+                        height: 12,
+                        bgcolor: iconColorPreview.headerText,
+                        borderRadius: '0 2px 0 0',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                      title="Header Text"
+                    />
+                  </Box>
+                  {/* Body + Card preview */}
+                  <Box sx={{ display: 'flex', gap: '1px' }}>
+                    <Box
+                      sx={{
+                        width: 10,
+                        height: 12,
+                        bgcolor: iconColorPreview.bodyBg,
+                        borderRadius: '0 0 0 2px',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                      title="Body Background"
+                    />
+                    <Box
+                      sx={{
+                        width: 9,
+                        height: 12,
+                        bgcolor: iconColorPreview.cardBorder,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                      title="Card Border"
+                    />
+                    <Box
+                      sx={{
+                        width: 9,
+                        height: 12,
+                        bgcolor: iconColorPreview.cardTitle,
+                        borderRadius: '0 0 2px 0',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                      }}
+                      title="Card Title"
+                    />
+                  </Box>
+                </Box>
+              )}
+              <Box sx={{ flex: 1 }}>
+                <Typography variant="body2">Icon Color</Typography>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+                  Analogous palette from icon
+                </Typography>
+              </Box>
+            </Box>
+          </MenuItem>
           <Divider />
           {HARMONY_TYPES.map((harmony) => {
             const preview = harmonyPreviews.get(harmony.value);
