@@ -31,6 +31,7 @@ class FleetService {
   private k8sApi: k8s.CoreV1Api | null = null;
   private k8sCustomApi: k8s.CustomObjectsApi | null = null;
   private k8sAppsApi: k8s.AppsV1Api | null = null;
+  private k8sBatchApi: k8s.BatchV1Api | null = null;
   private kubeConfig: k8s.KubeConfig | null = null;
   private initialized = false;
 
@@ -65,6 +66,7 @@ class FleetService {
       this.k8sApi = kc.makeApiClient(k8s.CoreV1Api);
       this.k8sCustomApi = kc.makeApiClient(k8s.CustomObjectsApi);
       this.k8sAppsApi = kc.makeApiClient(k8s.AppsV1Api);
+      this.k8sBatchApi = kc.makeApiClient(k8s.BatchV1Api);
       this.initialized = true;
       this.log('Kubernetes clients initialized successfully');
     } catch (error) {
@@ -341,13 +343,85 @@ class FleetService {
   }
 
   /**
+   * Get detailed job status for Helm install jobs
+   */
+  private async getHelmJobStatus(jobName: string): Promise<{
+    exists: boolean;
+    status: string;
+    active?: number;
+    succeeded?: number;
+    failed?: number;
+    podPhase?: string;
+    podReason?: string;
+  }> {
+    if (!this.k8sBatchApi || !this.k8sApi) {
+      return { exists: false, status: 'api-not-ready' };
+    }
+
+    try {
+      // Get the job
+      const jobResponse = await this.k8sBatchApi.readNamespacedJob(jobName, 'kube-system');
+      const job = jobResponse.body;
+      const jobStatus = job.status || {};
+
+      // Try to get the pod status for more details
+      let podPhase: string | undefined;
+      let podReason: string | undefined;
+      try {
+        const podList = await this.k8sApi.listNamespacedPod(
+          'kube-system',
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          `job-name=${jobName}`
+        );
+        if (podList.body.items.length > 0) {
+          const pod = podList.body.items[0];
+          podPhase = pod.status?.phase;
+          // Check for waiting container reasons
+          const containerStatuses = pod.status?.containerStatuses || [];
+          for (const cs of containerStatuses) {
+            if (cs.state?.waiting?.reason) {
+              podReason = `${cs.state.waiting.reason}: ${cs.state.waiting.message || ''}`;
+            }
+          }
+        }
+      } catch {
+        // Ignore pod lookup errors
+      }
+
+      return {
+        exists: true,
+        status: jobStatus.succeeded ? 'completed' : jobStatus.failed ? 'failed' : 'running',
+        active: jobStatus.active,
+        succeeded: jobStatus.succeeded,
+        failed: jobStatus.failed,
+        podPhase,
+        podReason,
+      };
+    } catch (error) {
+      if (this.isNotFoundError(error)) {
+        return { exists: false, status: 'not-found' };
+      }
+      return { exists: false, status: 'error' };
+    }
+  }
+
+  /**
    * Wait for a HelmChart to be deployed (job completed)
    */
-  private async waitForHelmChart(name: string, timeoutMs: number = 120000): Promise<boolean> {
+  private async waitForHelmChart(name: string, stepInfo: string, timeoutMs: number = 120000): Promise<boolean> {
     if (!this.k8sCustomApi) return false;
 
     const startTime = Date.now();
+    let lastLogTime = 0;
+    let checkCount = 0;
+
     while (Date.now() - startTime < timeoutMs) {
+      checkCount++;
+      const elapsed = Math.round((Date.now() - startTime) / 1000);
+
       try {
         const response = await this.k8sCustomApi.getNamespacedCustomObject(
           HELM_CHART_GROUP,
@@ -358,22 +432,43 @@ class FleetService {
         );
 
         const helmChart = response.body as { status?: { jobName?: string } };
-        if (helmChart.status?.jobName) {
-          // Job was created, check if it completed
-          // The Helm Controller creates a job and removes it on success
-          // If status.jobName exists and the deployment exists, it's likely done
-          this.log(`HelmChart ${name} has job: ${helmChart.status.jobName}`);
+        const jobName = helmChart.status?.jobName;
+
+        // Get detailed job status
+        let jobStatusStr = '';
+        if (jobName) {
+          const jobStatus = await this.getHelmJobStatus(jobName);
+          if (jobStatus.exists) {
+            jobStatusStr = ` (job: ${jobStatus.status}`;
+            if (jobStatus.podPhase) {
+              jobStatusStr += `, pod: ${jobStatus.podPhase}`;
+            }
+            if (jobStatus.podReason) {
+              jobStatusStr += `, ${jobStatus.podReason}`;
+            }
+            jobStatusStr += ')';
+          }
+        }
+
+        // Log progress every 10 seconds
+        const now = Date.now();
+        if (now - lastLogTime >= 10000) {
+          this.setState({
+            status: 'installing',
+            message: `${stepInfo} (${elapsed}s elapsed${jobStatusStr})`,
+          });
+          lastLogTime = now;
         }
 
         // For Fleet, check if the actual resources are ready
         if (name === 'fleet-crd') {
           if (await this.checkFleetCrdExists()) {
-            this.log(`HelmChart ${name} deployment verified (CRD exists)`);
+            this.log(`${stepInfo}: CRD exists - success!`);
             return true;
           }
         } else if (name === 'fleet') {
           if (await this.checkFleetPodRunning()) {
-            this.log(`HelmChart ${name} deployment verified (controller running)`);
+            this.log(`${stepInfo}: Controller running - success!`);
             return true;
           }
         }
@@ -385,7 +480,7 @@ class FleetService {
       await this.sleep(5000);
     }
 
-    this.log(`Timeout waiting for HelmChart ${name}`);
+    this.log(`Timeout waiting for HelmChart ${name} after ${Math.round(timeoutMs / 1000)}s`);
     return false;
   }
 
@@ -396,9 +491,10 @@ class FleetService {
     this.log('Starting Fleet installation via HelmChart CRDs...');
 
     const FLEET_REPO = 'https://rancher.github.io/fleet-helm-charts/';
+    const TOTAL_STEPS = 5;
 
-    // Install Fleet CRD chart
-    this.setState({ status: 'installing', message: 'Installing Fleet CRDs...' });
+    // Step 1: Create Fleet CRD HelmChart resource
+    this.setState({ status: 'installing', message: `Step 1/${TOTAL_STEPS}: Creating Fleet CRD HelmChart...` });
     await this.createHelmChart(
       'fleet-crd',
       'fleet-crd',
@@ -407,15 +503,14 @@ class FleetService {
       { createNamespace: true }
     );
 
-    // Wait for CRDs to be available
-    this.setState({ status: 'installing', message: 'Waiting for Fleet CRDs...' });
-    const crdReady = await this.waitForHelmChart('fleet-crd', 120000);
+    // Step 2: Wait for CRDs to be installed
+    const crdReady = await this.waitForHelmChart('fleet-crd', `Step 2/${TOTAL_STEPS}: Installing Fleet CRDs`, 180000);
     if (!crdReady) {
-      this.log('Warning: Fleet CRD installation may still be in progress');
+      this.log('Warning: Fleet CRD installation timed out, continuing anyway...');
     }
 
-    // Install Fleet controller chart
-    this.setState({ status: 'installing', message: 'Installing Fleet controller...' });
+    // Step 3: Create Fleet controller HelmChart resource
+    this.setState({ status: 'installing', message: `Step 3/${TOTAL_STEPS}: Creating Fleet controller HelmChart...` });
     await this.createHelmChart(
       'fleet',
       'fleet',
@@ -424,15 +519,14 @@ class FleetService {
       { createNamespace: true }
     );
 
-    // Wait for controller to be ready
-    this.setState({ status: 'installing', message: 'Waiting for Fleet controller...' });
-    const controllerReady = await this.waitForHelmChart('fleet', 180000);
+    // Step 4: Wait for Fleet controller to be ready
+    const controllerReady = await this.waitForHelmChart('fleet', `Step 4/${TOTAL_STEPS}: Starting Fleet controller`, 240000);
     if (!controllerReady) {
-      this.log('Warning: Fleet controller installation may still be in progress');
+      this.log('Warning: Fleet controller startup timed out, continuing anyway...');
     }
 
-    // Create Fleet namespace
-    this.setState({ status: 'installing', message: 'Creating Fleet namespace...' });
+    // Step 5: Create fleet-local namespace
+    this.setState({ status: 'installing', message: `Step 5/${TOTAL_STEPS}: Creating fleet-local namespace...` });
     await this.createFleetNamespace();
 
     this.log('Fleet installation completed');
