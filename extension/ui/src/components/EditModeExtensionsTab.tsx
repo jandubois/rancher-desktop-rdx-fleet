@@ -30,11 +30,38 @@ import ErrorIcon from '@mui/icons-material/Error';
 import StarIcon from '@mui/icons-material/Star';
 import ImageIcon from '@mui/icons-material/Image';
 import DownloadIcon from '@mui/icons-material/Download';
+import DeleteIcon from '@mui/icons-material/Delete';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import StopIcon from '@mui/icons-material/Stop';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { BackendStatus, backendService } from '../services/BackendService';
 import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
 import { useServices } from '../context/ServiceContext';
+
+/** Unified image info combining Docker image and extension status */
+interface UnifiedImageInfo {
+  /** Full image name (repository:tag) */
+  imageName: string;
+  /** Image ID from Docker */
+  id: string;
+  /** Repository name */
+  repository: string;
+  /** Tag */
+  tag: string;
+  /** Fleet type: base or custom */
+  type: 'base' | 'custom';
+  /** Human-readable title from OCI label */
+  title?: string;
+  /** For custom extensions, the base image used */
+  baseImage?: string;
+  /** Whether this image is installed as an extension */
+  isInstalled: boolean;
+  /** Whether this is the currently active (owner) extension */
+  isActive: boolean;
+  /** Whether this is the extension we're running in */
+  isThisExtension: boolean;
+}
 
 export interface EditModeExtensionsTabProps {
   /** Current backend status containing extension and ownership info */
@@ -93,8 +120,8 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
   const [fleetImages, setFleetImages] = useState<FleetExtensionImage[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
-  const [installingImage, setInstallingImage] = useState<string | null>(null);
-  const [installError, setInstallError] = useState<string | null>(null);
+  const [operatingImage, setOperatingImage] = useState<string | null>(null);
+  const [operationError, setOperationError] = useState<string | null>(null);
 
   const { commandExecutor } = useServices();
 
@@ -135,26 +162,50 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     loadFleetImages();
   }, [loadFleetImages, status]);
 
-  // Find images that aren't in the installed extensions list
-  const uninstalledImages = fleetImages.filter(img => {
-    const imgName = img.repository.toLowerCase();
-    return !fleetExtensions.some(ext => {
+  // Create unified list of all images with their status
+  const unifiedImages: UnifiedImageInfo[] = fleetImages.map(img => {
+    const imageName = img.repository + (img.tag ? `:${img.tag}` : ':latest');
+    const imgNameLower = img.repository.toLowerCase();
+
+    // Check if this image is installed as an extension
+    const installedExt = fleetExtensions.find(ext => {
       const extName = ext.name.toLowerCase();
-      return extName.includes(imgName) || imgName.includes(extName.split(':')[0]);
+      return extName.includes(imgNameLower) || imgNameLower.includes(extName.split(':')[0]);
     });
+
+    // Check if this is the currently active (owner) extension
+    const isActive = installedExt && ownership?.ownExtensionName === installedExt.name;
+
+    // Check if this is the extension we're running in
+    const isThisExtension = installedExt && initStatus?.ownIdentity.extensionName === installedExt.name;
+
+    return {
+      imageName,
+      id: img.id,
+      repository: img.repository,
+      tag: img.tag,
+      type: img.type,
+      title: img.title,
+      baseImage: img.baseImage,
+      isInstalled: !!installedExt,
+      isActive: !!isActive,
+      isThisExtension: !!isThisExtension,
+    };
   });
 
+  // Find the base image for fallback when deleting active image
+  const baseImage = unifiedImages.find(img => img.type === 'base');
+
   // Install a Fleet extension image
-  const handleInstallImage = async (img: FleetExtensionImage) => {
-    const imageName = img.repository + (img.tag ? `:${img.tag}` : ':latest');
-    setInstallingImage(imageName);
-    setInstallError(null);
+  const handleInstall = async (img: UnifiedImageInfo) => {
+    setOperatingImage(img.imageName);
+    setOperationError(null);
 
     try {
       const result = await commandExecutor.rdExec('rdctl', [
         'extension',
         'install',
-        imageName,
+        img.imageName,
       ]);
 
       if (result.stderr && result.stderr.includes('Error')) {
@@ -166,9 +217,100 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       onRefresh();
     } catch (error) {
       console.error('Failed to install extension:', error);
-      setInstallError(error instanceof Error ? error.message : 'Failed to install extension');
+      setOperationError(error instanceof Error ? error.message : 'Failed to install extension');
     } finally {
-      setInstallingImage(null);
+      setOperatingImage(null);
+    }
+  };
+
+  // Uninstall a Fleet extension
+  const handleUninstall = async (img: UnifiedImageInfo) => {
+    setOperatingImage(img.imageName);
+    setOperationError(null);
+
+    try {
+      const result = await commandExecutor.rdExec('rdctl', [
+        'extension',
+        'uninstall',
+        img.imageName,
+      ]);
+
+      if (result.stderr && result.stderr.includes('Error')) {
+        throw new Error(result.stderr);
+      }
+
+      // Refresh after successful uninstall
+      await loadFleetImages();
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to uninstall extension:', error);
+      setOperationError(error instanceof Error ? error.message : 'Failed to uninstall extension');
+    } finally {
+      setOperatingImage(null);
+    }
+  };
+
+  // Activate an extension (install it, which will make it the owner via the ownership mechanism)
+  const handleActivate = async (img: UnifiedImageInfo) => {
+    // If not installed, install it first
+    if (!img.isInstalled) {
+      await handleInstall(img);
+    }
+    // The ownership mechanism will handle making it active
+    // Trigger a recheck of ownership
+    await handleRecheckOwnership();
+  };
+
+  // Delete a Docker image
+  const handleDelete = async (img: UnifiedImageInfo) => {
+    setOperatingImage(img.imageName);
+    setOperationError(null);
+
+    try {
+      // If installed, uninstall first
+      if (img.isInstalled) {
+        const uninstallResult = await commandExecutor.rdExec('rdctl', [
+          'extension',
+          'uninstall',
+          img.imageName,
+        ]);
+
+        if (uninstallResult.stderr && uninstallResult.stderr.includes('Error')) {
+          throw new Error(uninstallResult.stderr);
+        }
+
+        // If this was the active image and there's a base image, install the base
+        if (img.isActive && baseImage && baseImage.imageName !== img.imageName) {
+          const installResult = await commandExecutor.rdExec('rdctl', [
+            'extension',
+            'install',
+            baseImage.imageName,
+          ]);
+
+          if (installResult.stderr && installResult.stderr.includes('Error')) {
+            console.warn('Failed to install base image as fallback:', installResult.stderr);
+          }
+        }
+      }
+
+      // Delete the Docker image
+      const deleteResult = await commandExecutor.rdExec('docker', [
+        'rmi',
+        img.imageName,
+      ]);
+
+      if (deleteResult.stderr && deleteResult.stderr.includes('Error')) {
+        throw new Error(deleteResult.stderr);
+      }
+
+      // Refresh after successful delete
+      await loadFleetImages();
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to delete image:', error);
+      setOperationError(error instanceof Error ? error.message : 'Failed to delete image');
+    } finally {
+      setOperatingImage(null);
     }
   };
 
@@ -206,7 +348,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         {/* Extension count chip */}
         <Chip
           size="small"
-          label={`${fleetExtensions.length} installed${uninstalledImages.length > 0 ? `, ${uninstalledImages.length} image${uninstalledImages.length !== 1 ? 's' : ''}` : ''}`}
+          label={`${unifiedImages.filter(i => i.isInstalled).length} installed, ${unifiedImages.length} images`}
           color="primary"
           variant="outlined"
         />
@@ -289,143 +431,141 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         </Box>
       )}
 
-      {/* Fleet Extensions List */}
-      {fleetExtensions.length > 0 ? (
+      {/* Fleet Extension Images List */}
+      {unifiedImages.length > 0 ? (
         <Box>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-            Installed Fleet Extensions ({fleetExtensions.length})
+            Fleet Extension Images ({unifiedImages.length})
           </Typography>
+          {operationError && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
+              <ErrorIcon fontSize="small" />
+              <Typography variant="caption">{operationError}</Typography>
+            </Box>
+          )}
           <List dense disablePadding>
-            {fleetExtensions.map((ext, index) => {
-              const isCurrentOwner = ownership?.ownExtensionName === ext.name;
-              const isThisExtension = initStatus?.ownIdentity.extensionName === ext.name;
+            {unifiedImages.map((img, index) => {
+              const isOperating = operatingImage === img.imageName;
+              const canDelete = img.type !== 'base'; // Base image cannot be deleted
 
               return (
                 <ListItem
                   key={index}
                   sx={{
-                    bgcolor: isThisExtension ? 'action.selected' : 'transparent',
+                    bgcolor: img.isThisExtension ? 'action.selected' : img.isInstalled ? 'action.hover' : 'transparent',
                     borderRadius: 1,
                     mb: 0.5,
+                    pr: 1,
                   }}
+                  secondaryAction={
+                    <Box sx={{ display: 'flex', gap: 0.5 }}>
+                      {/* Activate button - show if installed but not active */}
+                      {img.isInstalled && !img.isActive && (
+                        <Tooltip title="Activate this extension">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleActivate(img)}
+                            disabled={!!operatingImage}
+                          >
+                            {isOperating ? <CircularProgress size={18} /> : <PlayArrowIcon fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {/* Install button - show if not installed */}
+                      {!img.isInstalled && (
+                        <Tooltip title="Install extension">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => handleInstall(img)}
+                            disabled={!!operatingImage}
+                          >
+                            {isOperating ? <CircularProgress size={18} /> : <DownloadIcon fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {/* Uninstall button - show if installed */}
+                      {img.isInstalled && (
+                        <Tooltip title="Uninstall extension">
+                          <IconButton
+                            size="small"
+                            color="warning"
+                            onClick={() => handleUninstall(img)}
+                            disabled={!!operatingImage}
+                          >
+                            {isOperating ? <CircularProgress size={18} /> : <StopIcon fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      {/* Delete button - show if not base image */}
+                      {canDelete && (
+                        <Tooltip title={img.isInstalled ? 'Uninstall and delete image' : 'Delete image'}>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDelete(img)}
+                            disabled={!!operatingImage}
+                          >
+                            {isOperating ? <CircularProgress size={18} /> : <DeleteIcon fontSize="small" />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </Box>
+                  }
                 >
                   <ListItemIcon sx={{ minWidth: 36 }}>
-                    {isCurrentOwner ? (
-                      <Tooltip title="Current owner">
+                    {img.isActive ? (
+                      <Tooltip title="Active (current owner)">
                         <StarIcon color="success" fontSize="small" />
                       </Tooltip>
+                    ) : img.isInstalled ? (
+                      <Tooltip title="Installed">
+                        <ExtensionIcon fontSize="small" color="primary" />
+                      </Tooltip>
                     ) : (
-                      <ExtensionIcon fontSize="small" color="action" />
+                      <Tooltip title="Docker image (not installed)">
+                        <ImageIcon fontSize="small" color="action" />
+                      </Tooltip>
                     )}
                   </ListItemIcon>
                   <ListItemText
                     primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                          {ext.name}
-                        </Typography>
-                        {isThisExtension && (
-                          <Chip
-                            size="small"
-                            label="This"
-                            color="primary"
-                            variant="outlined"
-                            sx={{ height: 18, fontSize: '0.65rem' }}
-                          />
-                        )}
-                        {ext.fleetType && (
-                          <Chip
-                            size="small"
-                            label={ext.fleetType}
-                            color="default"
-                            variant="outlined"
-                            sx={{ height: 18, fontSize: '0.65rem' }}
-                          />
-                        )}
-                      </Box>
+                      <Tooltip title={img.title ? `Title: ${img.title}` : ''} placement="top-start">
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                            {img.imageName}
+                          </Typography>
+                          {img.isThisExtension && (
+                            <Chip
+                              size="small"
+                              label="This"
+                              color="primary"
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.65rem' }}
+                            />
+                          )}
+                          {img.type && (
+                            <Chip
+                              size="small"
+                              label={img.type}
+                              color={img.type === 'base' ? 'info' : 'default'}
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.65rem' }}
+                            />
+                          )}
+                          {img.isInstalled && (
+                            <Chip
+                              size="small"
+                              label="installed"
+                              color="success"
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.65rem' }}
+                            />
+                          )}
+                        </Box>
+                      </Tooltip>
                     }
-                    secondary={ext.tag ? `Tag: ${ext.tag}` : undefined}
-                  />
-                </ListItem>
-              );
-            })}
-          </List>
-        </Box>
-      ) : connected ? (
-        <Typography variant="body2" color="text.secondary">
-          No Fleet extensions detected. This may happen during initialization.
-        </Typography>
-      ) : null}
-
-      {/* Show other (non-Fleet) extensions count */}
-      {totalExtensions > fleetExtensions.length && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          + {totalExtensions - fleetExtensions.length} other extension{totalExtensions - fleetExtensions.length !== 1 ? 's' : ''} installed
-        </Typography>
-      )}
-
-      {/* Uninstalled Fleet Images */}
-      {uninstalledImages.length > 0 && (
-        <Box sx={{ mt: 2 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-            Fleet Extension Images (Not Installed) ({uninstalledImages.length})
-          </Typography>
-          {installError && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
-              <ErrorIcon fontSize="small" />
-              <Typography variant="caption">{installError}</Typography>
-            </Box>
-          )}
-          <List dense disablePadding>
-            {uninstalledImages.map((img, index) => {
-              const imageName = img.repository + (img.tag ? `:${img.tag}` : ':latest');
-              const isInstalling = installingImage === imageName;
-
-              return (
-                <ListItem
-                  key={index}
-                  sx={{
-                    bgcolor: 'action.hover',
-                    borderRadius: 1,
-                    mb: 0.5,
-                  }}
-                  secondaryAction={
-                    <Button
-                      size="small"
-                      variant="contained"
-                      color="primary"
-                      onClick={() => handleInstallImage(img)}
-                      disabled={!!installingImage}
-                      startIcon={isInstalling ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
-                      sx={{ minWidth: 80 }}
-                    >
-                      {isInstalling ? 'Installing...' : 'Install'}
-                    </Button>
-                  }
-                >
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    <Tooltip title="Docker image (not installed)">
-                      <ImageIcon fontSize="small" color="action" />
-                    </Tooltip>
-                  </ListItemIcon>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                          {img.repository || img.id}
-                        </Typography>
-                        {img.type && (
-                          <Chip
-                            size="small"
-                            label={img.type}
-                            color="default"
-                            variant="outlined"
-                            sx={{ height: 18, fontSize: '0.65rem' }}
-                          />
-                        )}
-                      </Box>
-                    }
-                    secondary={img.tag ? `Tag: ${img.tag}` : undefined}
                   />
                 </ListItem>
               );
@@ -440,6 +580,17 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
             </Box>
           )}
         </Box>
+      ) : connected ? (
+        <Typography variant="body2" color="text.secondary">
+          No Fleet extension images found. {loadingImages ? 'Scanning...' : ''}
+        </Typography>
+      ) : null}
+
+      {/* Show other (non-Fleet) extensions count */}
+      {totalExtensions > fleetExtensions.length && (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          + {totalExtensions - fleetExtensions.length} other extension{totalExtensions - fleetExtensions.length !== 1 ? 's' : ''} installed
+        </Typography>
       )}
 
       {/* Actions */}
