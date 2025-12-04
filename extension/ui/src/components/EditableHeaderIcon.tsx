@@ -55,6 +55,7 @@ export function EditableHeaderIcon({
   const [isAtLimit, setIsAtLimit] = useState(false); // True when at min or max height
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(iconHeight);
+  const justFinishedResizing = useRef<boolean>(false); // Prevent click after resize
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle resize drag
@@ -82,6 +83,11 @@ export function EditableHeaderIcon({
       setIsResizing(false);
       setResizeButtonOffset(0); // Reset button to center
       setIsAtLimit(false);
+      // Prevent the subsequent click from opening file picker
+      justFinishedResizing.current = true;
+      setTimeout(() => {
+        justFinishedResizing.current = false;
+      }, 100);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -146,6 +152,10 @@ export function EditableHeaderIcon({
   }, []);
 
   const handleClick = useCallback(() => {
+    // Don't open file picker if we just finished resizing
+    if (justFinishedResizing.current) {
+      return;
+    }
     if (editMode) {
       fileInputRef.current?.click();
     }
