@@ -73,9 +73,9 @@ export function EditableHeaderIcon({
       // Check if at min/max limit
       setIsAtLimit(rawHeight < MIN_ICON_HEIGHT || rawHeight > MAX_ICON_HEIGHT);
 
-      // Button offset: cursor movement + half of height change (since icon center shifts)
-      // This keeps the button stuck to the cursor
-      setResizeButtonOffset(cursorDeltaY + heightDelta / 2);
+      // Button offset: when icon grows, the 50% position moves DOWN (icon extends downward from fixed top)
+      // So we need to move button UP by cursor movement PLUS the natural downward shift
+      setResizeButtonOffset(cursorDeltaY - heightDelta / 2);
     };
 
     const handleMouseUp = () => {
