@@ -284,7 +284,7 @@ export function EditableHeaderIcon({
         </Tooltip>
       )}
 
-      {/* Resize button - drag up/down to resize icon */}
+      {/* Resize button - drag up/down to resize icon, positioned on left edge */}
       {editMode && !isDeleted && (isHovering || isResizing) && onIconHeightChange && (
         <Tooltip title="Drag to resize">
           <IconButton
@@ -292,8 +292,9 @@ export function EditableHeaderIcon({
             onMouseDown={handleResizeStart}
             sx={{
               position: 'absolute',
-              top: -8,
-              right: 16,
+              left: -10,
+              top: '50%',
+              transform: 'translateY(-50%)',
               bgcolor: isResizing ? 'primary.dark' : 'primary.main',
               color: 'white',
               width: 20,
