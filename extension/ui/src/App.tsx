@@ -47,6 +47,7 @@ import {
   EditModePanel,
   EditableHeaderIcon,
   IconState,
+  CustomIcon,
   GitRepoCard,
   FleetStatusCard,
   BackendStatusCard,
@@ -57,6 +58,8 @@ import {
 } from './components';
 import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver, useBackendStatus, useBackendInit } from './hooks';
 import { useServices } from './context';
+import { extractDominantColor, extractColorsFromSvg } from './utils/colorExtractor';
+import { generatePaletteFromColor } from './utils/paletteGenerator';
 
 // Cache the initial state load so all useState initializers see the same value
 const cachedInitialState = getInitialState();
@@ -321,6 +324,41 @@ function App() {
       branding: { ...prev.branding, palette: newPalette },
     }));
   }, []);
+
+  // Handle icon change - auto-apply Analogous palette from icon color
+  const handleIconChange = useCallback(async (newIconState: IconState) => {
+    setIconState(newIconState);
+
+    // In edit mode, when a new icon is uploaded, auto-apply Analogous palette
+    if (editMode && newIconState && newIconState !== 'deleted') {
+      const customIcon = newIconState as CustomIcon;
+      const dataUrl = `data:${customIcon.mimeType};base64,${customIcon.data}`;
+
+      try {
+        let baseColor;
+        if (customIcon.mimeType === 'image/svg+xml') {
+          // Extract from SVG
+          const svgContent = atob(customIcon.data);
+          const colors = extractColorsFromSvg(svgContent);
+          baseColor = colors[0];
+        } else {
+          // Extract from raster image
+          baseColor = await extractDominantColor(dataUrl);
+        }
+
+        if (baseColor) {
+          // Generate Analogous palette from the icon color
+          const result = generatePaletteFromColor(baseColor, { harmony: 'analogous' });
+          setManifest((prev) => ({
+            ...prev,
+            branding: { ...prev.branding, palette: result.uiPalette },
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to extract color from icon:', err);
+      }
+    }
+  }, [editMode]);
 
   // Open add repo dialog
   const openAddRepoDialog = useCallback(() => {
@@ -721,7 +759,7 @@ function App() {
       <Box sx={{ bgcolor: palette.header.background, color: palette.header.text, py: 2, boxShadow: 1 }}>
         <Box sx={{ maxWidth: 900, margin: '0 auto', px: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <EditableHeaderIcon iconState={iconState} onChange={setIconState} editMode={editMode} />
+            <EditableHeaderIcon iconState={iconState} onChange={handleIconChange} editMode={editMode} />
             <EditableTitle
               value={manifest.app?.name || 'Fleet GitOps'}
               editMode={editMode}
