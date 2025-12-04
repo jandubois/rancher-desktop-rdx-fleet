@@ -27,7 +27,7 @@ import {
 
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, GitRepoCardSettings, CardType } from './manifest';
-import { loadExtensionState, saveExtensionState, PersistedExtensionState } from './utils/extensionStateStorage';
+import { loadExtensionState, saveExtensionState, PersistedExtensionState, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
 
 // Get initial state from localStorage (synchronous for lazy useState)
 function getInitialState(): PersistedExtensionState | null {
@@ -95,12 +95,18 @@ function App() {
     () => cachedInitialState?.iconState ?? null
   );
 
+  // Icon height for extension builder (customizable in edit mode)
+  const [iconHeight, setIconHeight] = useState<number>(
+    () => cachedInitialState?.iconHeight ?? DEFAULT_ICON_HEIGHT
+  );
+
   // Edit mode snapshot for undo/cancel functionality
   const [editModeSnapshot, setEditModeSnapshot] = useState<{
     manifest: Manifest;
     manifestCards: CardDefinition[];
     cardOrder: string[];
     iconState: IconState;
+    iconHeight: number;
     dynamicCardTitles: Record<string, string>;
   } | null>(null);
 
@@ -273,9 +279,10 @@ function App() {
       cardOrder,
       dynamicCardTitles,
       iconState,
+      iconHeight,
       timestamp: Date.now(),
     });
-  }, [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState]);
+  }, [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState, iconHeight]);
 
   // Track current time for timeout checks (updated every 5s when there are active discovery operations)
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -300,6 +307,13 @@ function App() {
   const handleConfigLoaded = useCallback((loadedManifest: Manifest) => {
     setManifest(loadedManifest);
     setManifestCards(loadedManifest.cards);
+
+    // Load iconHeight from branding if present
+    if (loadedManifest.branding?.iconHeight) {
+      setIconHeight(loadedManifest.branding.iconHeight);
+    } else {
+      setIconHeight(DEFAULT_ICON_HEIGHT);
+    }
 
     const newManifestCardIds = loadedManifest.cards
       .filter((c) => c.type !== 'gitrepo')
@@ -419,10 +433,11 @@ function App() {
       manifestCards,
       cardOrder,
       iconState,
+      iconHeight,
       dynamicCardTitles,
     });
     setEditMode(true);
-  }, [manifest, manifestCards, cardOrder, iconState, dynamicCardTitles]);
+  }, [manifest, manifestCards, cardOrder, iconState, iconHeight, dynamicCardTitles]);
 
   // Handle applying edit mode changes - clear snapshot and exit
   const handleApplyEditMode = useCallback(() => {
@@ -445,6 +460,7 @@ function App() {
       setManifestCards(editModeSnapshot.manifestCards);
       setCardOrder(editModeSnapshot.cardOrder);
       setIconState(editModeSnapshot.iconState);
+      setIconHeight(editModeSnapshot.iconHeight);
       setDynamicCardTitles(editModeSnapshot.dynamicCardTitles);
     }
     setEditModeSnapshot(null);
@@ -756,10 +772,16 @@ function App() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: palette.body.background, display: 'flex', flexDirection: 'column' }}>
       {/* Fixed Header */}
-      <Box sx={{ bgcolor: palette.header.background, color: palette.header.text, py: 2, boxShadow: 1 }}>
+      <Box sx={{ bgcolor: palette.header.background, color: palette.header.text, py: 0.5, boxShadow: 1 }}>
         <Box sx={{ maxWidth: 900, margin: '0 auto', px: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <EditableHeaderIcon iconState={iconState} onChange={handleIconChange} editMode={editMode} />
+            <EditableHeaderIcon
+              iconState={iconState}
+              onChange={handleIconChange}
+              editMode={editMode}
+              iconHeight={iconHeight}
+              onIconHeightChange={setIconHeight}
+            />
             <EditableTitle
               value={manifest.app?.name || 'Fleet GitOps'}
               editMode={editMode}
@@ -813,10 +835,12 @@ function App() {
               cards={manifestCards}
               cardOrder={effectiveCardOrder}
               iconState={iconState}
+              iconHeight={iconHeight}
               resolvedPalette={palette}
               onConfigLoaded={handleConfigLoaded}
               onPaletteChange={handlePaletteChange}
               onIconStateChange={setIconState}
+              onIconHeightChange={setIconHeight}
             />
           )}
 

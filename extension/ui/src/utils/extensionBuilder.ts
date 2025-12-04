@@ -5,6 +5,7 @@ import type { BundledImage } from '../manifest';
 import { ddClient } from '../lib/ddClient';
 import type { CustomIcon } from '../components/IconUpload';
 import type { IconState } from '../components/EditableHeaderIcon';
+import { DEFAULT_ICON_HEIGHT } from './extensionStateStorage';
 
 // Collected bundled image with its target path
 interface CollectedBundledImage {
@@ -41,6 +42,7 @@ export interface ExtensionConfig {
   cardOrder: string[];
   baseImage?: string;
   iconState?: IconState;  // null = default, CustomIcon = custom, 'deleted' = no icon
+  iconHeight?: number;    // Custom icon height in pixels
 }
 
 // Build result
@@ -82,6 +84,13 @@ export function generateManifestYaml(config: ExtensionConfig): string {
     .map(id => config.cards.find(c => c.id === id))
     .filter((c): c is CardDefinition => c !== undefined && c.type !== 'placeholder');
 
+  // Build branding section, including iconHeight if not default
+  const branding = config.manifest.branding || {};
+  const iconHeight = config.iconHeight;
+  const brandingWithIconHeight = iconHeight && iconHeight !== DEFAULT_ICON_HEIGHT
+    ? { ...branding, iconHeight }
+    : branding;
+
   const manifest: Manifest = {
     version: config.manifest.version || '1.0',
     app: {
@@ -89,7 +98,7 @@ export function generateManifestYaml(config: ExtensionConfig): string {
       icon: config.manifest.app?.icon,
       description: config.manifest.app?.description,
     },
-    branding: config.manifest.branding,
+    branding: Object.keys(brandingWithIconHeight).length > 0 ? brandingWithIconHeight : undefined,
     layout: {
       ...config.manifest.layout,
       edit_mode: false,  // Custom extensions typically disable edit mode

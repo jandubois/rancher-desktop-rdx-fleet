@@ -2,23 +2,26 @@
  * EditableHeaderIcon component - Header icon with edit mode support.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HeightIcon from '@mui/icons-material/Height';
+import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { CustomIcon } from './IconUpload';
 import { useFileUpload, DEFAULT_ACCEPTED_TYPES, DEFAULT_MAX_SIZE } from '../hooks/useFileUpload';
+import { DEFAULT_ICON_HEIGHT, MAX_ICON_HEIGHT, MIN_ICON_HEIGHT } from '../utils/extensionStateStorage';
 
 // Icon state: null = default, CustomIcon = custom, 'deleted' = explicitly no icon
 export type IconState = CustomIcon | null | 'deleted';
 
-// Default Fleet icon SVG
-const DEFAULT_FLEET_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135.97886 111.362" style={{ height: 40, width: 'auto' }}>
+// Default Fleet icon SVG component with dynamic height
+const DefaultFleetIcon = ({ height }: { height: number }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135.97886 111.362" style={{ height, width: 'auto' }}>
     <rect fill="#22ad5f" width="135.97886" height="111.362" rx="14.39243"/>
     <path fill="#fff" d="M108.734,68.40666c-.31959-.70715-.62976-1.41735-.95818-2.12167A192.12367,192.12367,0,0,0,87.66084,32.59744q-2.86843-3.84771-5.93119-7.55V74.33785h29.575Q110.07441,71.35528,108.734,68.40666Zm-21.07312,0V42.829a186.742,186.742,0,0,1,14.55423,25.57769Z"/>
     <path fill="#fff" d="M70.04392,14.80415A192.53573,192.53573,0,0,0,41.96357,68.40666c-.6645,1.96876-1.30338,3.94462-1.90258,5.93119H75.97512V7.25412Q72.91337,10.95651,70.04392,14.80415Zm0,53.60251H48.22507a187.12611,187.12611,0,0,1,21.81885-43.371Z"/>
@@ -34,12 +37,77 @@ interface EditableHeaderIconProps {
   iconState: IconState;
   onChange: (icon: IconState) => void;
   editMode: boolean;
+  iconHeight?: number;
+  onIconHeightChange?: (height: number) => void;
 }
 
-export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHeaderIconProps) {
+export function EditableHeaderIcon({
+  iconState,
+  onChange,
+  editMode,
+  iconHeight = DEFAULT_ICON_HEIGHT,
+  onIconHeightChange,
+}: EditableHeaderIconProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeButtonOffset, setResizeButtonOffset] = useState(0); // Vertical offset from center during drag
+  const [isAtLimit, setIsAtLimit] = useState(false); // True when at min or max height
+  const resizeStartY = useRef<number>(0);
+  const resizeStartHeight = useRef<number>(iconHeight);
+  const justFinishedResizing = useRef<boolean>(false); // Prevent click after resize
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle resize drag
+  useEffect(() => {
+    if (!isResizing || !onIconHeightChange) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      // Moving up = larger icon, moving down = smaller icon
+      const cursorDeltaY = e.clientY - resizeStartY.current; // Positive = cursor moved down
+      const rawHeight = resizeStartHeight.current - cursorDeltaY;
+      const newHeight = Math.min(MAX_ICON_HEIGHT, Math.max(MIN_ICON_HEIGHT, rawHeight));
+      const heightDelta = newHeight - resizeStartHeight.current;
+
+      onIconHeightChange(newHeight);
+
+      // Check if at min/max limit
+      setIsAtLimit(rawHeight < MIN_ICON_HEIGHT || rawHeight > MAX_ICON_HEIGHT);
+
+      // Button offset: button is at bottom, which moves DOWN by full heightDelta when icon grows
+      // So we need to compensate for cursor movement PLUS the full downward shift
+      setResizeButtonOffset(cursorDeltaY - heightDelta);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      setResizeButtonOffset(0); // Reset button to center
+      setIsAtLimit(false);
+      // Prevent the subsequent click from opening file picker
+      justFinishedResizing.current = true;
+      setTimeout(() => {
+        justFinishedResizing.current = false;
+      }, 100);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, onIconHeightChange]);
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    resizeStartY.current = e.clientY;
+    resizeStartHeight.current = iconHeight;
+    setResizeButtonOffset(0);
+    setIsAtLimit(false);
+    setIsResizing(true);
+  }, [iconHeight]);
 
   // Use the shared file upload hook with auto-clearing errors
   const { error, validateAndProcessFile } = useFileUpload({
@@ -84,6 +152,10 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
   }, []);
 
   const handleClick = useCallback(() => {
+    // Don't open file picker if we just finished resizing
+    if (justFinishedResizing.current) {
+      return;
+    }
     if (editMode) {
       fileInputRef.current?.click();
     }
@@ -132,32 +204,31 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
       onDragLeave={handleDragLeave}
       onClick={handleClick}
     >
-      {/* Icon container - width adjusts to content, height is fixed */}
+      {/* Icon container - width adjusts to content, height is dynamic */}
       <Box
         sx={{
           position: 'relative',
-          height: 40,
-          minWidth: 40,
+          height: iconHeight,
+          minWidth: iconHeight,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: 1,
-          transition: 'all 0.2s ease',
+          transition: isResizing ? 'none' : 'all 0.2s ease',
           ...(editMode && {
             border: '2px dashed',
             borderColor: isDragging ? 'warning.light' : isHovering ? 'rgba(255,255,255,0.5)' : isDeleted ? 'rgba(255,255,255,0.3)' : 'transparent',
             bgcolor: isDragging ? 'rgba(255,255,255,0.1)' : 'transparent',
-            p: 0.5,
           }),
         }}
       >
-        {/* Show custom icon - height fixed, width auto for aspect ratio */}
+        {/* Show custom icon - height dynamic, width auto for aspect ratio */}
         {customIconUrl && (
           <img
             src={customIconUrl}
             alt="Extension icon"
             style={{
-              height: 40,
+              height: iconHeight,
               width: 'auto',
               objectFit: 'contain',
               borderRadius: 4,
@@ -166,7 +237,7 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
         )}
 
         {/* Show default Fleet icon */}
-        {showDefaultIcon && DEFAULT_FLEET_ICON}
+        {showDefaultIcon && <DefaultFleetIcon height={iconHeight} />}
 
         {/* Show empty placeholder in edit mode when deleted */}
         {editMode && isDeleted && !isDragging && (
@@ -236,6 +307,33 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
             }}
           >
             <DeleteIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {/* Resize button - drag up/down to resize icon, positioned on bottom-left edge */}
+      {editMode && !isDeleted && (isHovering || isResizing) && onIconHeightChange && (
+        <Tooltip title="Drag to resize">
+          <IconButton
+            size="small"
+            onMouseDown={handleResizeStart}
+            sx={{
+              position: 'absolute',
+              left: -10,
+              bottom: 0,
+              transform: `translateY(calc(50% + ${resizeButtonOffset}px))`,
+              bgcolor: isAtLimit ? 'error.main' : isResizing ? 'primary.dark' : 'primary.main',
+              color: 'white',
+              width: 20,
+              height: 20,
+              cursor: 'ns-resize',
+              transition: isResizing ? 'none' : 'transform 0.15s ease-out, background-color 0.15s ease-out',
+              '&:hover': {
+                bgcolor: isAtLimit ? 'error.dark' : 'primary.dark',
+              },
+            }}
+          >
+            {isAtLimit ? <CloseIcon sx={{ fontSize: 14 }} /> : <HeightIcon sx={{ fontSize: 14 }} />}
           </IconButton>
         </Tooltip>
       )}

@@ -29,6 +29,7 @@ import {
   ImportResult,
 } from '../utils/extensionBuilder';
 import type { IconState } from './EditableHeaderIcon';
+import { DEFAULT_ICON_HEIGHT } from '../utils/extensionStateStorage';
 import { ConfirmDialog } from './ConfirmDialog';
 import { EditModeLoadTab } from './EditModeLoadTab';
 import { EditModeBuildTab } from './EditModeBuildTab';
@@ -51,10 +52,12 @@ interface EditModePanelProps {
   cards: CardDefinition[];
   cardOrder: string[];
   iconState: IconState;
+  iconHeight?: number;
   resolvedPalette?: ReturnType<typeof import('../hooks/usePalette').usePalette>;
   onConfigLoaded?: (manifest: Manifest) => void;
   onPaletteChange?: (palette: ColorPalette) => void;
   onIconStateChange?: (iconState: IconState) => void;
+  onIconHeightChange?: (height: number) => void;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -82,7 +85,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -436,6 +439,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     cardOrder,
     baseImage: baseImage || undefined,
     iconState,
+    iconHeight,
   });
 
   const handleDownload = async () => {
@@ -548,6 +552,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
     }
     if (onIconStateChange) {
       onIconStateChange(null);
+    }
+    if (onIconHeightChange) {
+      onIconHeightChange(DEFAULT_ICON_HEIGHT);
     }
   };
 
