@@ -4,7 +4,7 @@
  * DividerCard provides visual separation between content sections:
  * - Renders a horizontal divider line with configurable style (solid/dashed/dotted)
  * - Supports optional centered label text
- * - Edit mode: shows label input and style dropdown with preview
+ * - Edit mode: shows label input and style dropdown (dropdown shows divider previews)
  * - View mode: renders just the divider (with or without label)
  * - Applies palette border color to divider line
  */
@@ -144,34 +144,6 @@ describe('DividerCard', () => {
       expect(screen.getByRole('combobox')).toBeInTheDocument();
     });
 
-    it('shows Line Style label', () => {
-      const onSettingsChange = vi.fn();
-      render(
-        <DividerCard
-          definition={defaultDefinition}
-          settings={{}}
-          editMode={true}
-          onSettingsChange={onSettingsChange}
-        />
-      );
-
-      expect(screen.getByText('Line Style:')).toBeInTheDocument();
-    });
-
-    it('shows preview section', () => {
-      const onSettingsChange = vi.fn();
-      render(
-        <DividerCard
-          definition={defaultDefinition}
-          settings={{}}
-          editMode={true}
-          onSettingsChange={onSettingsChange}
-        />
-      );
-
-      expect(screen.getByText('Preview:')).toBeInTheDocument();
-    });
-
     it('calls onSettingsChange when label is edited', () => {
       const onSettingsChange = vi.fn();
       render(
@@ -203,9 +175,9 @@ describe('DividerCard', () => {
 
       // Open the dropdown
       await user.click(screen.getByRole('combobox'));
-      // Select dashed option from the listbox
-      const listbox = within(screen.getByRole('listbox'));
-      await user.click(listbox.getByText('Dashed'));
+      // Select dashed option (second option) from the listbox
+      const options = screen.getAllByRole('option');
+      await user.click(options[1]); // dashed is second option
 
       expect(onSettingsChange).toHaveBeenCalledWith({ style: 'dashed' });
     });
@@ -224,9 +196,9 @@ describe('DividerCard', () => {
 
       // Open the dropdown
       await user.click(screen.getByRole('combobox'));
-      // Select dotted option from the listbox
-      const listbox = within(screen.getByRole('listbox'));
-      await user.click(listbox.getByText('Dotted'));
+      // Select dotted option (third option) from the listbox
+      const options = screen.getAllByRole('option');
+      await user.click(options[2]); // dotted is third option
 
       expect(onSettingsChange).toHaveBeenCalledWith({ style: 'dotted' });
     });
@@ -262,9 +234,9 @@ describe('DividerCard', () => {
 
       // Open the dropdown
       await user.click(screen.getByRole('combobox'));
-      // Select dotted option from the listbox
-      const listbox = within(screen.getByRole('listbox'));
-      await user.click(listbox.getByText('Dotted'));
+      // Select dotted option (third option) from the listbox
+      const options = screen.getAllByRole('option');
+      await user.click(options[2]); // dotted is third option
 
       expect(onSettingsChange).toHaveBeenCalledWith({ label: 'Keep Me', style: 'dotted' });
     });
@@ -299,9 +271,9 @@ describe('DividerCard', () => {
       expect(input).toHaveValue('Existing Label');
     });
 
-    it('displays current style in dropdown', () => {
+    it('displays divider preview in dropdown', () => {
       const onSettingsChange = vi.fn();
-      render(
+      const { container } = render(
         <DividerCard
           definition={defaultDefinition}
           settings={{ style: 'dashed' }}
@@ -310,8 +282,9 @@ describe('DividerCard', () => {
         />
       );
 
-      // The Select should display the current style name
-      expect(screen.getByText('Dashed')).toBeInTheDocument();
+      // The Select should display a divider preview
+      const combobox = screen.getByRole('combobox');
+      expect(within(combobox).getByRole('separator')).toBeInTheDocument();
     });
 
     it('renders in view mode when editMode true but no onSettingsChange', () => {
@@ -369,7 +342,7 @@ describe('DividerCard', () => {
   describe('default values', () => {
     it('defaults style to solid when not specified', () => {
       const onSettingsChange = vi.fn();
-      render(
+      const { container } = render(
         <DividerCard
           definition={defaultDefinition}
           settings={{}}
@@ -378,8 +351,10 @@ describe('DividerCard', () => {
         />
       );
 
-      // The Select should display Solid as the default style
-      expect(screen.getByText('Solid')).toBeInTheDocument();
+      // The Select should have solid as default value (check hidden input)
+      const hiddenInput = container.querySelector('input[type="hidden"]') ||
+        container.querySelector('input[value="solid"]');
+      expect(hiddenInput).toHaveValue('solid');
     });
 
     it('defaults label to empty string when not specified', () => {
