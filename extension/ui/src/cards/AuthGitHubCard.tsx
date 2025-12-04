@@ -175,7 +175,7 @@ export const AuthGitHubCard: React.FC<CardProps<AuthCardSettings>> = ({
 
 // Register the auth-github card
 registerCard('auth-github', AuthGitHubCard, {
-  label: 'GitHub Auth',
+  label: 'GitHub Authentication',
   orderable: true,
   category: 'auth',
   singleton: true,

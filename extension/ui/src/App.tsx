@@ -39,7 +39,7 @@ function getInitialState(): PersistedExtensionState | null {
 }
 
 import type { ColorPalette } from './theme';
-import { CardWrapper, getCardComponent, getAddCardMenuItems, getDefaultSettingsForType, isCardTypeRegistered } from './cards';
+import { CardWrapper, getCardComponent, getAddCardMenuItems, getDefaultSettingsForType, getCardMetadata, isCardTypeRegistered } from './cards';
 import {
   SortableCard,
   AddRepoDialog,
@@ -492,10 +492,14 @@ function App() {
       setManifestCards((prev) => prev.filter((c) => c.id !== cardId));
       setCardOrder((prev) => prev.filter((id) => id !== cardId));
     } else {
+      // Get the metadata to determine the default title
+      const metadata = getCardMetadata(newType);
+      const defaultTitle = metadata?.label || 'New Card';
+
       setManifestCards((prev) =>
         prev.map((c) =>
           c.id === cardId
-            ? { ...c, type: newType, settings: getDefaultSettingsForCardType(newType) }
+            ? { ...c, type: newType, title: defaultTitle, settings: getDefaultSettingsForCardType(newType) }
             : c
         )
       );
