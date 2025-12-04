@@ -11,10 +11,17 @@ function getLuminance(hex: string): number {
   // Remove # if present
   const color = hex.replace('#', '');
 
-  // Parse RGB values
-  const r = parseInt(color.substring(0, 2), 16) / 255;
-  const g = parseInt(color.substring(2, 4), 16) / 255;
-  const b = parseInt(color.substring(4, 6), 16) / 255;
+  // Parse RGB values (handle both 3 and 6 digit hex)
+  let r: number, g: number, b: number;
+  if (color.length === 3) {
+    r = parseInt(color[0] + color[0], 16) / 255;
+    g = parseInt(color[1] + color[1], 16) / 255;
+    b = parseInt(color[2] + color[2], 16) / 255;
+  } else {
+    r = parseInt(color.substring(0, 2), 16) / 255;
+    g = parseInt(color.substring(2, 4), 16) / 255;
+    b = parseInt(color.substring(4, 6), 16) / 255;
+  }
 
   // Apply gamma correction
   const rsRGB = r <= 0.03928 ? r / 12.92 : Math.pow((r + 0.055) / 1.055, 2.4);
@@ -25,18 +32,48 @@ function getLuminance(hex: string): number {
   return 0.2126 * rsRGB + 0.7152 * gsRGB + 0.0722 * bsRGB;
 }
 
-// Get a high-contrast color (white or black) based on background
-// For warnings, we want to use bright red or bright yellow depending on background
+// Calculate contrast ratio between two colors (WCAG formula)
+// Returns a value between 1 (no contrast) and 21 (maximum contrast)
+function getContrastRatio(color1: string, color2: string): number {
+  const lum1 = getLuminance(color1);
+  const lum2 = getLuminance(color2);
+  const lighter = Math.max(lum1, lum2);
+  const darker = Math.min(lum1, lum2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+// Get the highest-contrast warning color based on background
+// Tests multiple candidate colors and picks the one with best contrast
 function getContrastWarningColor(backgroundColor?: string): string {
   if (!backgroundColor || !backgroundColor.startsWith('#')) {
     return '#ff3333'; // Default bright red
   }
 
-  const luminance = getLuminance(backgroundColor);
+  // Candidate warning colors to test
+  const candidates = [
+    '#ff3333', // Bright red
+    '#cc0000', // Dark red
+    '#ffcc00', // Bright yellow/gold
+    '#ff6600', // Orange
+    '#ffffff', // White
+    '#000000', // Black
+  ];
 
-  // If background is dark (luminance < 0.5), use bright red
-  // If background is light, use dark red
-  return luminance < 0.5 ? '#ff3333' : '#cc0000';
+  // Find the candidate with the highest contrast ratio
+  let bestColor = candidates[0];
+  let bestContrast = 0;
+
+  for (const candidate of candidates) {
+    const contrast = getContrastRatio(backgroundColor, candidate);
+    if (contrast > bestContrast) {
+      bestContrast = contrast;
+      bestColor = candidate;
+    }
+  }
+
+  // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
+  // We want at least 4.5:1 for good readability
+  return bestColor;
 }
 
 interface EditableTitleProps {
