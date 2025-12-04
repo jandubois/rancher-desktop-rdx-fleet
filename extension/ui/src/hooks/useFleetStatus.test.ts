@@ -1,17 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useFleetStatus } from './useFleetStatus';
-import { KubernetesService, FleetStatusCheckResult } from '../services';
+import { KubernetesService, FleetStatusCheckResult, backendService } from '../services';
+
+// Mock the backendService
+vi.mock('../services', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../services')>();
+  return {
+    ...actual,
+    backendService: {
+      getFleetState: vi.fn(),
+    },
+  };
+});
 
 // Suppress console.error in tests
 vi.spyOn(console, 'error').mockImplementation(() => {});
 vi.spyOn(console, 'warn').mockImplementation(() => {});
+vi.spyOn(console, 'log').mockImplementation(() => {});
 
 // Create a mock KubernetesService
 function createMockKubernetesService() {
   return {
     checkFleetStatus: vi.fn<[], Promise<FleetStatusCheckResult>>(),
-    installFleet: vi.fn<[], Promise<void>>(),
     createFleetNamespace: vi.fn<[], Promise<void>>(),
     checkFleetCrdExists: vi.fn<[], Promise<boolean>>(),
     checkFleetPodRunning: vi.fn<[], Promise<boolean>>(),
@@ -29,6 +40,8 @@ describe('useFleetStatus', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockService = createMockKubernetesService();
+    // Default: backend not available, falls back to kubectl check
+    vi.mocked(backendService.getFleetState).mockRejectedValue(new Error('Not available'));
   });
 
   afterEach(() => {
@@ -107,92 +120,58 @@ describe('useFleetStatus', () => {
     });
   });
 
-  it('installFleet calls service.installFleet and rechecks status', async () => {
-    // Initial check - not installed
-    vi.mocked(mockService.checkFleetStatus)
-      .mockResolvedValueOnce({ state: { status: 'not-installed' } })
-      // After install, recheck returns running
-      .mockResolvedValueOnce({ state: { status: 'running', version: '0.10.0' } });
-
-    vi.mocked(mockService.installFleet).mockResolvedValueOnce(undefined);
+  it('uses backend state when backend returns installing status', async () => {
+    // Backend reports installing
+    vi.mocked(backendService.getFleetState).mockResolvedValueOnce({
+      status: 'installing',
+      message: 'Step 2/5: Installing Fleet CRDs...',
+    });
 
     const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
-      expect(result.current.fleetState.status).toBe('not-installed');
+      expect(result.current.fleetState.status).toBe('installing');
+      expect(result.current.fleetState.message).toContain('Step 2/5');
     });
 
-    await act(async () => {
-      await result.current.installFleet();
-    });
-
-    expect(mockService.installFleet).toHaveBeenCalled();
-    expect(result.current.fleetState.status).toBe('running');
+    // Should not call kubectl check when backend has authoritative state
+    expect(mockService.checkFleetStatus).not.toHaveBeenCalled();
   });
 
-  it('sets installing to true during installation', async () => {
-    // Initial check - not installed
-    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
-      state: { status: 'not-installed' },
+  it('uses backend state when backend returns running status', async () => {
+    // Backend reports running
+    vi.mocked(backendService.getFleetState).mockResolvedValueOnce({
+      status: 'running',
+      version: '0.10.0',
     });
 
-    const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
+    const onFleetReady = vi.fn();
+    const { result } = renderHook(() =>
+      useFleetStatus({ kubernetesService: mockService, onFleetReady })
+    );
 
     await waitFor(() => {
-      expect(result.current.fleetState.status).toBe('not-installed');
+      expect(result.current.fleetState.status).toBe('running');
     });
 
-    expect(result.current.installing).toBe(false);
+    expect(onFleetReady).toHaveBeenCalled();
+    expect(mockService.checkFleetStatus).not.toHaveBeenCalled();
+  });
 
-    // Create a slow install
-    let resolveInstall: () => void;
-    const installPromise = new Promise<void>((resolve) => {
-      resolveInstall = resolve;
-    });
-
-    vi.mocked(mockService.installFleet).mockReturnValueOnce(installPromise);
+  it('falls back to kubectl check when backend is not available', async () => {
+    // Backend throws (default mock behavior)
     vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
       state: { status: 'running', version: '0.10.0' },
     });
 
-    // Start install (don't await)
-    act(() => {
-      result.current.installFleet();
-    });
-
-    expect(result.current.installing).toBe(true);
-
-    // Complete installation
-    await act(async () => {
-      resolveInstall!();
-      await installPromise;
-    });
-
-    expect(result.current.installing).toBe(false);
-  });
-
-  it('sets error status when installation fails', async () => {
-    // Initial check - not installed
-    vi.mocked(mockService.checkFleetStatus).mockResolvedValueOnce({
-      state: { status: 'not-installed' },
-    });
-
     const { result } = renderHook(() => useFleetStatus({ kubernetesService: mockService }));
 
     await waitFor(() => {
-      expect(result.current.fleetState.status).toBe('not-installed');
+      expect(result.current.fleetState.status).toBe('running');
     });
 
-    // Install fails
-    vi.mocked(mockService.installFleet).mockRejectedValueOnce(new Error('Network unreachable'));
-
-    await act(async () => {
-      await result.current.installFleet();
-    });
-
-    expect(result.current.fleetState.status).toBe('error');
-    expect(result.current.fleetState.error).toBe('Network unreachable');
-    expect(result.current.installing).toBe(false);
+    // Should fall back to kubectl
+    expect(mockService.checkFleetStatus).toHaveBeenCalled();
   });
 
   it('checkFleetStatus can be called manually', async () => {
