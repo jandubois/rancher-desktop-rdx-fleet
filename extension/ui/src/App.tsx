@@ -816,6 +816,7 @@ function App() {
               resolvedPalette={palette}
               onConfigLoaded={handleConfigLoaded}
               onPaletteChange={handlePaletteChange}
+              onIconStateChange={setIconState}
             />
           )}
 
