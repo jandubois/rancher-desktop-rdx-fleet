@@ -12,6 +12,7 @@ interface EditableTitleProps {
   placeholder?: string;
   variant?: 'h6' | 'subtitle1' | 'subtitle2';
   children?: React.ReactNode; // Additional content to show after the title
+  validationWarning?: string | null; // Validation warning to display below the title
 }
 
 /**
@@ -25,6 +26,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
   placeholder = 'Enter title...',
   variant = 'h6',
   children,
+  validationWarning,
 }) => {
   if (editMode && onChange) {
     const isTooLong = value.length > MAX_LENGTH_WARNING;
@@ -53,6 +55,11 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
         {isTooLong && (
           <Typography variant="caption" color="warning.main">
             Long names may wrap in the sidebar ({value.length} characters)
+          </Typography>
+        )}
+        {validationWarning && (
+          <Typography variant="caption" color="warning.main" sx={{ display: 'block', mt: isTooLong ? 0.5 : 0 }}>
+            {validationWarning}
           </Typography>
         )}
       </Box>

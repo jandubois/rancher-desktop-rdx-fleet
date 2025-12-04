@@ -26,6 +26,10 @@ export interface EditModeBuildTabProps {
   buildOutput: string | null;
   /** Build error message */
   buildError: string | null;
+  /** Validation warning for image name */
+  imageNameWarning?: string | null;
+  /** Validation warning for title */
+  titleWarning?: string | null;
   /** Callback when base image changes */
   onBaseImageChange: (value: string) => void;
   /** Callback when image name changes */
@@ -44,6 +48,8 @@ export function EditModeBuildTab({
   building,
   buildOutput,
   buildError,
+  imageNameWarning,
+  titleWarning,
   onBaseImageChange,
   onImageNameChange,
   onDownload,
@@ -74,9 +80,23 @@ export function EditModeBuildTab({
         onChange={(e) => onImageNameChange(e.target.value)}
         size="small"
         fullWidth
-        sx={{ mb: 2 }}
+        sx={{ mb: imageNameWarning || titleWarning ? 1 : 2 }}
         helperText="Tag for the built Docker image"
       />
+
+      {/* Image name validation warning */}
+      {imageNameWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {imageNameWarning}
+        </Alert>
+      )}
+
+      {/* Title validation warning (shown in build tab in case title is scrolled out of view) */}
+      {titleWarning && !imageNameWarning && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          {titleWarning}
+        </Alert>
+      )}
 
       {/* Action buttons */}
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>

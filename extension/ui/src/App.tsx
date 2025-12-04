@@ -99,6 +99,9 @@ function App() {
     () => cachedInitialState?.iconHeight ?? DEFAULT_ICON_HEIGHT
   );
 
+  // Title validation warning from build tab
+  const [titleWarning, setTitleWarning] = useState<string | null>(null);
+
   // Edit mode snapshot for undo/cancel functionality
   const [editModeSnapshot, setEditModeSnapshot] = useState<{
     manifest: Manifest;
@@ -785,6 +788,7 @@ function App() {
               onChange={handleExtensionTitleChange}
               placeholder="Extension Name"
               variant="h6"
+              validationWarning={titleWarning}
             />
           </Box>
           {editModeAllowed && (
@@ -841,6 +845,7 @@ function App() {
               backendStatus={backendStatus}
               backendLoading={backendLoading}
               onBackendRefresh={refreshBackend}
+              onTitleWarningChange={setTitleWarning}
             />
           )}
 
