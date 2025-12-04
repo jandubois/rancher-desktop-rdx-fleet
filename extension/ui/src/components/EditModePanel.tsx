@@ -651,6 +651,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, resolvedP
                 selectedImage={selectedImage}
                 loadingImages={loadingImages}
                 importing={importing}
+                fileInputRef={fileInputRef}
                 onSelectedImageChange={setSelectedImage}
                 onRefreshImages={refreshFleetImages}
                 onLoadFromImage={handleLoadFromImage}
