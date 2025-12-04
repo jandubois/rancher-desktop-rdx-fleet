@@ -5,20 +5,23 @@
 import { useState, useCallback, useRef } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import Slider from '@mui/material/Slider';
 import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import HeightIcon from '@mui/icons-material/Height';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { CustomIcon } from './IconUpload';
 import { useFileUpload, DEFAULT_ACCEPTED_TYPES, DEFAULT_MAX_SIZE } from '../hooks/useFileUpload';
+import { DEFAULT_ICON_HEIGHT, MAX_ICON_HEIGHT, MIN_ICON_HEIGHT } from '../utils/extensionStateStorage';
 
 // Icon state: null = default, CustomIcon = custom, 'deleted' = explicitly no icon
 export type IconState = CustomIcon | null | 'deleted';
 
-// Default Fleet icon SVG
-const DEFAULT_FLEET_ICON = (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135.97886 111.362" style={{ height: 40, width: 'auto' }}>
+// Default Fleet icon SVG component with dynamic height
+const DefaultFleetIcon = ({ height }: { height: number }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 135.97886 111.362" style={{ height, width: 'auto' }}>
     <rect fill="#22ad5f" width="135.97886" height="111.362" rx="14.39243"/>
     <path fill="#fff" d="M108.734,68.40666c-.31959-.70715-.62976-1.41735-.95818-2.12167A192.12367,192.12367,0,0,0,87.66084,32.59744q-2.86843-3.84771-5.93119-7.55V74.33785h29.575Q110.07441,71.35528,108.734,68.40666Zm-21.07312,0V42.829a186.742,186.742,0,0,1,14.55423,25.57769Z"/>
     <path fill="#fff" d="M70.04392,14.80415A192.53573,192.53573,0,0,0,41.96357,68.40666c-.6645,1.96876-1.30338,3.94462-1.90258,5.93119H75.97512V7.25412Q72.91337,10.95651,70.04392,14.80415Zm0,53.60251H48.22507a187.12611,187.12611,0,0,1,21.81885-43.371Z"/>
@@ -34,11 +37,20 @@ interface EditableHeaderIconProps {
   iconState: IconState;
   onChange: (icon: IconState) => void;
   editMode: boolean;
+  iconHeight?: number;
+  onIconHeightChange?: (height: number) => void;
 }
 
-export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHeaderIconProps) {
+export function EditableHeaderIcon({
+  iconState,
+  onChange,
+  editMode,
+  iconHeight = DEFAULT_ICON_HEIGHT,
+  onIconHeightChange,
+}: EditableHeaderIconProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const [showResizeSlider, setShowResizeSlider] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Use the shared file upload hook with auto-clearing errors
@@ -132,12 +144,12 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
       onDragLeave={handleDragLeave}
       onClick={handleClick}
     >
-      {/* Icon container - width adjusts to content, height is fixed */}
+      {/* Icon container - width adjusts to content, height is dynamic */}
       <Box
         sx={{
           position: 'relative',
-          height: 40,
-          minWidth: 40,
+          height: iconHeight,
+          minWidth: iconHeight,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -151,13 +163,13 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
           }),
         }}
       >
-        {/* Show custom icon - height fixed, width auto for aspect ratio */}
+        {/* Show custom icon - height dynamic, width auto for aspect ratio */}
         {customIconUrl && (
           <img
             src={customIconUrl}
             alt="Extension icon"
             style={{
-              height: 40,
+              height: iconHeight,
               width: 'auto',
               objectFit: 'contain',
               borderRadius: 4,
@@ -166,7 +178,7 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
         )}
 
         {/* Show default Fleet icon */}
-        {showDefaultIcon && DEFAULT_FLEET_ICON}
+        {showDefaultIcon && <DefaultFleetIcon height={iconHeight} />}
 
         {/* Show empty placeholder in edit mode when deleted */}
         {editMode && isDeleted && !isDragging && (
@@ -238,6 +250,66 @@ export function EditableHeaderIcon({ iconState, onChange, editMode }: EditableHe
             <DeleteIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Tooltip>
+      )}
+
+      {/* Resize button - shown when there's an icon in edit mode */}
+      {editMode && !isDeleted && isHovering && onIconHeightChange && (
+        <Tooltip title="Resize icon">
+          <IconButton
+            size="small"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowResizeSlider(!showResizeSlider);
+            }}
+            sx={{
+              position: 'absolute',
+              top: -8,
+              right: 16,
+              bgcolor: 'primary.main',
+              color: 'white',
+              width: 20,
+              height: 20,
+              '&:hover': {
+                bgcolor: 'primary.dark',
+              },
+            }}
+          >
+            <HeightIcon sx={{ fontSize: 14 }} />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      {/* Resize slider - shown when resize button is clicked */}
+      {editMode && showResizeSlider && onIconHeightChange && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: '100%',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            mt: 1,
+            px: 2,
+            py: 1,
+            bgcolor: 'background.paper',
+            borderRadius: 1,
+            boxShadow: 3,
+            zIndex: 1000,
+            minWidth: 150,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 0.5 }}>
+            Icon Height: {iconHeight}px
+          </Typography>
+          <Slider
+            size="small"
+            value={iconHeight}
+            min={MIN_ICON_HEIGHT}
+            max={MAX_ICON_HEIGHT}
+            onChange={(_, value) => onIconHeightChange(value as number)}
+            sx={{ width: '100%' }}
+          />
+        </Box>
       )}
 
       {/* Error tooltip */}

@@ -12,6 +12,7 @@ export interface ManifestBranding {
   primary_color?: string;
   logo?: string;  // Header logo (within extension UI)
   palette?: ColorPalette;  // Custom color palette
+  iconHeight?: number;  // Custom icon height in pixels (default: 40)
 }
 
 export interface ManifestLayout {

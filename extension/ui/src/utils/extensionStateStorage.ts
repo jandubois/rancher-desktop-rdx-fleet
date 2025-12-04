@@ -5,6 +5,13 @@ import type { Manifest, CardDefinition } from '../manifest';
 import type { IconState } from '../components/EditableHeaderIcon';
 import { detectCurrentExtensionImage } from './extensionBuilder';
 
+// Default icon height in pixels
+export const DEFAULT_ICON_HEIGHT = 40;
+// Maximum icon height (fills header)
+export const MAX_ICON_HEIGHT = 80;
+// Minimum icon height
+export const MIN_ICON_HEIGHT = 24;
+
 // State that should be persisted across extension switching
 export interface PersistedExtensionState {
   manifest: Manifest;
@@ -12,6 +19,7 @@ export interface PersistedExtensionState {
   cardOrder: string[];
   dynamicCardTitles: Record<string, string>;
   iconState: IconState;
+  iconHeight?: number;  // Custom icon height in pixels
   timestamp: number;  // For debugging/versioning
 }
 
