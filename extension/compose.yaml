@@ -12,11 +12,15 @@ services:
     image: ${DESKTOP_PLUGIN_IMAGE}
     pull_policy: never
 
+    # Privileged mode to access root-owned k3s kubeconfig
+    privileged: true
+
     # Mount Docker socket for container inspection
     # Uses .raw variant as recommended for extensions in Docker Desktop VM
-    # Note: Kubeconfig is received from frontend via /api/init endpoint
+    # Mount k3s kubeconfig for Kubernetes access (requires privileged mode)
     volumes:
       - /var/run/docker.sock.raw:/var/run/docker.sock
+      - /etc/rancher/k3s/k3s.yaml:/etc/rancher/k3s/k3s.yaml:ro
 
     # Environment variables for extension identification
     environment:

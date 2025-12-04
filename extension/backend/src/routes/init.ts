@@ -165,17 +165,22 @@ initRouter.post('/', async (req, res) => {
       fs.writeFileSync(SHARED_KUBECONFIG_PATH, patchedKubeconfig);
       log(`Wrote patched kubeconfig to ${SHARED_KUBECONFIG_PATH}`);
 
-      // Initialize fleet service with the patched kubeconfig
-      fleetService.initialize(patchedKubeconfig);
+      // Initialize fleet service with the patched kubeconfig (if not already initialized from startup)
+      if (!fleetService.isReady()) {
+        fleetService.initialize(patchedKubeconfig);
+        log('Fleet service initialized with frontend kubeconfig');
 
-      // Trigger Fleet auto-install now that kubeconfig is available
-      log('Triggering Fleet auto-install...');
-      fleetService.ensureFleetInstalled().then(() => {
-        const state = fleetService.getState();
-        log(`Fleet install result: ${state.status}`);
-      }).catch(err => {
-        log(`Fleet install error: ${err}`);
-      });
+        // Trigger Fleet auto-install now that kubeconfig is available
+        log('Triggering Fleet auto-install...');
+        fleetService.ensureFleetInstalled().then(() => {
+          const state = fleetService.getState();
+          log(`Fleet install result: ${state.status}`);
+        }).catch(err => {
+          log(`Fleet install error: ${err}`);
+        });
+      } else {
+        log('Fleet service already initialized (from backend startup)');
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       log(`ERROR initializing Kubernetes client: ${msg}`);

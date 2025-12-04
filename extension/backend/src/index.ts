@@ -5,8 +5,48 @@ import { healthRouter } from './routes/health';
 import { identityRouter } from './routes/identity';
 import { initRouter } from './routes/init';
 import { fleetRouter } from './routes/fleet';
+import { fleetService } from './services/fleet';
 
 const app = express();
+// k3s kubeconfig mounted from VM (container runs as root to read it)
+const K3S_KUBECONFIG_PATH = '/etc/rancher/k3s/k3s.yaml';
+
+/**
+ * Read and patch the k3s kubeconfig for use inside the container.
+ * - Replace 127.0.0.1 with host.docker.internal (container can't use localhost)
+ * - Add insecure-skip-tls-verify (host.docker.internal not in cert SANs)
+ */
+function loadAndPatchKubeconfig(): string | null {
+  try {
+    if (!fs.existsSync(K3S_KUBECONFIG_PATH)) {
+      console.log(`Kubeconfig not found at ${K3S_KUBECONFIG_PATH}`);
+      return null;
+    }
+
+    let kubeconfig = fs.readFileSync(K3S_KUBECONFIG_PATH, 'utf-8');
+
+    // Patch localhost/127.0.0.1 to host.docker.internal
+    const originalConfig = kubeconfig;
+    kubeconfig = kubeconfig
+      .replace(/server:\s*https?:\/\/127\.0\.0\.1:/g, 'server: https://host.docker.internal:')
+      .replace(/server:\s*https?:\/\/localhost:/g, 'server: https://host.docker.internal:');
+
+    if (kubeconfig !== originalConfig) {
+      console.log('Patched kubeconfig: replaced localhost/127.0.0.1 with host.docker.internal');
+      // Add insecure-skip-tls-verify for host.docker.internal
+      kubeconfig = kubeconfig.replace(
+        /(server: https:\/\/host\.docker\.internal:[0-9]+)/g,
+        '$1\n    insecure-skip-tls-verify: true'
+      );
+      console.log('Added insecure-skip-tls-verify for host.docker.internal');
+    }
+
+    return kubeconfig;
+  } catch (error) {
+    console.error('Failed to load kubeconfig:', error);
+    return null;
+  }
+}
 const SOCKET_PATH = process.env.SOCKET_PATH || '/run/guest-services/fleet-gitops.sock';
 
 // Middleware
@@ -60,5 +100,64 @@ app.listen(SOCKET_PATH, () => {
   console.log(`Fleet GitOps backend listening on socket ${SOCKET_PATH}`);
   console.log(`Container ID: ${os.hostname()}`);
   console.log(`Extension name: ${process.env.EXTENSION_NAME || 'fleet-gitops'}`);
-  console.log('Fleet auto-install will be triggered when frontend sends kubeconfig via /api/init');
+
+  // Auto-install Fleet on startup with retry logic
+  const startAutoInstall = async () => {
+    const maxRetries = 30; // Try for up to ~5 minutes
+    const baseDelay = 5000; // Start with 5 seconds
+    const maxDelay = 30000; // Max 30 seconds between retries
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`Fleet auto-install attempt ${attempt}/${maxRetries}...`);
+
+      // Try to load kubeconfig (may not be available immediately on startup)
+      const kubeconfig = loadAndPatchKubeconfig();
+      if (!kubeconfig) {
+        console.log('Kubeconfig not available yet, will retry...');
+        const delay = Math.min(baseDelay * Math.pow(1.5, attempt - 1), maxDelay);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+
+      // Initialize fleet service if not already initialized
+      if (!fleetService.isReady()) {
+        try {
+          fleetService.initialize(kubeconfig);
+        } catch (error) {
+          console.error('Failed to initialize fleet service:', error);
+          const delay = Math.min(baseDelay * Math.pow(1.5, attempt - 1), maxDelay);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+      }
+
+      try {
+        await fleetService.ensureFleetInstalled();
+        const state = fleetService.getState();
+
+        if (state.status === 'running') {
+          console.log(`Fleet auto-install complete. Status: ${state.status}`);
+          return; // Success!
+        }
+
+        if (state.status === 'error' && state.error?.includes('not accessible')) {
+          console.log('Cluster not accessible yet, will retry...');
+        } else if (state.status === 'error') {
+          console.log(`Fleet auto-install error: ${state.error}`);
+        }
+      } catch (error) {
+        console.error('Fleet auto-install exception:', error);
+      }
+
+      // Calculate delay with exponential backoff (capped at maxDelay)
+      const delay = Math.min(baseDelay * Math.pow(1.5, attempt - 1), maxDelay);
+      console.log(`Waiting ${Math.round(delay / 1000)}s before next attempt...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+
+    console.log('Fleet auto-install: max retries exceeded, giving up');
+  };
+
+  // Start auto-install after a brief initial delay
+  setTimeout(startAutoInstall, 2000);
 });
