@@ -4,6 +4,17 @@
  * Handles automatic Fleet installation and status checking.
  * Uses Kubernetes client library and HelmChart CRDs (via k3s Helm Controller)
  * to manage Fleet in the cluster - no kubectl or helm CLI needed.
+ *
+ * TODO: Future enhancements for robustness:
+ * 1. Add periodic Fleet health check even after installation is complete
+ *    - Detect if Fleet controller crashes or becomes unhealthy
+ *    - Update state to 'error' and notify frontend
+ * 2. Detect cluster recreation and trigger Fleet reinstall
+ *    - Watch for kubeconfig file changes or cluster ID changes
+ *    - Reset state and re-run installation when cluster is recreated
+ * 3. Handle kubeconfig changes (reload when cluster certs change)
+ *    - Re-read /etc/rancher/k3s/k3s.yaml when API calls fail with auth errors
+ *    - Reinitialize Kubernetes clients with new credentials
  */
 
 import * as k8s from '@kubernetes/client-node';
