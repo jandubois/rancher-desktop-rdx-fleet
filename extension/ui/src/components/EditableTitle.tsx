@@ -144,6 +144,7 @@ interface EditableTitleProps {
   onChange?: (value: string) => void;
   placeholder?: string;
   variant?: 'h6' | 'subtitle1' | 'subtitle2';
+  bold?: boolean;
   children?: React.ReactNode; // Additional content to show after the title
   validationWarning?: string | null; // Validation warning to display below the title
   backgroundColor?: string; // Background color for calculating contrast
@@ -160,6 +161,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
   onChange,
   placeholder = 'Enter title...',
   variant = 'h6',
+  bold = false,
   children,
   validationWarning,
   backgroundColor,
@@ -178,7 +180,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
           fullWidth
           sx={{
             typography: variant,
-            fontWeight: variant === 'h6' ? 500 : undefined,
+            fontWeight: bold ? 700 : undefined,
             color: 'inherit', // Inherit color from parent (e.g., header text color)
             '& .MuiInputBase-input': {
               p: 0,
@@ -205,7 +207,7 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
   }
 
   return (
-    <Typography variant={variant}>
+    <Typography variant={variant} sx={{ fontWeight: bold ? 700 : undefined }}>
       {value}
       {children}
     </Typography>

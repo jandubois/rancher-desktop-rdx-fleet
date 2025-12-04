@@ -250,15 +250,35 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
 
   // Auto-palette state
   const [paletteMenuAnchor, setPaletteMenuAnchor] = useState<null | HTMLElement>(null);
-  const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType | 'icon'>('complementary');
+  const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType | 'icon' | null>(null);
   const [generatingPalette, setGeneratingPalette] = useState(false);
   const [harmonyPreviews, setHarmonyPreviews] = useState<Map<HarmonyType, HarmonyPreview>>(new Map());
   const [iconColorPreview, setIconColorPreview] = useState<HarmonyPreview | null>(null);
   const [originalPalette, setOriginalPalette] = useState<ColorPalette | null>(null);
   const [previewingHarmony, setPreviewingHarmony] = useState<HarmonyType | 'icon' | null>(null);
 
+  // Track icon state changes to update selectedHarmony
+  const prevIconStateRef = useRef<IconState>(iconState);
+
   // Color names state
   const [colorNames, setColorNames] = useState<Map<string, string>>(new Map());
+
+  // Update selectedHarmony when icon changes
+  useEffect(() => {
+    const prevIconState = prevIconStateRef.current;
+
+    if (iconState !== prevIconState) {
+      if (iconState && iconState !== 'deleted') {
+        // New custom icon loaded - auto-palette is applied
+        setSelectedHarmony('icon');
+      } else if (iconState === null || iconState === 'deleted') {
+        // Icon deleted or reset to default - no auto-palette
+        setSelectedHarmony(null);
+      }
+    }
+
+    prevIconStateRef.current = iconState;
+  }, [iconState]);
 
   // Fetch color names when palette colors change
   useEffect(() => {
@@ -492,8 +512,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       onPaletteChange(newPalette);
       // Update reset palette to the auto-generated colors
       setResetPalette(newPalette);
-      const harmonyLabel = harmony === 'icon' ? 'icon color (analogous)' : harmony;
-      setImportSuccess(`Palette generated using ${harmonyLabel} harmony`);
       return;
     }
 
@@ -507,8 +525,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       onPaletteChange(result.uiPalette);
       // Update reset palette to the auto-generated colors
       setResetPalette(result.uiPalette);
-      const harmonyLabel = harmony === 'icon' ? 'icon color (analogous)' : harmony;
-      setImportSuccess(`Palette generated using ${harmonyLabel} harmony`);
     } catch (err) {
       console.error('Failed to generate palette:', err);
       setImportError('Failed to generate palette from icon');
@@ -670,7 +686,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   const handleResetToDefaults = () => {
     setConfirmResetOpen(false);
     setImportError(null);
-    setImportSuccess('Configuration reset to defaults');
+    setImportSuccess(null);
     if (onConfigLoaded) {
       onConfigLoaded(DEFAULT_MANIFEST);
     }

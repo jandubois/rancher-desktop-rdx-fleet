@@ -13,7 +13,6 @@ import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
-import PaletteIcon from '@mui/icons-material/Palette';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import RestoreIcon from '@mui/icons-material/Restore';
 import CheckIcon from '@mui/icons-material/Check';
@@ -48,8 +47,8 @@ export interface EditModeEditTabProps {
   getResetValue: (field: ColorFieldConfig) => string | undefined;
   /** Color names map (hex -> name) */
   colorNames: Map<string, string>;
-  /** Currently selected harmony type */
-  selectedHarmony: HarmonyType | 'icon';
+  /** Currently selected harmony type (null if no palette has been auto-generated) */
+  selectedHarmony: HarmonyType | 'icon' | null;
   /** Whether palette is being generated */
   generatingPalette: boolean;
   /** Whether palette can be changed */
@@ -102,12 +101,9 @@ export function EditModeEditTab({
     <>
       {/* Branding Colors Section */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PaletteIcon color="action" />
-          <Typography variant="subtitle2">
-            Branding Colors
-          </Typography>
-        </Box>
+        <Typography variant="body2" color="text.secondary">
+          Customize the extension appearance. Enter hex color values or use the color picker.
+        </Typography>
         <Tooltip title="Generate color palette from icon">
           <Button
             size="small"
@@ -115,11 +111,14 @@ export function EditModeEditTab({
             startIcon={generatingPalette ? <CircularProgress size={16} /> : <AutoFixHighIcon />}
             onClick={onOpenPaletteMenu}
             disabled={generatingPalette || !canChangePalette}
+            sx={{ ml: 2, flexShrink: 0 }}
           >
             Auto Palette
           </Button>
         </Tooltip>
-        <Menu
+      </Box>
+
+      <Menu
           anchorEl={paletteMenuAnchor}
           open={Boolean(paletteMenuAnchor)}
           onClose={onClosePaletteMenu}
@@ -316,11 +315,6 @@ export function EditModeEditTab({
             );
           })}
         </Menu>
-      </Box>
-
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Customize the extension appearance. Enter hex color values (e.g., #1976d2) or use the color picker.
-      </Typography>
 
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         {colorFields.map((field) => {
