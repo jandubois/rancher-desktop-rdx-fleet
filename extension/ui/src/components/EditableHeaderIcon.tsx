@@ -73,9 +73,9 @@ export function EditableHeaderIcon({
       // Check if at min/max limit
       setIsAtLimit(rawHeight < MIN_ICON_HEIGHT || rawHeight > MAX_ICON_HEIGHT);
 
-      // Button offset: when icon grows, the 50% position moves DOWN (icon extends downward from fixed top)
-      // So we need to move button UP by cursor movement PLUS the natural downward shift
-      setResizeButtonOffset(cursorDeltaY - heightDelta / 2);
+      // Button offset: button is at bottom, which moves DOWN by full heightDelta when icon grows
+      // So we need to compensate for cursor movement PLUS the full downward shift
+      setResizeButtonOffset(cursorDeltaY - heightDelta);
     };
 
     const handleMouseUp = () => {
@@ -301,7 +301,7 @@ export function EditableHeaderIcon({
         </Tooltip>
       )}
 
-      {/* Resize button - drag up/down to resize icon, positioned on left edge */}
+      {/* Resize button - drag up/down to resize icon, positioned on bottom-left edge */}
       {editMode && !isDeleted && (isHovering || isResizing) && onIconHeightChange && (
         <Tooltip title="Drag to resize">
           <IconButton
@@ -310,8 +310,8 @@ export function EditableHeaderIcon({
             sx={{
               position: 'absolute',
               left: -10,
-              top: '50%',
-              transform: `translateY(calc(-50% + ${resizeButtonOffset}px))`,
+              bottom: 0,
+              transform: `translateY(calc(50% + ${resizeButtonOffset}px))`,
               bgcolor: isAtLimit ? 'error.main' : isResizing ? 'primary.dark' : 'primary.main',
               color: 'white',
               width: 20,
