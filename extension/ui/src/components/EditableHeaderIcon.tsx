@@ -9,6 +9,7 @@ import AddPhotoAlternateIcon from '@mui/icons-material/AddPhotoAlternate';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import HeightIcon from '@mui/icons-material/Height';
+import CloseIcon from '@mui/icons-material/Close';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { CustomIcon } from './IconUpload';
@@ -51,6 +52,7 @@ export function EditableHeaderIcon({
   const [isHovering, setIsHovering] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const [resizeButtonOffset, setResizeButtonOffset] = useState(0); // Vertical offset from center during drag
+  const [isAtLimit, setIsAtLimit] = useState(false); // True when at min or max height
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(iconHeight);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -61,16 +63,25 @@ export function EditableHeaderIcon({
 
     const handleMouseMove = (e: MouseEvent) => {
       // Moving up = larger icon, moving down = smaller icon
-      const deltaY = resizeStartY.current - e.clientY;
-      const newHeight = Math.min(MAX_ICON_HEIGHT, Math.max(MIN_ICON_HEIGHT, resizeStartHeight.current + deltaY));
+      const cursorDeltaY = e.clientY - resizeStartY.current; // Positive = cursor moved down
+      const rawHeight = resizeStartHeight.current - cursorDeltaY;
+      const newHeight = Math.min(MAX_ICON_HEIGHT, Math.max(MIN_ICON_HEIGHT, rawHeight));
+      const heightDelta = newHeight - resizeStartHeight.current;
+
       onIconHeightChange(newHeight);
-      // Move button with cursor (offset from where it would naturally be)
-      setResizeButtonOffset(-deltaY);
+
+      // Check if at min/max limit
+      setIsAtLimit(rawHeight < MIN_ICON_HEIGHT || rawHeight > MAX_ICON_HEIGHT);
+
+      // Button offset: cursor movement + half of height change (since icon center shifts)
+      // This keeps the button stuck to the cursor
+      setResizeButtonOffset(cursorDeltaY + heightDelta / 2);
     };
 
     const handleMouseUp = () => {
       setIsResizing(false);
       setResizeButtonOffset(0); // Reset button to center
+      setIsAtLimit(false);
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -88,6 +99,7 @@ export function EditableHeaderIcon({
     resizeStartY.current = e.clientY;
     resizeStartHeight.current = iconHeight;
     setResizeButtonOffset(0);
+    setIsAtLimit(false);
     setIsResizing(true);
   }, [iconHeight]);
 
@@ -300,18 +312,18 @@ export function EditableHeaderIcon({
               left: -10,
               top: '50%',
               transform: `translateY(calc(-50% + ${resizeButtonOffset}px))`,
-              bgcolor: isResizing ? 'primary.dark' : 'primary.main',
+              bgcolor: isAtLimit ? 'error.main' : isResizing ? 'primary.dark' : 'primary.main',
               color: 'white',
               width: 20,
               height: 20,
               cursor: 'ns-resize',
-              transition: isResizing ? 'none' : 'transform 0.15s ease-out',
+              transition: isResizing ? 'none' : 'transform 0.15s ease-out, background-color 0.15s ease-out',
               '&:hover': {
-                bgcolor: 'primary.dark',
+                bgcolor: isAtLimit ? 'error.dark' : 'primary.dark',
               },
             }}
           >
-            <HeightIcon sx={{ fontSize: 14 }} />
+            {isAtLimit ? <CloseIcon sx={{ fontSize: 14 }} /> : <HeightIcon sx={{ fontSize: 14 }} />}
           </IconButton>
         </Tooltip>
       )}
