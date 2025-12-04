@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { KubernetesService } from '../services';
+import { KubernetesService, backendService } from '../services';
 import { getErrorMessage } from '../utils';
 import { FleetState } from '../types';
 
@@ -67,6 +67,23 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
     }
 
     try {
+      // First check backend state - it knows about installation progress
+      try {
+        const backendState = await backendService.getFleetState();
+        // If backend is installing or running, use its state
+        if (backendState.status === 'installing' || backendState.status === 'running') {
+          setFleetState(backendState);
+          if (backendState.status === 'running') {
+            onFleetReadyRef.current?.();
+          }
+          return;
+        }
+      } catch {
+        // Backend not available, fall back to direct kubectl check
+        console.log('Backend Fleet state not available, using kubectl check');
+      }
+
+      // Fall back to direct cluster check
       const result = await service.checkFleetStatus();
 
       if (result.needsNamespaceCreation) {
@@ -102,10 +119,11 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
   }, []);
 
   // Auto-poll when not yet running to detect when Fleet is ready
-  // This handles both 'initializing' (namespace creation) and 'not-installed'
-  // (waiting for backend auto-installation) states
+  // This handles 'checking', 'initializing' (namespace creation), 'not-installed'
+  // (waiting for backend auto-installation) and 'installing' states
   useEffect(() => {
-    const shouldPoll = fleetState.status === 'initializing' ||
+    const shouldPoll = fleetState.status === 'checking' ||
+                       fleetState.status === 'initializing' ||
                        fleetState.status === 'not-installed' ||
                        fleetState.status === 'installing';
     if (!shouldPoll) return;

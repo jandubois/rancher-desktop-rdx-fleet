@@ -266,6 +266,26 @@ export class BackendService {
       };
     }
   }
+
+  /**
+   * Get Fleet installation state from backend
+   */
+  async getFleetState(): Promise<{
+    status: 'checking' | 'not-installed' | 'installing' | 'running' | 'error';
+    version?: string;
+    error?: string;
+    message?: string;
+  }> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.get('/api/fleet/state') as {
+      status: 'checking' | 'not-installed' | 'installing' | 'running' | 'error';
+      version?: string;
+      error?: string;
+      message?: string;
+    };
+  }
 }
 
 /** Default backend service instance */
