@@ -204,7 +204,7 @@ ${htmlContent}
 
 // Register the html card
 registerCard('html', HtmlCard, {
-  label: 'HTML',
+  label: 'HTML Content',
   orderable: true,
   category: 'content',
   defaultSettings: () => ({ content: '<p>Edit this HTML content...</p>' }),

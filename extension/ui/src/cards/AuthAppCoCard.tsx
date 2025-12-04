@@ -154,7 +154,7 @@ export const AuthAppCoCard: React.FC<CardProps<AppCoCardSettings>> = ({
 
 // Register the auth-appco card
 registerCard('auth-appco', AuthAppCoCard, {
-  label: 'AppCo Auth',
+  label: 'SUSE Application Collection Authentication',
   orderable: true,
   category: 'auth',
   singleton: true,
