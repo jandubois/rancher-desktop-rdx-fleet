@@ -50,6 +50,7 @@ export function EditableHeaderIcon({
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [resizeButtonOffset, setResizeButtonOffset] = useState(0); // Vertical offset from center during drag
   const resizeStartY = useRef<number>(0);
   const resizeStartHeight = useRef<number>(iconHeight);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,10 +64,13 @@ export function EditableHeaderIcon({
       const deltaY = resizeStartY.current - e.clientY;
       const newHeight = Math.min(MAX_ICON_HEIGHT, Math.max(MIN_ICON_HEIGHT, resizeStartHeight.current + deltaY));
       onIconHeightChange(newHeight);
+      // Move button with cursor (offset from where it would naturally be)
+      setResizeButtonOffset(-deltaY);
     };
 
     const handleMouseUp = () => {
       setIsResizing(false);
+      setResizeButtonOffset(0); // Reset button to center
     };
 
     document.addEventListener('mousemove', handleMouseMove);
@@ -83,6 +87,7 @@ export function EditableHeaderIcon({
     e.preventDefault();
     resizeStartY.current = e.clientY;
     resizeStartHeight.current = iconHeight;
+    setResizeButtonOffset(0);
     setIsResizing(true);
   }, [iconHeight]);
 
@@ -294,12 +299,13 @@ export function EditableHeaderIcon({
               position: 'absolute',
               left: -10,
               top: '50%',
-              transform: 'translateY(-50%)',
+              transform: `translateY(calc(-50% + ${resizeButtonOffset}px))`,
               bgcolor: isResizing ? 'primary.dark' : 'primary.main',
               color: 'white',
               width: 20,
               height: 20,
               cursor: 'ns-resize',
+              transition: isResizing ? 'none' : 'transform 0.15s ease-out',
               '&:hover': {
                 bgcolor: 'primary.dark',
               },
