@@ -171,12 +171,41 @@ export class OwnershipService {
   }
 
   /**
+   * Ensure the fleet-local namespace exists, create if needed.
+   */
+  async ensureNamespace(): Promise<void> {
+    if (!this.k8sApi) {
+      throw new Error('Kubernetes client not initialized');
+    }
+
+    try {
+      await this.k8sApi.createNamespace({
+        metadata: { name: NAMESPACE },
+      });
+      this.log(`Created namespace ${NAMESPACE}`);
+    } catch (error: unknown) {
+      // Ignore if already exists (409 Conflict)
+      if (error && typeof error === 'object' && 'response' in error) {
+        const httpError = error as { response?: { statusCode?: number } };
+        if (httpError.response?.statusCode === 409) {
+          this.log(`Namespace ${NAMESPACE} already exists`);
+          return;
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Create or update the ownership ConfigMap.
    */
   async claimOwnership(): Promise<void> {
     if (!this.k8sApi) {
       throw new Error('Kubernetes client not initialized');
     }
+
+    // Ensure namespace exists before creating ConfigMap
+    await this.ensureNamespace();
 
     const now = new Date().toISOString();
     const configMapData: Record<string, string> = {

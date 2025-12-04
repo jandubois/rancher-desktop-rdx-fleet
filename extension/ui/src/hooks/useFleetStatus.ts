@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { KubernetesService } from '../services';
+import { KubernetesService, backendService } from '../services';
 import { getErrorMessage } from '../utils';
 import { FleetState } from '../types';
 
@@ -14,13 +14,14 @@ interface UseFleetStatusOptions {
 
 interface UseFleetStatusResult {
   fleetState: FleetState;
-  installing: boolean;
   checkFleetStatus: () => Promise<void>;
-  installFleet: () => Promise<void>;
 }
 
 /**
  * Hook for managing Fleet installation status.
+ *
+ * Fleet is automatically installed by the backend service. This hook
+ * monitors the status and polls while installation is in progress.
  *
  * Can be used in two ways:
  * 1. With injected service (for testing):
@@ -39,7 +40,6 @@ interface UseFleetStatusResult {
 export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetStatusResult {
   const { onFleetReady, kubernetesService } = options;
   const [fleetState, setFleetState] = useState<FleetState>({ status: 'checking' });
-  const [installing, setInstalling] = useState(false);
   const onFleetReadyRef = useRef(onFleetReady);
   const serviceRef = useRef(kubernetesService);
 
@@ -60,8 +60,30 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
       return;
     }
 
-    setFleetState({ status: 'checking' });
+    // Don't reset to 'checking' if we're already showing installation progress
+    const currentStatus = fleetState.status;
+    if (currentStatus !== 'installing' && currentStatus !== 'not-installed') {
+      setFleetState({ status: 'checking' });
+    }
+
     try {
+      // First check backend state - it knows about installation progress
+      try {
+        const backendState = await backendService.getFleetState();
+        // If backend is installing or running, use its state
+        if (backendState.status === 'installing' || backendState.status === 'running') {
+          setFleetState(backendState);
+          if (backendState.status === 'running') {
+            onFleetReadyRef.current?.();
+          }
+          return;
+        }
+      } catch {
+        // Backend not available, fall back to direct kubectl check
+        console.log('Backend Fleet state not available, using kubectl check');
+      }
+
+      // Fall back to direct cluster check
       const result = await service.checkFleetStatus();
 
       if (result.needsNamespaceCreation) {
@@ -88,51 +110,35 @@ export function useFleetStatus(options: UseFleetStatusOptions = {}): UseFleetSta
         error: getErrorMessage(err),
       });
     }
-  }, []);
-
-  const installFleet = useCallback(async () => {
-    const service = serviceRef.current;
-    if (!service) {
-      console.error('KubernetesService not available');
-      setFleetState({ status: 'error', error: 'Service not configured' });
-      return;
-    }
-
-    setInstalling(true);
-    try {
-      await service.installFleet();
-      await checkFleetStatus();
-    } catch (err) {
-      console.error('Fleet install error:', err);
-      setFleetState({
-        status: 'error',
-        error: getErrorMessage(err),
-      });
-    } finally {
-      setInstalling(false);
-    }
-  }, [checkFleetStatus]);
+  }, [fleetState.status]);
 
   // Check status on mount
   useEffect(() => {
     checkFleetStatus();
-  }, [checkFleetStatus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Auto-poll when initializing to detect when Fleet is ready
+  // Auto-poll when not yet running to detect when Fleet is ready
+  // This handles 'checking', 'initializing' (namespace creation), 'not-installed'
+  // (waiting for backend auto-installation) and 'installing' states
   useEffect(() => {
-    if (fleetState.status !== 'initializing') return;
+    const shouldPoll = fleetState.status === 'checking' ||
+                       fleetState.status === 'initializing' ||
+                       fleetState.status === 'not-installed' ||
+                       fleetState.status === 'installing';
+    if (!shouldPoll) return;
 
+    // Poll faster during installation to show progress updates
+    const pollInterval = fleetState.status === 'installing' ? 1000 : 3000;
     const interval = setInterval(() => {
       checkFleetStatus();
-    }, 2000); // Poll every 2 seconds while initializing
+    }, pollInterval);
 
     return () => clearInterval(interval);
   }, [fleetState.status, checkFleetStatus]);
 
   return {
     fleetState,
-    installing,
     checkFleetStatus,
-    installFleet,
   };
 }

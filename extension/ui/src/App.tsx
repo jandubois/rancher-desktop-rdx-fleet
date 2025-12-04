@@ -126,10 +126,9 @@ function App() {
   const [dependencyDialog, setDependencyDialog] = useState<DependencyDialogState>(INITIAL_DEPENDENCY_DIALOG_STATE);
 
   // Fleet status hook with injected service
+  // Fleet is auto-installed by the backend, so no manual install function needed
   const {
     fleetState,
-    installing,
-    installFleet,
   } = useFleetStatus({
     kubernetesService,
     onFleetReady: () => {
@@ -638,12 +637,10 @@ function App() {
           <CardWrapper definition={fleetStatusDef} editMode={editMode} paletteColors={palette.card}>
             <FleetStatusCard
               fleetState={fleetState}
-              installing={installing}
               editMode={editMode}
               title={getDynamicCardTitle('fleet-status', 'Fleet Status')}
               repoError={repoError}
               onTitleChange={handleDynamicTitleChange('fleet-status')}
-              onInstallFleet={installFleet}
               onClearRepoError={clearRepoError}
             />
           </CardWrapper>
