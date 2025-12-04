@@ -163,9 +163,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     loadFleetImages();
   }, [loadFleetImages, status]);
 
-  // Normalize image reference to full form: repository:tag
-  // e.g., "ghcr.io/foo/bar" -> "ghcr.io/foo/bar:latest"
-  // e.g., "my-ext:dev" -> "my-ext:dev"
+  // Normalize image reference to full form: repository:tag (lowercase)
   const normalizeImageRef = (name: string): string => {
     const lower = name.toLowerCase();
     return lower.includes(':') ? lower : `${lower}:latest`;

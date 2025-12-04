@@ -122,8 +122,15 @@ export function useBackendInit({
         }
 
         if (rdctlResult.stdout) {
+          console.log('[BackendInit] Raw rdctl output:', rdctlResult.stdout);
           installedExtensions = parseRdctlOutput(rdctlResult.stdout);
-          console.log(`[BackendInit] Found ${installedExtensions.length} installed extensions`);
+          console.log(`[BackendInit] Found ${installedExtensions.length} installed extensions:`,
+            installedExtensions.map(e => e.name));
+          // Log to backend for docker logs visibility
+          backendService.debugLog('BackendInit', 'rdctl extension ls output', {
+            raw: rdctlResult.stdout,
+            parsed: installedExtensions,
+          });
         }
       } catch (rdctlError) {
         console.warn('[BackendInit] rdctl failed, continuing without extension list:', rdctlError);
