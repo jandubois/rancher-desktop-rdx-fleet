@@ -781,9 +781,13 @@ export async function importConfigFromImage(imageName: string): Promise<ImportRe
     };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
+    // Try to extract useful output from the error (Docker SDK errors have stderr/stdout)
+    const errorOutput = (err as { stderr?: string; stdout?: string })?.stderr ||
+                        (err as { stderr?: string; stdout?: string })?.stdout ||
+                        errorMessage;
     return {
       success: false,
-      error: `Failed to extract config from image: ${errorMessage}`,
+      error: `Failed to extract config from image: ${errorOutput}`,
     };
   }
 }
