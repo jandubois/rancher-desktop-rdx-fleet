@@ -48,8 +48,8 @@ export interface EditModeEditTabProps {
   getResetValue: (field: ColorFieldConfig) => string | undefined;
   /** Color names map (hex -> name) */
   colorNames: Map<string, string>;
-  /** Currently selected harmony type */
-  selectedHarmony: HarmonyType | 'icon';
+  /** Currently selected harmony type (null if no palette has been auto-generated) */
+  selectedHarmony: HarmonyType | 'icon' | null;
   /** Whether palette is being generated */
   generatingPalette: boolean;
   /** Whether palette can be changed */

@@ -250,7 +250,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
 
   // Auto-palette state
   const [paletteMenuAnchor, setPaletteMenuAnchor] = useState<null | HTMLElement>(null);
-  const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType | 'icon'>('icon');
+  const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType | 'icon' | null>(null);
   const [generatingPalette, setGeneratingPalette] = useState(false);
   const [harmonyPreviews, setHarmonyPreviews] = useState<Map<HarmonyType, HarmonyPreview>>(new Map());
   const [iconColorPreview, setIconColorPreview] = useState<HarmonyPreview | null>(null);
@@ -263,13 +263,18 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   // Color names state
   const [colorNames, setColorNames] = useState<Map<string, string>>(new Map());
 
-  // Update selectedHarmony when icon changes to a custom icon
+  // Update selectedHarmony when icon changes
   useEffect(() => {
     const prevIconState = prevIconStateRef.current;
 
-    // If icon changed to a new custom icon (not null, not 'deleted', and different from previous)
-    if (iconState && iconState !== 'deleted' && iconState !== prevIconState) {
-      setSelectedHarmony('icon');
+    if (iconState !== prevIconState) {
+      if (iconState && iconState !== 'deleted') {
+        // New custom icon loaded - auto-palette is applied
+        setSelectedHarmony('icon');
+      } else if (iconState === null || iconState === 'deleted') {
+        // Icon deleted or reset to default - no auto-palette
+        setSelectedHarmony(null);
+      }
     }
 
     prevIconStateRef.current = iconState;
@@ -681,7 +686,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   const handleResetToDefaults = () => {
     setConfirmResetOpen(false);
     setImportError(null);
-    setImportSuccess('Configuration reset to defaults');
+    setImportSuccess(null);
     if (onConfigLoaded) {
       onConfigLoaded(DEFAULT_MANIFEST);
     }
