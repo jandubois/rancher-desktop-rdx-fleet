@@ -66,6 +66,8 @@ interface EditModePanelProps {
   backendLoading?: boolean;
   /** Callback to refresh backend status */
   onBackendRefresh?: () => void;
+  /** Callback when title validation warning changes */
+  onTitleWarningChange?: (warning: string | null) => void;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -93,7 +95,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange, backendStatus, backendLoading, onBackendRefresh }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -230,6 +232,10 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   const [buildOutput, setBuildOutput] = useState<string | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
 
+  // Validation warnings
+  const [imageNameWarning, setImageNameWarning] = useState<string | null>(null);
+  const [titleWarning, setTitleWarning] = useState<string | null>(null);
+
   // Load tab state
   const [fleetImages, setFleetImages] = useState<FleetExtensionImage[]>([]);
   const [selectedImage, setSelectedImage] = useState('');
@@ -284,6 +290,45 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     };
     fetchColorNames();
   }, [manifest.branding?.palette]);
+
+  // Validate image name and title against existing images
+  useEffect(() => {
+    const validateBuildConfiguration = () => {
+      const currentTitle = manifest.app?.name || '';
+
+      // Check if the image name already exists
+      const imageNameExists = fleetImages.some(img => {
+        const fullImageName = `${img.repository}:${img.tag}`;
+        return fullImageName === imageName || img.repository === imageName;
+      });
+
+      if (imageNameExists) {
+        setImageNameWarning('An image with this name already exists. Building will overwrite it.');
+      } else {
+        setImageNameWarning(null);
+
+        // If image name doesn't exist, check if title matches any existing image
+        const titleMatchesExistingImage = fleetImages.some(img =>
+          img.title === currentTitle
+        );
+
+        if (titleMatchesExistingImage && currentTitle) {
+          const warning = 'This title matches an existing image. Consider using a different title to avoid confusion.';
+          setTitleWarning(warning);
+          if (onTitleWarningChange) {
+            onTitleWarningChange(warning);
+          }
+        } else {
+          setTitleWarning(null);
+          if (onTitleWarningChange) {
+            onTitleWarningChange(null);
+          }
+        }
+      }
+    };
+
+    validateBuildConfiguration();
+  }, [imageName, manifest.app?.name, fleetImages, onTitleWarningChange]);
 
   // Get color from icon only (ignores header background setting)
   const getIconColor = async (): Promise<ExtractedColor> => {
@@ -760,6 +805,8 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 building={building}
                 buildOutput={buildOutput}
                 buildError={buildError}
+                imageNameWarning={imageNameWarning}
+                titleWarning={titleWarning}
                 onBaseImageChange={(value) => {
                   setBaseImage(value);
                   setBaseImageStatus('Manually set');
