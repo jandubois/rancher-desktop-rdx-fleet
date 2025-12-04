@@ -188,6 +188,45 @@ When all dependents of an indirectly-selected path are removed, that path can be
 
 ---
 
+## Priority 6: Fleet Auto-Install Robustness
+
+Backend improvements for handling cluster lifecycle events.
+
+### Completed
+
+1. **✓ Auto-install Fleet on backend startup**
+   - Uses HelmChart CRDs (k3s Helm Controller)
+   - No kubectl/helm CLI needed - uses `@kubernetes/client-node`
+   - Kubeconfig loaded from VM mount (`/etc/rancher/k3s/k3s.yaml`)
+   - Step-by-step progress reporting with job/pod status
+
+### Remaining
+
+1. **Periodic Fleet health check after installation**
+   - Detect if Fleet controller crashes or becomes unhealthy
+   - Update state to 'error' and notify frontend
+   - Consider polling every 60 seconds when idle
+
+2. **Detect cluster recreation and trigger Fleet reinstall**
+   - Watch for kubeconfig file changes or cluster ID changes
+   - Reset state and re-run installation when cluster is recreated
+   - Handle case where backend container survives but cluster is new
+
+3. **Handle kubeconfig changes (reload on auth errors)**
+   - Re-read `/etc/rancher/k3s/k3s.yaml` when API calls fail with auth errors
+   - Reinitialize Kubernetes clients with new credentials
+   - Detect certificate/token expiry
+
+### Key Files
+
+| File | Purpose |
+|------|---------|
+| `extension/backend/src/services/fleet.ts` | Fleet installation and status |
+| `extension/backend/src/index.ts` | Auto-install startup logic |
+| `extension/compose.yaml` | Kubeconfig mount configuration |
+
+---
+
 ## Key Files Reference
 
 ### Core UI
