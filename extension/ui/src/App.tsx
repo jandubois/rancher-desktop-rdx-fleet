@@ -382,9 +382,8 @@ function App() {
     return addGitRepo(name, url, branch);
   }, [addGitRepo]);
 
-  // Handle delete repo with confirmation
+  // Handle delete repo
   const handleDeleteRepo = useCallback(async (name: string) => {
-    if (!confirm(`Delete GitRepo "${name}"?`)) return;
     await deleteGitRepo(name);
   }, [deleteGitRepo]);
 
@@ -546,10 +545,8 @@ function App() {
     };
 
     const handleDelete = () => {
-      if (confirm(`Delete this ${card.type} card?`)) {
-        setManifestCards((prev) => prev.filter((c) => c.id !== card.id));
-        setCardOrder((prev) => prev.filter((id) => id !== card.id));
-      }
+      setManifestCards((prev) => prev.filter((c) => c.id !== card.id));
+      setCardOrder((prev) => prev.filter((id) => id !== card.id));
     };
 
     const handleVisibilityToggle = () => {
