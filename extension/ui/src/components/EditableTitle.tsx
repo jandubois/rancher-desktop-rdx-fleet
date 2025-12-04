@@ -43,37 +43,60 @@ function getContrastRatio(color1: string, color2: string): number {
 }
 
 // Get the highest-contrast warning color based on background
-// Tests multiple candidate colors and picks the one with best contrast
+// Prefers colored warnings (red, yellow, orange) when they meet WCAG standards
+// Only falls back to black/white when no colored option has sufficient contrast
 function getContrastWarningColor(backgroundColor?: string): string {
   if (!backgroundColor || !backgroundColor.startsWith('#')) {
     return '#ff3333'; // Default bright red
   }
 
-  // Candidate warning colors to test
-  const candidates = [
+  // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
+  const WCAG_AA_NORMAL = 4.5;
+
+  // Colored warning candidates (in priority order)
+  const coloredCandidates = [
     '#ff3333', // Bright red
     '#cc0000', // Dark red
     '#ffcc00', // Bright yellow/gold
     '#ff6600', // Orange
+  ];
+
+  // Fallback candidates (when no colored option has sufficient contrast)
+  const fallbackCandidates = [
     '#ffffff', // White
     '#000000', // Black
   ];
 
-  // Find the candidate with the highest contrast ratio
-  let bestColor = candidates[0];
-  let bestContrast = 0;
+  // First, try to find a colored candidate that meets WCAG AA standards
+  let bestColoredOption = '';
+  let bestColoredContrast = 0;
 
-  for (const candidate of candidates) {
+  for (const candidate of coloredCandidates) {
     const contrast = getContrastRatio(backgroundColor, candidate);
-    if (contrast > bestContrast) {
-      bestContrast = contrast;
-      bestColor = candidate;
+    if (contrast >= WCAG_AA_NORMAL && contrast > bestColoredContrast) {
+      bestColoredContrast = contrast;
+      bestColoredOption = candidate;
     }
   }
 
-  // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
-  // We want at least 4.5:1 for good readability
-  return bestColor;
+  // If we found a colored option with sufficient contrast, use it
+  if (bestColoredOption) {
+    return bestColoredOption;
+  }
+
+  // Otherwise, fall back to black or white (whichever has better contrast)
+  let bestFallback = fallbackCandidates[0];
+  let bestFallbackContrast = getContrastRatio(backgroundColor, fallbackCandidates[0]);
+
+  for (let i = 1; i < fallbackCandidates.length; i++) {
+    const contrast = getContrastRatio(backgroundColor, fallbackCandidates[i]);
+    if (contrast > bestFallbackContrast) {
+      bestFallbackContrast = contrast;
+      bestFallback = fallbackCandidates[i];
+    }
+  }
+
+  return bestFallback;
 }
 
 interface EditableTitleProps {
