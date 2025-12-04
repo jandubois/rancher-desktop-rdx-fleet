@@ -312,7 +312,7 @@ Cards self-register on import with metadata:
 ```typescript
 // MarkdownCard.tsx
 registerCard('markdown', MarkdownCard, {
-  label: 'Markdown',
+  label: 'Markdown Content',
   orderable: true,
   category: 'content',
   defaultSettings: () => ({ content: '' }),
@@ -320,7 +320,7 @@ registerCard('markdown', MarkdownCard, {
 
 // AuthGitHubCard.tsx - singleton prevents duplicates
 registerCard('auth-github', AuthGitHubCard, {
-  label: 'GitHub Auth',
+  label: 'GitHub Authentication',
   orderable: true,
   category: 'auth',
   singleton: true,  // Only one GitHub auth card allowed
@@ -330,7 +330,7 @@ registerCard('auth-github', AuthGitHubCard, {
 
 ### Singleton Cards
 
-Cards marked with `singleton: true` can only have one instance in the UI. When adding a new card, singleton types that already exist are filtered from the selection menu. This is used for authentication cards (GitHub Auth, AppCo Auth) where having multiple instances would be redundant.
+Cards marked with `singleton: true` can only have one instance in the UI. When adding a new card, singleton types that already exist are filtered from the selection menu. This is used for authentication cards (GitHub Authentication, SUSE Application Collection Authentication) where having multiple instances would be redundant.
 
 ## State Management
 
