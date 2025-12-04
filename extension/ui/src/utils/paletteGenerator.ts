@@ -212,10 +212,10 @@ function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[], harmo
   // Determine chroma multipliers based on harmony type
   // Triadic and Tints & Shades use higher chroma to be more distinctive
   const isHighChromaHarmony = harmonyType === 'triadic' || harmonyType === 'tintsShades';
-  const bodyChromaCap = isHighChromaHarmony ? 0.08 : 0.05;
-  const borderChromaCap = isHighChromaHarmony ? 0.12 : 0.07;
-  const titleChromaCap = isHighChromaHarmony ? 0.25 : 0.18;
-  const titleLightness = isHighChromaHarmony ? 0.40 : 0.45;
+  const bodyChromaCap = isHighChromaHarmony ? 0.12 : 0.05;
+  const borderChromaCap = isHighChromaHarmony ? 0.18 : 0.07;
+  const titleChromaCap = isHighChromaHarmony ? 0.35 : 0.18;
+  const titleLightness = isHighChromaHarmony ? 0.35 : 0.45;
 
   // For body background, use a light tint of the accent color
   const lightTint: OKLCH = {
