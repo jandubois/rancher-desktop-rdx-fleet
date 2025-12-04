@@ -575,7 +575,7 @@ When edit mode is active:
 2. **Card Controls** - Each card gains additional controls:
    - Drag handle for reordering
    - Settings button (opens card-specific settings panel)
-   - Delete button (with confirmation)
+   - Delete button
    - Visibility toggle (eye icon)
 
 3. **Add Card Button** - Floating button to add new cards:
