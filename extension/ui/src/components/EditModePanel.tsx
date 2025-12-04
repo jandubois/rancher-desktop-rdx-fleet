@@ -34,6 +34,8 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { EditModeLoadTab } from './EditModeLoadTab';
 import { EditModeBuildTab } from './EditModeBuildTab';
 import { EditModeEditTab, ColorFieldConfig, HarmonyPreview } from './EditModeEditTab';
+import { EditModeExtensionsTab } from './EditModeExtensionsTab';
+import type { BackendStatus } from '../services/BackendService';
 import {
   generatePaletteFromColor,
   HARMONY_TYPES,
@@ -58,6 +60,12 @@ interface EditModePanelProps {
   onPaletteChange?: (palette: ColorPalette) => void;
   onIconStateChange?: (iconState: IconState) => void;
   onIconHeightChange?: (height: number) => void;
+  /** Backend status for Extensions tab */
+  backendStatus?: BackendStatus | null;
+  /** Whether backend status is loading */
+  backendLoading?: boolean;
+  /** Callback to refresh backend status */
+  onBackendRefresh?: () => void;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -85,7 +93,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange, backendStatus, backendLoading, onBackendRefresh }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -612,6 +620,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
               <Tab label="Edit" id="edit-mode-tab-0" aria-controls="edit-mode-tabpanel-0" />
               <Tab label="Load" id="edit-mode-tab-1" aria-controls="edit-mode-tabpanel-1" />
               <Tab label="Build" id="edit-mode-tab-2" aria-controls="edit-mode-tabpanel-2" />
+              <Tab label="Extensions" id="edit-mode-tab-3" aria-controls="edit-mode-tabpanel-3" />
             </Tabs>
 
             {/* Status messages */}
@@ -685,6 +694,15 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 onImageNameChange={setImageName}
                 onDownload={handleDownload}
                 onBuild={handleBuild}
+              />
+            </TabPanel>
+
+            {/* Extensions Tab */}
+            <TabPanel value={activeTab} index={3}>
+              <EditModeExtensionsTab
+                status={backendStatus ?? null}
+                loading={backendLoading ?? false}
+                onRefresh={onBackendRefresh ?? (() => {})}
               />
             </TabPanel>
           </Box>
