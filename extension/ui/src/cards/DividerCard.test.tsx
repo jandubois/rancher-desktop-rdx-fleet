@@ -273,7 +273,7 @@ describe('DividerCard', () => {
 
     it('displays divider preview in dropdown', () => {
       const onSettingsChange = vi.fn();
-      const { container } = render(
+      render(
         <DividerCard
           definition={defaultDefinition}
           settings={{ style: 'dashed' }}

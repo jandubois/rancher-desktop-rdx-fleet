@@ -35,22 +35,31 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
   const getDividerSx = (styleValue: DividerStyle) => ({
     borderStyle: styleValue,
     borderColor: borderColor,
+    borderBottomWidth: 2,
     '&::before, &::after': {
       borderStyle: styleValue,
       borderColor: borderColor,
+      borderTopWidth: 2,
     },
   });
 
   const renderDividerOption = (styleValue: DividerStyle) => (
-    <Box sx={{ width: '100%', py: 0.5 }}>
+    <Box
+      sx={{
+        width: '100%',
+        minHeight: 24,
+        display: 'flex',
+        alignItems: 'center',
+      }}
+    >
       {label ? (
-        <Divider sx={getDividerSx(styleValue)}>
+        <Divider sx={{ ...getDividerSx(styleValue), flexGrow: 1 }}>
           <Typography variant="body2" color="text.secondary">
             {label}
           </Typography>
         </Divider>
       ) : (
-        <Divider sx={getDividerSx(styleValue)} />
+        <Divider sx={{ ...getDividerSx(styleValue), flexGrow: 1 }} />
       )}
     </Box>
   );
