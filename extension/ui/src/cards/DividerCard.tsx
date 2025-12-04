@@ -3,8 +3,10 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Select, { SelectChangeEvent } from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
 import { CardProps } from './types';
 import { DividerCardSettings } from '../manifest/types';
 import { registerCard } from './registry';
@@ -21,14 +23,32 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
   const style: DividerStyle = settings?.style || 'solid';
   const borderColor = paletteColors?.border ?? 'grey.300';
 
-  const handleStyleChange = (_: React.MouseEvent<HTMLElement>, newStyle: DividerStyle) => {
-    if (newStyle && onSettingsChange) {
+  const handleStyleChange = (event: SelectChangeEvent<DividerStyle>) => {
+    if (onSettingsChange) {
       onSettingsChange({
         ...settings,
-        style: newStyle,
+        style: event.target.value as DividerStyle,
       });
     }
   };
+
+  const dividerStyles: { value: DividerStyle; label: string }[] = [
+    { value: 'solid', label: 'Solid' },
+    { value: 'dashed', label: 'Dashed' },
+    { value: 'dotted', label: 'Dotted' },
+  ];
+
+  const renderStylePreview = (styleValue: DividerStyle) => (
+    <Box
+      sx={{
+        width: 60,
+        height: 0,
+        borderTopWidth: 2,
+        borderTopStyle: styleValue,
+        borderTopColor: borderColor,
+      }}
+    />
+  );
 
   const dividerSx = {
     borderStyle: style,
@@ -57,16 +77,29 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             Line Style:
           </Typography>
-          <ToggleButtonGroup
+          <Select
             value={style}
-            exclusive
             onChange={handleStyleChange}
             size="small"
+            fullWidth
+            renderValue={(selected) => (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                {renderStylePreview(selected)}
+                <Typography variant="body2">
+                  {dividerStyles.find((s) => s.value === selected)?.label}
+                </Typography>
+              </Box>
+            )}
           >
-            <ToggleButton value="solid">Solid</ToggleButton>
-            <ToggleButton value="dashed">Dashed</ToggleButton>
-            <ToggleButton value="dotted">Dotted</ToggleButton>
-          </ToggleButtonGroup>
+            {dividerStyles.map((dividerStyle) => (
+              <MenuItem key={dividerStyle.value} value={dividerStyle.value}>
+                <ListItemIcon sx={{ minWidth: 80 }}>
+                  {renderStylePreview(dividerStyle.value)}
+                </ListItemIcon>
+                <ListItemText primary={dividerStyle.label} />
+              </MenuItem>
+            ))}
+          </Select>
         </Box>
 
         <Box sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
