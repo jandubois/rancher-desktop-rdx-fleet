@@ -286,6 +286,21 @@ export class BackendService {
       message?: string;
     };
   }
+
+  /**
+   * Log debug information to the backend (visible via docker logs)
+   */
+  async debugLog(source: string, message: string, data?: unknown): Promise<void> {
+    if (!this.vmService) {
+      console.warn('[debugLog] vm.service not available');
+      return;
+    }
+    try {
+      await this.vmService.post('/api/debug/log', { source, message, data });
+    } catch (error) {
+      console.warn('[debugLog] Failed to send debug log:', error);
+    }
+  }
 }
 
 /** Default backend service instance */

@@ -210,6 +210,39 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
   // Find the base image for fallback when deleting active image
   const baseImage = unifiedImages.find(img => img.type === 'base');
 
+  // Debug logging - log extension matching data to backend
+  useEffect(() => {
+    if (fleetImages.length > 0 || allInstalledExtensions.length > 0) {
+      backendService.debugLog('ExtensionsTab', 'Extension matching data', {
+        fleetImages: fleetImages.map(img => ({
+          repository: img.repository,
+          tag: img.tag,
+          type: img.type,
+          normalized: normalizeImageRef(img.repository + (img.tag ? `:${img.tag}` : ':latest')),
+        })),
+        installedExtensions: allInstalledExtensions.map(ext => ({
+          name: ext.name,
+          normalized: normalizeImageRef(ext.name),
+          hasFleetLabel: ext.hasFleetLabel,
+          fleetType: ext.fleetType,
+        })),
+        unifiedResults: unifiedImages.map(img => ({
+          imageName: img.imageName,
+          isInstalled: img.isInstalled,
+          isActive: img.isActive,
+          isThisExtension: img.isThisExtension,
+          type: img.type,
+        })),
+        ownership: {
+          ownExtensionName: ownership?.ownExtensionName,
+          isOwner,
+          status: ownership?.status,
+        },
+        ownIdentity: initStatus?.ownIdentity,
+      });
+    }
+  }, [fleetImages, allInstalledExtensions, unifiedImages, ownership, isOwner, initStatus, normalizeImageRef]);
+
   // Install a Fleet extension image
   const handleInstall = async (img: UnifiedImageInfo) => {
     setOperatingImage(img.imageName);

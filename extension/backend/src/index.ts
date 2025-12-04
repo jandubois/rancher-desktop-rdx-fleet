@@ -5,6 +5,7 @@ import { healthRouter } from './routes/health';
 import { identityRouter } from './routes/identity';
 import { initRouter } from './routes/init';
 import { fleetRouter } from './routes/fleet';
+import { debugRouter } from './routes/debug';
 import { fleetService } from './services/fleet';
 
 const app = express();
@@ -74,6 +75,7 @@ app.use('/health', healthRouter);
 app.use('/identity', identityRouter);
 app.use('/api/init', initRouter);
 app.use('/api/fleet', fleetRouter);
+app.use('/api/debug', debugRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
