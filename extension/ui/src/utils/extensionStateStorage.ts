@@ -12,6 +12,16 @@ export const MAX_ICON_HEIGHT = 120;
 // Minimum icon height
 export const MIN_ICON_HEIGHT = 24;
 
+// Edit mode snapshot type (matches the snapshot saved when entering edit mode)
+export interface EditModeSnapshot {
+  manifest: Manifest;
+  manifestCards: CardDefinition[];
+  cardOrder: string[];
+  iconState: IconState;
+  iconHeight: number;
+  dynamicCardTitles: Record<string, string>;
+}
+
 // State that should be persisted across extension switching
 export interface PersistedExtensionState {
   manifest: Manifest;
@@ -20,6 +30,8 @@ export interface PersistedExtensionState {
   dynamicCardTitles: Record<string, string>;
   iconState: IconState;
   iconHeight?: number;  // Custom icon height in pixels
+  editMode?: boolean;  // Whether edit mode is active
+  editModeSnapshot?: EditModeSnapshot | null;  // Snapshot for cancel/undo
   timestamp: number;  // For debugging/versioning
 }
 

@@ -206,4 +206,61 @@ test.describe('Edit Mode', () => {
     expect(state).not.toBeNull();
     expect(state?.manifest?.app?.name).toBe('Persisted Title');
   });
+
+  test('should persist edit mode across page reload', async ({ page }) => {
+    await clearLocalStorage(page);
+    await page.goto('/');
+    await page.waitForLoadState('load');
+
+    // Verify we start in view mode
+    const editButton = page.getByRole('button', { name: /enter edit mode/i });
+    await expect(editButton).toBeVisible();
+
+    // Enter edit mode
+    await editButton.click();
+
+    // Verify edit mode UI appears
+    await expect(page.getByRole('button', { name: /cancel/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /apply/i })).toBeVisible();
+
+    // Make a change to ensure state is saved
+    const titleInput = page.locator('input[placeholder="Extension Name"]');
+    await titleInput.clear();
+    await titleInput.fill('Edit Mode Test');
+
+    // Wait for localStorage to be updated with editMode flag
+    await page.waitForFunction(
+      () => {
+        const state = localStorage.getItem('fleet-extension-state:default');
+        if (!state) return false;
+        const parsed = JSON.parse(state);
+        return parsed?.editMode === true;
+      },
+      { timeout: 5000 }
+    );
+
+    // Reload the page (simulates switching away and back)
+    await page.reload();
+    await page.waitForLoadState('load');
+
+    // Verify we're still in edit mode
+    await expect(page.getByRole('button', { name: /cancel/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /apply/i })).toBeVisible();
+
+    // Verify the edit panel is visible
+    await expect(page.getByRole('tab', { name: /edit/i })).toBeVisible();
+
+    // Verify the title change persisted
+    const titleInputAfterReload = page.locator('input[placeholder="Extension Name"]');
+    await expect(titleInputAfterReload).toHaveValue('Edit Mode Test');
+
+    // Cancel should restore the original title from snapshot
+    await page.getByRole('button', { name: /cancel/i }).click();
+
+    // Verify we're back in view mode
+    await expect(page.getByRole('button', { name: /enter edit mode/i })).toBeVisible();
+
+    // Verify the original title was restored from snapshot
+    await expect(page.getByText('Fleet GitOps')).toBeVisible();
+  });
 });

@@ -27,7 +27,7 @@ import {
 
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, GitRepoCardSettings, CardType } from './manifest';
-import { loadExtensionState, saveExtensionState, PersistedExtensionState, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
+import { loadExtensionState, saveExtensionState, PersistedExtensionState, EditModeSnapshot, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
 
 // Get initial state from localStorage (synchronous for lazy useState)
 function getInitialState(): PersistedExtensionState | null {
@@ -71,7 +71,9 @@ function App() {
   const [manifest, setManifest] = useState<Manifest>(
     () => cachedInitialState?.manifest ?? DEFAULT_MANIFEST
   );
-  const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditMode] = useState(
+    () => cachedInitialState?.editMode ?? false
+  );
   const [manifestCards, setManifestCards] = useState<CardDefinition[]>(
     () => cachedInitialState?.manifestCards ?? DEFAULT_MANIFEST.cards
   );
@@ -103,14 +105,9 @@ function App() {
   const [titleWarning, setTitleWarning] = useState<string | null>(null);
 
   // Edit mode snapshot for undo/cancel functionality
-  const [editModeSnapshot, setEditModeSnapshot] = useState<{
-    manifest: Manifest;
-    manifestCards: CardDefinition[];
-    cardOrder: string[];
-    iconState: IconState;
-    iconHeight: number;
-    dynamicCardTitles: Record<string, string>;
-  } | null>(null);
+  const [editModeSnapshot, setEditModeSnapshot] = useState<EditModeSnapshot | null>(
+    () => cachedInitialState?.editModeSnapshot ?? null
+  );
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -281,9 +278,11 @@ function App() {
       dynamicCardTitles,
       iconState,
       iconHeight,
+      editMode,
+      editModeSnapshot,
       timestamp: Date.now(),
     });
-  }, [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState, iconHeight]);
+  }, [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState, iconHeight, editMode, editModeSnapshot]);
 
   // Track current time for timeout checks (updated every 5s when there are active discovery operations)
   const [currentTime, setCurrentTime] = useState(() => Date.now());
