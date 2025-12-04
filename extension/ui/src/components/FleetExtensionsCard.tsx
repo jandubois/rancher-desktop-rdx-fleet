@@ -3,6 +3,7 @@
  *
  * Shows:
  * - List of installed Fleet extensions with their status
+ * - List of Fleet extension images (built but not installed)
  * - Which extension currently owns/controls Fleet
  * - Actions to take control if applicable
  *
@@ -10,7 +11,7 @@
  * which prevents conflicts when multiple Fleet extensions are installed.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -33,9 +34,11 @@ import WarningIcon from '@mui/icons-material/Warning';
 import ErrorIcon from '@mui/icons-material/Error';
 import StarIcon from '@mui/icons-material/Star';
 import StarOutlineIcon from '@mui/icons-material/StarOutline';
+import ImageIcon from '@mui/icons-material/Image';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { BackendStatus, backendService } from '../services/BackendService';
+import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
 
 export interface FleetExtensionsCardProps {
   /** Current backend status containing extension and ownership info */
@@ -93,6 +96,8 @@ function getStatusText(status: string): string {
 export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensionsCardProps) {
   const [expanded, setExpanded] = useState(true);
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
+  const [fleetImages, setFleetImages] = useState<FleetExtensionImage[]>([]);
+  const [loadingImages, setLoadingImages] = useState(false);
 
   const connected = status?.connected ?? false;
   const initStatus = status?.initStatus;
@@ -112,6 +117,33 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
   // Get Fleet extensions from installed extensions list
   const fleetExtensions = initStatus?.installedExtensions.filter(ext => ext.hasFleetLabel) ?? [];
   const totalExtensions = initStatus?.installedExtensionsCount ?? 0;
+
+  // Load Fleet extension images from Docker
+  const loadFleetImages = useCallback(async () => {
+    setLoadingImages(true);
+    try {
+      const images = await listFleetExtensionImages();
+      setFleetImages(images);
+    } catch (err) {
+      console.error('Failed to load Fleet images:', err);
+    } finally {
+      setLoadingImages(false);
+    }
+  }, []);
+
+  // Load images on mount and when status changes
+  useEffect(() => {
+    loadFleetImages();
+  }, [loadFleetImages, status]);
+
+  // Find images that aren't in the installed extensions list
+  const uninstalledImages = fleetImages.filter(img => {
+    const imgName = img.repository.toLowerCase();
+    return !fleetExtensions.some(ext => {
+      const extName = ext.name.toLowerCase();
+      return extName.includes(imgName) || imgName.includes(extName.split(':')[0]);
+    });
+  });
 
   const handleRecheckOwnership = async () => {
     setRecheckingOwnership(true);
@@ -169,7 +201,7 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
         {/* Extension count chip */}
         <Chip
           size="small"
-          label={`${fleetExtensions.length} Fleet ext${fleetExtensions.length !== 1 ? 's' : ''}`}
+          label={`${fleetExtensions.length} installed${uninstalledImages.length > 0 ? `, ${uninstalledImages.length} image${uninstalledImages.length !== 1 ? 's' : ''}` : ''}`}
           color="primary"
           variant="outlined"
         />
@@ -195,7 +227,7 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
           />
         )}
 
-        <IconButton size="small" onClick={(e) => { e.stopPropagation(); onRefresh(); }} disabled={loading}>
+        <IconButton size="small" onClick={(e) => { e.stopPropagation(); onRefresh(); loadFleetImages(); }} disabled={loading || loadingImages}>
           <RefreshIcon fontSize="small" />
         </IconButton>
 
@@ -331,6 +363,68 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
             <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
               + {totalExtensions - fleetExtensions.length} other extension{totalExtensions - fleetExtensions.length !== 1 ? 's' : ''} installed
             </Typography>
+          )}
+
+          {/* Uninstalled Fleet Images */}
+          {uninstalledImages.length > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
+                Fleet Extension Images (Not Installed) ({uninstalledImages.length})
+              </Typography>
+              <List dense disablePadding>
+                {uninstalledImages.map((img, index) => (
+                  <ListItem
+                    key={index}
+                    sx={{
+                      bgcolor: 'action.hover',
+                      borderRadius: 1,
+                      mb: 0.5,
+                      opacity: 0.8,
+                    }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 36 }}>
+                      <Tooltip title="Docker image (not installed)">
+                        <ImageIcon fontSize="small" color="action" />
+                      </Tooltip>
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                            {img.repository || img.id}
+                          </Typography>
+                          <Chip
+                            size="small"
+                            label="Image"
+                            color="default"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                          {img.type && (
+                            <Chip
+                              size="small"
+                              label={img.type}
+                              color="default"
+                              variant="outlined"
+                              sx={{ height: 18, fontSize: '0.65rem' }}
+                            />
+                          )}
+                        </Box>
+                      }
+                      secondary={img.tag ? `Tag: ${img.tag}` : undefined}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+              {loadingImages && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                  <CircularProgress size={12} />
+                  <Typography variant="caption" color="text.secondary">
+                    Scanning for Fleet images...
+                  </Typography>
+                </Box>
+              )}
+            </Box>
           )}
 
           {/* Actions */}
