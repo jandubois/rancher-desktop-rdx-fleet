@@ -181,7 +181,7 @@ export function generatePaletteFromColor(
   const harmonyHex = harmonyColors.map(oklchToHex);
 
   // Build UI palette from the generated colors
-  const uiPalette = buildUiPalette(baseColor, harmonyColors);
+  const uiPalette = buildUiPalette(baseColor, harmonyColors, opts.harmony);
 
   return {
     baseColor,
@@ -195,8 +195,11 @@ export function generatePaletteFromColor(
 /**
  * Build a ColorPalette suitable for the Fleet extension UI from harmony colors.
  * Uses the harmony colors to create a cohesive theme that varies by harmony type.
+ *
+ * Triadic and Tints & Shades use higher chroma values to differentiate them
+ * from Split Complementary and Analogous respectively.
  */
-function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[]): ColorPalette {
+function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[], harmonyType: HarmonyType): ColorPalette {
   // Use the base color as header background (keeps brand identity)
   const headerBackground = baseColor.hex;
   const headerText = getContrastTextColor(baseColor.rgb);
@@ -206,31 +209,37 @@ function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[]): Colo
   const accentColor = harmonyColors.length > 1 ? harmonyColors[1] : harmonyColors[0];
   const secondaryColor = harmonyColors.length > 2 ? harmonyColors[2] : accentColor;
 
+  // Determine chroma multipliers based on harmony type
+  // Triadic and Tints & Shades use higher chroma to be more distinctive
+  const isHighChromaHarmony = harmonyType === 'triadic' || harmonyType === 'tintsShades';
+  const bodyChromaCap = isHighChromaHarmony ? 0.08 : 0.05;
+  const borderChromaCap = isHighChromaHarmony ? 0.12 : 0.07;
+  const titleChromaCap = isHighChromaHarmony ? 0.25 : 0.18;
+  const titleLightness = isHighChromaHarmony ? 0.40 : 0.45;
+
   // For body background, use a light tint of the accent color
-  // Higher chroma cap (0.05) makes harmony differences visible
   const lightTint: OKLCH = {
     l: 0.96, // Very light
-    c: Math.min(accentColor.c * 0.15, 0.05), // Subtle but visible saturation
+    c: Math.min(accentColor.c * 0.15, bodyChromaCap),
     h: accentColor.h,
   };
   const bodyBackground = oklchToHex(lightTint);
 
   // For card border, use a desaturated mid-tone of the accent color
-  // Higher chroma cap (0.07) for more visible color
   const borderTint: OKLCH = {
     l: 0.82,
-    c: Math.min(accentColor.c * 0.25, 0.07), // More visible color
+    c: Math.min(accentColor.c * 0.25, borderChromaCap),
     h: accentColor.h,
   };
   const cardBorder = oklchToHex(borderTint);
 
   // For card title, use a medium-dark version of the secondary harmony color
-  // Lightness ~0.45 gives visible color while maintaining readability
+  // For Triadic/Tints & Shades, use higher chroma and slightly darker for more visible color
   let cardTitle = 'inherit';
   if (harmonyColors.length > 1) {
     const titleColor: OKLCH = {
-      l: 0.45, // Medium-dark for readability with visible color
-      c: Math.min(secondaryColor.c, 0.18), // Higher chroma for more color
+      l: titleLightness,
+      c: Math.min(secondaryColor.c, titleChromaCap),
       h: secondaryColor.h,
     };
     cardTitle = oklchToHex(titleColor);
