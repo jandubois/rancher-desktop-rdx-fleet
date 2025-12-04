@@ -39,6 +39,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 
 import { BackendStatus, backendService } from '../services/BackendService';
 import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
+import { useServices } from '../context/ServiceContext';
+import DownloadIcon from '@mui/icons-material/Download';
 
 export interface FleetExtensionsCardProps {
   /** Current backend status containing extension and ownership info */
@@ -98,6 +100,10 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
   const [fleetImages, setFleetImages] = useState<FleetExtensionImage[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
+  const [installingImage, setInstallingImage] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
+
+  const { commandExecutor } = useServices();
 
   const connected = status?.connected ?? false;
   const initStatus = status?.initStatus;
@@ -144,6 +150,34 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
       return extName.includes(imgName) || imgName.includes(extName.split(':')[0]);
     });
   });
+
+  // Install a Fleet extension image
+  const handleInstallImage = async (img: FleetExtensionImage) => {
+    const imageName = img.repository + (img.tag ? `:${img.tag}` : ':latest');
+    setInstallingImage(imageName);
+    setInstallError(null);
+
+    try {
+      const result = await commandExecutor.rdExec('rdctl', [
+        'extension',
+        'install',
+        imageName,
+      ]);
+
+      if (result.stderr && result.stderr.includes('Error')) {
+        throw new Error(result.stderr);
+      }
+
+      // Refresh after successful install
+      await loadFleetImages();
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to install extension:', error);
+      setInstallError(error instanceof Error ? error.message : 'Failed to install extension');
+    } finally {
+      setInstallingImage(null);
+    }
+  };
 
   const handleRecheckOwnership = async () => {
     setRecheckingOwnership(true);
@@ -371,50 +405,66 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
               <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
                 Fleet Extension Images (Not Installed) ({uninstalledImages.length})
               </Typography>
+              {installError && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
+                  <ErrorIcon fontSize="small" />
+                  <Typography variant="caption">{installError}</Typography>
+                </Box>
+              )}
               <List dense disablePadding>
-                {uninstalledImages.map((img, index) => (
-                  <ListItem
-                    key={index}
-                    sx={{
-                      bgcolor: 'action.hover',
-                      borderRadius: 1,
-                      mb: 0.5,
-                      opacity: 0.8,
-                    }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 36 }}>
-                      <Tooltip title="Docker image (not installed)">
-                        <ImageIcon fontSize="small" color="action" />
-                      </Tooltip>
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                            {img.repository || img.id}
-                          </Typography>
-                          <Chip
-                            size="small"
-                            label="Image"
-                            color="default"
-                            variant="outlined"
-                            sx={{ height: 18, fontSize: '0.65rem' }}
-                          />
-                          {img.type && (
-                            <Chip
-                              size="small"
-                              label={img.type}
-                              color="default"
-                              variant="outlined"
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          )}
-                        </Box>
+                {uninstalledImages.map((img, index) => {
+                  const imageName = img.repository + (img.tag ? `:${img.tag}` : ':latest');
+                  const isInstalling = installingImage === imageName;
+
+                  return (
+                    <ListItem
+                      key={index}
+                      sx={{
+                        bgcolor: 'action.hover',
+                        borderRadius: 1,
+                        mb: 0.5,
+                      }}
+                      secondaryAction={
+                        <Button
+                          size="small"
+                          variant="contained"
+                          color="primary"
+                          onClick={() => handleInstallImage(img)}
+                          disabled={!!installingImage}
+                          startIcon={isInstalling ? <CircularProgress size={14} color="inherit" /> : <DownloadIcon />}
+                          sx={{ minWidth: 80 }}
+                        >
+                          {isInstalling ? 'Installing...' : 'Install'}
+                        </Button>
                       }
-                      secondary={img.tag ? `Tag: ${img.tag}` : undefined}
-                    />
-                  </ListItem>
-                ))}
+                    >
+                      <ListItemIcon sx={{ minWidth: 36 }}>
+                        <Tooltip title="Docker image (not installed)">
+                          <ImageIcon fontSize="small" color="action" />
+                        </Tooltip>
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                              {img.repository || img.id}
+                            </Typography>
+                            {img.type && (
+                              <Chip
+                                size="small"
+                                label={img.type}
+                                color="default"
+                                variant="outlined"
+                                sx={{ height: 18, fontSize: '0.65rem' }}
+                              />
+                            )}
+                          </Box>
+                        }
+                        secondary={img.tag ? `Tag: ${img.tag}` : undefined}
+                      />
+                    </ListItem>
+                  );
+                })}
               </List>
               {loadingImages && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
