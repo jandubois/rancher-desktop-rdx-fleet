@@ -790,6 +790,7 @@ function App() {
               variant="h6"
               validationWarning={titleWarning}
               backgroundColor={palette.header.background}
+              textColor={palette.header.text}
             />
           </Box>
           {editModeAllowed && (

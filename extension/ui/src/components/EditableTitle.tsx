@@ -45,13 +45,18 @@ function getContrastRatio(color1: string, color2: string): number {
 // Get the highest-contrast warning color based on background
 // Prefers colored warnings (red, yellow, orange) when they meet WCAG standards
 // Only falls back to black/white when no colored option has sufficient contrast
-function getContrastWarningColor(backgroundColor?: string): string {
+// Also avoids picking colors too similar to the title text color
+function getContrastWarningColor(backgroundColor?: string, titleTextColor?: string): string {
   if (!backgroundColor || !backgroundColor.startsWith('#')) {
     return '#ff3333'; // Default bright red
   }
 
-  // WCAG AA requires 4.5:1 for normal text, 3:1 for large text
-  const WCAG_AA_NORMAL = 4.5;
+  // WCAG AA Large Text requires 3:1 (for bold/large text)
+  // We use this since warnings are bold (fontWeight: 600)
+  const MIN_CONTRAST = 3.0;
+
+  // Threshold for black/white fallback (stricter)
+  const FALLBACK_THRESHOLD = 4.0;
 
   // Colored warning candidates (in priority order)
   const coloredCandidates = [
@@ -67,13 +72,23 @@ function getContrastWarningColor(backgroundColor?: string): string {
     '#000000', // Black
   ];
 
-  // First, try to find a colored candidate that meets WCAG AA standards
+  // First, try to find a colored candidate that meets minimum contrast
+  // and is sufficiently different from the title text color
   let bestColoredOption = '';
   let bestColoredContrast = 0;
 
   for (const candidate of coloredCandidates) {
     const contrast = getContrastRatio(backgroundColor, candidate);
-    if (contrast >= WCAG_AA_NORMAL && contrast > bestColoredContrast) {
+
+    // Check if this candidate is too similar to the title text
+    let tooSimilarToTitle = false;
+    if (titleTextColor && titleTextColor.startsWith('#')) {
+      const contrastWithTitle = getContrastRatio(candidate, titleTextColor);
+      // If contrast with title is less than 2:1, they're too similar
+      tooSimilarToTitle = contrastWithTitle < 2.0;
+    }
+
+    if (contrast >= MIN_CONTRAST && !tooSimilarToTitle && contrast > bestColoredContrast) {
       bestColoredContrast = contrast;
       bestColoredOption = candidate;
     }
@@ -84,9 +99,33 @@ function getContrastWarningColor(backgroundColor?: string): string {
     return bestColoredOption;
   }
 
-  // Otherwise, fall back to black or white (whichever has better contrast)
-  let bestFallback = fallbackCandidates[0];
-  let bestFallbackContrast = getContrastRatio(backgroundColor, fallbackCandidates[0]);
+  // Otherwise, fall back to black or white if they meet the fallback threshold
+  let bestFallback = '';
+  let bestFallbackContrast = 0;
+
+  for (const candidate of fallbackCandidates) {
+    const contrast = getContrastRatio(backgroundColor, candidate);
+
+    // Check if this fallback is too similar to the title text
+    let tooSimilarToTitle = false;
+    if (titleTextColor && titleTextColor.startsWith('#')) {
+      const contrastWithTitle = getContrastRatio(candidate, titleTextColor);
+      tooSimilarToTitle = contrastWithTitle < 2.0;
+    }
+
+    if (contrast >= FALLBACK_THRESHOLD && !tooSimilarToTitle && contrast > bestFallbackContrast) {
+      bestFallbackContrast = contrast;
+      bestFallback = candidate;
+    }
+  }
+
+  if (bestFallback) {
+    return bestFallback;
+  }
+
+  // Last resort: return the fallback with best contrast (ignore title similarity)
+  bestFallback = fallbackCandidates[0];
+  bestFallbackContrast = getContrastRatio(backgroundColor, fallbackCandidates[0]);
 
   for (let i = 1; i < fallbackCandidates.length; i++) {
     const contrast = getContrastRatio(backgroundColor, fallbackCandidates[i]);
@@ -108,6 +147,7 @@ interface EditableTitleProps {
   children?: React.ReactNode; // Additional content to show after the title
   validationWarning?: string | null; // Validation warning to display below the title
   backgroundColor?: string; // Background color for calculating contrast
+  textColor?: string; // Title text color (to avoid picking warning colors too similar)
 }
 
 /**
@@ -123,10 +163,11 @@ export const EditableTitle: React.FC<EditableTitleProps> = ({
   children,
   validationWarning,
   backgroundColor,
+  textColor,
 }) => {
   if (editMode && onChange) {
     const isTooLong = value.length > MAX_LENGTH_WARNING;
-    const warningColor = getContrastWarningColor(backgroundColor);
+    const warningColor = getContrastWarningColor(backgroundColor, textColor);
 
     return (
       <Box sx={{ flex: 1 }}>
