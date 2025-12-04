@@ -324,6 +324,8 @@ class FleetService {
         chart,
         targetNamespace,
         createNamespace: options.createNamespace ?? true,
+        // Empty valuesContent to use chart defaults (required by Helm Controller)
+        valuesContent: '',
       },
     };
 
