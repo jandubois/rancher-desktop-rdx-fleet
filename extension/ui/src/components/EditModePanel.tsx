@@ -103,6 +103,23 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     { id: 'card-title', label: 'Card Title', group: 'card', property: 'title', defaultValue: defaultPalette.card.title },
   ];
 
+  // Track initial palette when entering edit mode (captured on mount)
+  const initialPaletteRef = useRef<ColorPalette | undefined>(undefined);
+  const hasInitializedRef = useRef(false);
+
+  // Track reset palette - starts as initial, updated when auto-colouring is applied
+  const [resetPalette, setResetPalette] = useState<ColorPalette | undefined>(undefined);
+
+  // Capture initial palette on first mount
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      const currentPalette = manifest.branding?.palette;
+      initialPaletteRef.current = currentPalette ? JSON.parse(JSON.stringify(currentPalette)) : undefined;
+      setResetPalette(currentPalette ? JSON.parse(JSON.stringify(currentPalette)) : undefined);
+    }
+  }, [manifest.branding?.palette]);
+
   // Get current color value from manifest palette
   const getColorValue = (field: ColorFieldConfig): string => {
     const palette = manifest.branding?.palette;
@@ -144,31 +161,60 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     onPaletteChange(updatedPalette);
   };
 
-  // Reset a color to default
+  // Get the reset value for a color field
+  // Returns the value to reset to, or undefined if should reset to global default
+  const getResetValue = (field: ColorFieldConfig): string | undefined => {
+    // Use reset palette if available
+    if (resetPalette) {
+      const group = resetPalette[field.group];
+      if (group) {
+        return (group as Record<string, string | undefined>)[field.property];
+      }
+    }
+
+    return undefined;
+  };
+
+  // Reset a color to its reset value (initial or auto-generated)
   const handleResetColor = (field: ColorFieldConfig) => {
     if (!onPaletteChange) return;
 
+    const resetValue = getResetValue(field);
     const currentPalette = manifest.branding?.palette || {};
-    const groupData = { ...(currentPalette[field.group] || {}) };
-    delete (groupData as Record<string, string | undefined>)[field.property];
 
-    const updatedPalette: ColorPalette = {
-      ...currentPalette,
-      [field.group]: Object.keys(groupData).length > 0 ? groupData : undefined,
-    };
+    if (resetValue !== undefined) {
+      // Set to the reset value
+      const updatedPalette: ColorPalette = {
+        ...currentPalette,
+        [field.group]: {
+          ...(currentPalette[field.group] || {}),
+          [field.property]: resetValue,
+        },
+      };
+      onPaletteChange(updatedPalette);
+    } else {
+      // No reset value - delete the property to use global default
+      const groupData = { ...(currentPalette[field.group] || {}) };
+      delete (groupData as Record<string, string | undefined>)[field.property];
 
-    // Clean up empty groups
-    if (!updatedPalette.header || Object.keys(updatedPalette.header).length === 0) {
-      delete updatedPalette.header;
-    }
-    if (!updatedPalette.body || Object.keys(updatedPalette.body).length === 0) {
-      delete updatedPalette.body;
-    }
-    if (!updatedPalette.card || Object.keys(updatedPalette.card).length === 0) {
-      delete updatedPalette.card;
-    }
+      const updatedPalette: ColorPalette = {
+        ...currentPalette,
+        [field.group]: Object.keys(groupData).length > 0 ? groupData : undefined,
+      };
 
-    onPaletteChange(updatedPalette);
+      // Clean up empty groups
+      if (!updatedPalette.header || Object.keys(updatedPalette.header).length === 0) {
+        delete updatedPalette.header;
+      }
+      if (!updatedPalette.body || Object.keys(updatedPalette.body).length === 0) {
+        delete updatedPalette.body;
+      }
+      if (!updatedPalette.card || Object.keys(updatedPalette.card).length === 0) {
+        delete updatedPalette.card;
+      }
+
+      onPaletteChange(updatedPalette);
+    }
   };
 
   // UI state
@@ -198,11 +244,12 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
 
   // Auto-palette state
   const [paletteMenuAnchor, setPaletteMenuAnchor] = useState<null | HTMLElement>(null);
-  const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
+  const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType | 'icon'>('complementary');
   const [generatingPalette, setGeneratingPalette] = useState(false);
   const [harmonyPreviews, setHarmonyPreviews] = useState<Map<HarmonyType, HarmonyPreview>>(new Map());
+  const [iconColorPreview, setIconColorPreview] = useState<HarmonyPreview | null>(null);
   const [originalPalette, setOriginalPalette] = useState<ColorPalette | null>(null);
-  const [previewingHarmony, setPreviewingHarmony] = useState<HarmonyType | null>(null);
+  const [previewingHarmony, setPreviewingHarmony] = useState<HarmonyType | 'icon' | null>(null);
 
   // Color names state
   const [colorNames, setColorNames] = useState<Map<string, string>>(new Map());
@@ -238,19 +285,8 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     fetchColorNames();
   }, [manifest.branding?.palette]);
 
-  // Get base color for palette generation
-  // Uses current header background if set, otherwise extracts from icon
-  const getBaseColor = async (): Promise<ExtractedColor> => {
-    // First check if user has manually set a header background color
-    const currentHeaderBg = manifest.branding?.palette?.header?.background;
-    if (currentHeaderBg && isValidHexColor(currentHeaderBg)) {
-      const rgb = hexToRgb(currentHeaderBg);
-      if (rgb) {
-        return { hex: currentHeaderBg, rgb };
-      }
-    }
-
-    // Otherwise extract from icon
+  // Get color from icon only (ignores header background setting)
+  const getIconColor = async (): Promise<ExtractedColor> => {
     if (iconState === 'deleted') {
       return {
         hex: defaultPalette.header.background,
@@ -284,6 +320,22 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     }
   };
 
+  // Get base color for palette generation
+  // Uses current header background if set, otherwise extracts from icon
+  const getBaseColor = async (): Promise<ExtractedColor> => {
+    // First check if user has manually set a header background color
+    const currentHeaderBg = manifest.branding?.palette?.header?.background;
+    if (currentHeaderBg && isValidHexColor(currentHeaderBg)) {
+      const rgb = hexToRgb(currentHeaderBg);
+      if (rgb) {
+        return { hex: currentHeaderBg, rgb };
+      }
+    }
+
+    // Otherwise extract from icon
+    return getIconColor();
+  };
+
   // Generate all harmony previews when opening the palette menu
   const handleOpenPaletteMenu = async (event: React.MouseEvent<HTMLElement>) => {
     setPaletteMenuAnchor(event.currentTarget);
@@ -308,13 +360,24 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       }
 
       setHarmonyPreviews(previews);
+
+      // Generate icon color preview (Analogous from icon's dominant color)
+      const iconColor = await getIconColor();
+      const iconResult = generatePaletteFromColor(iconColor, { harmony: 'analogous' });
+      setIconColorPreview({
+        headerBg: iconResult.uiPalette.header?.background || defaultPalette.header.background,
+        headerText: iconResult.uiPalette.header?.text || defaultPalette.header.text,
+        bodyBg: iconResult.uiPalette.body?.background || defaultPalette.body.background,
+        cardBorder: iconResult.uiPalette.card?.border || defaultPalette.card.border,
+        cardTitle: iconResult.uiPalette.card?.title || defaultPalette.card.title,
+      });
     } catch (err) {
       console.error('Failed to generate preview palettes:', err);
     }
   };
 
   // Handle harmony hover - apply preview palette
-  const handleHarmonyHover = (harmony: HarmonyType | null) => {
+  const handleHarmonyHover = (harmony: HarmonyType | 'icon' | null) => {
     if (!onPaletteChange) return;
 
     if (harmony === null) {
@@ -325,7 +388,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       setPreviewingHarmony(null);
     } else {
       // Apply preview palette
-      const preview = harmonyPreviews.get(harmony);
+      const preview = harmony === 'icon' ? iconColorPreview : harmonyPreviews.get(harmony);
       if (preview) {
         setPreviewingHarmony(harmony);
         onPaletteChange({
@@ -356,7 +419,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   };
 
   // Generate palette from icon (when harmony is clicked/selected)
-  const handleGeneratePalette = async (harmony: HarmonyType) => {
+  const handleGeneratePalette = async (harmony: HarmonyType | 'icon') => {
     if (!onPaletteChange) return;
 
     // Clear preview state first - the palette is already applied from hover
@@ -366,9 +429,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     setSelectedHarmony(harmony);
 
     // If preview was shown, palette is already applied
-    const preview = harmonyPreviews.get(harmony);
+    const preview = harmony === 'icon' ? iconColorPreview : harmonyPreviews.get(harmony);
     if (preview) {
-      onPaletteChange({
+      const newPalette = {
         header: {
           background: preview.headerBg,
           text: preview.headerText,
@@ -380,8 +443,12 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
           border: preview.cardBorder,
           title: preview.cardTitle,
         },
-      });
-      setImportSuccess(`Palette generated using ${harmony} harmony`);
+      };
+      onPaletteChange(newPalette);
+      // Update reset palette to the auto-generated colors
+      setResetPalette(newPalette);
+      const harmonyLabel = harmony === 'icon' ? 'icon color (analogous)' : harmony;
+      setImportSuccess(`Palette generated using ${harmonyLabel} harmony`);
       return;
     }
 
@@ -389,10 +456,14 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     setGeneratingPalette(true);
 
     try {
-      const baseColor = await getBaseColor();
-      const result = generatePaletteFromColor(baseColor, { harmony });
+      const baseColor = harmony === 'icon' ? await getIconColor() : await getBaseColor();
+      const harmonyType = harmony === 'icon' ? 'analogous' : harmony;
+      const result = generatePaletteFromColor(baseColor, { harmony: harmonyType });
       onPaletteChange(result.uiPalette);
-      setImportSuccess(`Palette generated using ${harmony} harmony`);
+      // Update reset palette to the auto-generated colors
+      setResetPalette(result.uiPalette);
+      const harmonyLabel = harmony === 'icon' ? 'icon color (analogous)' : harmony;
+      setImportSuccess(`Palette generated using ${harmonyLabel} harmony`);
     } catch (err) {
       console.error('Failed to generate palette:', err);
       setImportError('Failed to generate palette from icon');
@@ -645,10 +716,12 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 colorFields={colorFields}
                 getColorValue={getColorValue}
                 getPickerValue={getPickerValue}
+                getResetValue={getResetValue}
                 colorNames={colorNames}
                 selectedHarmony={selectedHarmony}
                 generatingPalette={generatingPalette}
                 canChangePalette={!!onPaletteChange}
+                iconColorPreview={iconColorPreview}
                 paletteMenuAnchor={paletteMenuAnchor}
                 harmonyPreviews={harmonyPreviews}
                 onColorChange={handleColorChange}
