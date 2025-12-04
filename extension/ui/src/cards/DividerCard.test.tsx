@@ -4,13 +4,14 @@
  * DividerCard provides visual separation between content sections:
  * - Renders a horizontal divider line with configurable style (solid/dashed/dotted)
  * - Supports optional centered label text
- * - Edit mode: shows label input and style toggle buttons with preview
+ * - Edit mode: shows label input and style dropdown (dropdown shows divider previews)
  * - View mode: renders just the divider (with or without label)
  * - Applies palette border color to divider line
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { DividerCard } from './DividerCard';
 import { CardDefinition, DividerCardSettings } from '../manifest/types';
 
@@ -129,7 +130,7 @@ describe('DividerCard', () => {
       expect(screen.getByLabelText(/Label/i)).toBeInTheDocument();
     });
 
-    it('shows style toggle buttons', () => {
+    it('shows style dropdown', () => {
       const onSettingsChange = vi.fn();
       render(
         <DividerCard
@@ -140,37 +141,7 @@ describe('DividerCard', () => {
         />
       );
 
-      expect(screen.getByRole('button', { name: 'Solid' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Dashed' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Dotted' })).toBeInTheDocument();
-    });
-
-    it('shows Line Style label', () => {
-      const onSettingsChange = vi.fn();
-      render(
-        <DividerCard
-          definition={defaultDefinition}
-          settings={{}}
-          editMode={true}
-          onSettingsChange={onSettingsChange}
-        />
-      );
-
-      expect(screen.getByText('Line Style:')).toBeInTheDocument();
-    });
-
-    it('shows preview section', () => {
-      const onSettingsChange = vi.fn();
-      render(
-        <DividerCard
-          definition={defaultDefinition}
-          settings={{}}
-          editMode={true}
-          onSettingsChange={onSettingsChange}
-        />
-      );
-
-      expect(screen.getByText('Preview:')).toBeInTheDocument();
+      expect(screen.getByRole('combobox')).toBeInTheDocument();
     });
 
     it('calls onSettingsChange when label is edited', () => {
@@ -190,7 +161,8 @@ describe('DividerCard', () => {
       expect(onSettingsChange).toHaveBeenCalledWith({ label: 'New Label' });
     });
 
-    it('calls onSettingsChange when style is changed to dashed', () => {
+    it('calls onSettingsChange when style is changed to dashed', async () => {
+      const user = userEvent.setup();
       const onSettingsChange = vi.fn();
       render(
         <DividerCard
@@ -201,12 +173,17 @@ describe('DividerCard', () => {
         />
       );
 
-      fireEvent.click(screen.getByRole('button', { name: 'Dashed' }));
+      // Open the dropdown
+      await user.click(screen.getByRole('combobox'));
+      // Select dashed option (second option) from the listbox
+      const options = screen.getAllByRole('option');
+      await user.click(options[1]); // dashed is second option
 
       expect(onSettingsChange).toHaveBeenCalledWith({ style: 'dashed' });
     });
 
-    it('calls onSettingsChange when style is changed to dotted', () => {
+    it('calls onSettingsChange when style is changed to dotted', async () => {
+      const user = userEvent.setup();
       const onSettingsChange = vi.fn();
       render(
         <DividerCard
@@ -217,7 +194,11 @@ describe('DividerCard', () => {
         />
       );
 
-      fireEvent.click(screen.getByRole('button', { name: 'Dotted' }));
+      // Open the dropdown
+      await user.click(screen.getByRole('combobox'));
+      // Select dotted option (third option) from the listbox
+      const options = screen.getAllByRole('option');
+      await user.click(options[2]); // dotted is third option
 
       expect(onSettingsChange).toHaveBeenCalledWith({ style: 'dotted' });
     });
@@ -239,7 +220,8 @@ describe('DividerCard', () => {
       expect(onSettingsChange).toHaveBeenCalledWith({ style: 'dashed', label: 'New' });
     });
 
-    it('preserves existing settings when updating style', () => {
+    it('preserves existing settings when updating style', async () => {
+      const user = userEvent.setup();
       const onSettingsChange = vi.fn();
       render(
         <DividerCard
@@ -250,7 +232,11 @@ describe('DividerCard', () => {
         />
       );
 
-      fireEvent.click(screen.getByRole('button', { name: 'Dotted' }));
+      // Open the dropdown
+      await user.click(screen.getByRole('combobox'));
+      // Select dotted option (third option) from the listbox
+      const options = screen.getAllByRole('option');
+      await user.click(options[2]); // dotted is third option
 
       expect(onSettingsChange).toHaveBeenCalledWith({ label: 'Keep Me', style: 'dotted' });
     });
@@ -285,7 +271,7 @@ describe('DividerCard', () => {
       expect(input).toHaveValue('Existing Label');
     });
 
-    it('highlights current style in toggle buttons', () => {
+    it('displays divider preview in dropdown', () => {
       const onSettingsChange = vi.fn();
       render(
         <DividerCard
@@ -296,8 +282,9 @@ describe('DividerCard', () => {
         />
       );
 
-      const dashedButton = screen.getByRole('button', { name: 'Dashed' });
-      expect(dashedButton).toHaveAttribute('aria-pressed', 'true');
+      // The Select should display a divider preview
+      const combobox = screen.getByRole('combobox');
+      expect(within(combobox).getByRole('separator')).toBeInTheDocument();
     });
 
     it('renders in view mode when editMode true but no onSettingsChange', () => {
@@ -355,7 +342,7 @@ describe('DividerCard', () => {
   describe('default values', () => {
     it('defaults style to solid when not specified', () => {
       const onSettingsChange = vi.fn();
-      render(
+      const { container } = render(
         <DividerCard
           definition={defaultDefinition}
           settings={{}}
@@ -364,8 +351,10 @@ describe('DividerCard', () => {
         />
       );
 
-      const solidButton = screen.getByRole('button', { name: 'Solid' });
-      expect(solidButton).toHaveAttribute('aria-pressed', 'true');
+      // The Select should have solid as default value (check hidden input)
+      const hiddenInput = container.querySelector('input[type="hidden"]') ||
+        container.querySelector('input[value="solid"]');
+      expect(hiddenInput).toHaveValue('solid');
     });
 
     it('defaults label to empty string when not specified', () => {

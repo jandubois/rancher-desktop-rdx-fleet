@@ -3,8 +3,8 @@ import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
 import Divider from '@mui/material/Divider';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+import Select, { SelectChangeEvent } from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
 import { CardProps } from './types';
 import { DividerCardSettings } from '../manifest/types';
 import { registerCard } from './registry';
@@ -21,23 +21,48 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
   const style: DividerStyle = settings?.style || 'solid';
   const borderColor = paletteColors?.border ?? 'grey.300';
 
-  const handleStyleChange = (_: React.MouseEvent<HTMLElement>, newStyle: DividerStyle) => {
-    if (newStyle && onSettingsChange) {
+  const handleStyleChange = (event: SelectChangeEvent<DividerStyle>) => {
+    if (onSettingsChange) {
       onSettingsChange({
         ...settings,
-        style: newStyle,
+        style: event.target.value as DividerStyle,
       });
     }
   };
 
-  const dividerSx = {
-    borderStyle: style,
+  const dividerStyles: DividerStyle[] = ['solid', 'dashed', 'dotted'];
+
+  const getDividerSx = (styleValue: DividerStyle) => ({
+    borderStyle: styleValue,
     borderColor: borderColor,
+    borderBottomWidth: 2,
     '&::before, &::after': {
-      borderStyle: style,
+      borderStyle: styleValue,
       borderColor: borderColor,
+      borderTopWidth: 2,
     },
-  };
+  });
+
+  const renderDividerOption = (styleValue: DividerStyle) => (
+    <Box
+      sx={{
+        width: '100%',
+        minHeight: 24,
+        display: 'flex',
+        alignItems: 'center',
+      }}
+    >
+      {label ? (
+        <Divider sx={{ ...getDividerSx(styleValue), flexGrow: 1 }}>
+          <Typography variant="body2" color="text.secondary">
+            {label}
+          </Typography>
+        </Divider>
+      ) : (
+        <Divider sx={{ ...getDividerSx(styleValue), flexGrow: 1 }} />
+      )}
+    </Box>
+  );
 
   if (editMode && onSettingsChange) {
     return (
@@ -53,36 +78,24 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
           sx={{ mb: 2 }}
         />
 
-        <Box sx={{ mb: 2 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Line Style:
-          </Typography>
-          <ToggleButtonGroup
-            value={style}
-            exclusive
-            onChange={handleStyleChange}
-            size="small"
-          >
-            <ToggleButton value="solid">Solid</ToggleButton>
-            <ToggleButton value="dashed">Dashed</ToggleButton>
-            <ToggleButton value="dotted">Dotted</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-
-        <Box sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
-          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            Preview:
-          </Typography>
-          {label ? (
-            <Divider sx={dividerSx}>
-              <Typography variant="body2" color="text.secondary">
-                {label}
-              </Typography>
-            </Divider>
-          ) : (
-            <Divider sx={dividerSx} />
-          )}
-        </Box>
+        <Select
+          value={style}
+          onChange={handleStyleChange}
+          size="small"
+          fullWidth
+          renderValue={(selected) => renderDividerOption(selected)}
+          sx={{
+            '& .MuiSelect-select': {
+              py: 1,
+            },
+          }}
+        >
+          {dividerStyles.map((dividerStyle) => (
+            <MenuItem key={dividerStyle} value={dividerStyle} sx={{ py: 1 }}>
+              {renderDividerOption(dividerStyle)}
+            </MenuItem>
+          ))}
+        </Select>
       </Box>
     );
   }
@@ -91,13 +104,13 @@ export const DividerCard: React.FC<CardProps<DividerCardSettings>> = ({
   return (
     <Box sx={{ py: 1 }}>
       {label ? (
-        <Divider sx={dividerSx}>
+        <Divider sx={getDividerSx(style)}>
           <Typography variant="body2" color="text.secondary">
             {label}
           </Typography>
         </Divider>
       ) : (
-        <Divider sx={dividerSx} />
+        <Divider sx={getDividerSx(style)} />
       )}
     </Box>
   );
