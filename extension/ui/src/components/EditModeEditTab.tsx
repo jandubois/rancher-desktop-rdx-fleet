@@ -44,6 +44,8 @@ export interface EditModeEditTabProps {
   getColorValue: (field: ColorFieldConfig) => string;
   /** Function to get resolved picker value for a color field */
   getPickerValue: (field: ColorFieldConfig, currentValue: string) => string;
+  /** Function to get reset value for a color field (undefined means use global default) */
+  getResetValue: (field: ColorFieldConfig) => string | undefined;
   /** Color names map (hex -> name) */
   colorNames: Map<string, string>;
   /** Currently selected harmony type */
@@ -79,6 +81,7 @@ export function EditModeEditTab({
   colorFields,
   getColorValue,
   getPickerValue,
+  getResetValue,
   colorNames,
   selectedHarmony,
   generatingPalette,
@@ -232,7 +235,12 @@ export function EditModeEditTab({
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2 }}>
         {colorFields.map((field) => {
           const currentValue = getColorValue(field);
-          const isDefault = currentValue === field.defaultValue;
+          const resetValue = getResetValue(field);
+          // Show reset button if current value differs from reset value
+          // If resetValue is undefined, compare to global default
+          const isAtResetValue = resetValue !== undefined
+            ? currentValue === resetValue
+            : currentValue === field.defaultValue;
           const isHexColor = isValidHexColor(currentValue);
           const isInherit = currentValue === 'inherit';
           const isValid = isHexColor || isInherit;
@@ -245,10 +253,10 @@ export function EditModeEditTab({
             : isInherit
             ? 'Inherits from parent'
             : colorName
-            ? `${colorName}${isDefault ? ' (default)' : ''}`
-            : isDefault
-            ? 'Default'
-            : 'Custom';
+            ? `${colorName}${isAtResetValue ? '' : ' (modified)'}`
+            : isAtResetValue
+            ? ''
+            : 'Modified';
 
           return (
             <Box key={field.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -286,12 +294,12 @@ export function EditModeEditTab({
                   },
                 }}
               />
-              {!isDefault && (
+              {!isAtResetValue && (
                 <Button
                   size="small"
                   onClick={() => onResetColor(field)}
                   sx={{ minWidth: 'auto', px: 1, mt: 0.5 }}
-                  title="Reset to default"
+                  title="Reset"
                 >
                   <RestoreIcon fontSize="small" />
                 </Button>

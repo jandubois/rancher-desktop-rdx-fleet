@@ -103,6 +103,25 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     { id: 'card-title', label: 'Card Title', group: 'card', property: 'title', defaultValue: defaultPalette.card.title },
   ];
 
+  // Track initial palette when entering edit mode (captured on mount)
+  const initialPaletteRef = useRef<ColorPalette | undefined>(undefined);
+  const hasInitializedRef = useRef(false);
+
+  // Track reset palette - starts as initial, updated when auto-colouring is applied
+  const [resetPalette, setResetPalette] = useState<ColorPalette | undefined>(undefined);
+  // Track the icon's base color for header background reset after auto-colouring
+  const [iconBaseColor, setIconBaseColor] = useState<string | null>(null);
+
+  // Capture initial palette on first mount
+  useEffect(() => {
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
+      const currentPalette = manifest.branding?.palette;
+      initialPaletteRef.current = currentPalette ? JSON.parse(JSON.stringify(currentPalette)) : undefined;
+      setResetPalette(currentPalette ? JSON.parse(JSON.stringify(currentPalette)) : undefined);
+    }
+  }, [manifest.branding?.palette]);
+
   // Get current color value from manifest palette
   const getColorValue = (field: ColorFieldConfig): string => {
     const palette = manifest.branding?.palette;
@@ -144,31 +163,65 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     onPaletteChange(updatedPalette);
   };
 
-  // Reset a color to default
+  // Get the reset value for a color field
+  // Returns the value to reset to, or undefined if should reset to global default
+  const getResetValue = (field: ColorFieldConfig): string | undefined => {
+    // Special case: header background always resets to icon color after auto-colouring
+    if (field.group === 'header' && field.property === 'background' && iconBaseColor) {
+      return iconBaseColor;
+    }
+
+    // Use reset palette if available
+    if (resetPalette) {
+      const group = resetPalette[field.group];
+      if (group) {
+        return (group as Record<string, string | undefined>)[field.property];
+      }
+    }
+
+    return undefined;
+  };
+
+  // Reset a color to its reset value (initial or auto-generated)
   const handleResetColor = (field: ColorFieldConfig) => {
     if (!onPaletteChange) return;
 
+    const resetValue = getResetValue(field);
     const currentPalette = manifest.branding?.palette || {};
-    const groupData = { ...(currentPalette[field.group] || {}) };
-    delete (groupData as Record<string, string | undefined>)[field.property];
 
-    const updatedPalette: ColorPalette = {
-      ...currentPalette,
-      [field.group]: Object.keys(groupData).length > 0 ? groupData : undefined,
-    };
+    if (resetValue !== undefined) {
+      // Set to the reset value
+      const updatedPalette: ColorPalette = {
+        ...currentPalette,
+        [field.group]: {
+          ...(currentPalette[field.group] || {}),
+          [field.property]: resetValue,
+        },
+      };
+      onPaletteChange(updatedPalette);
+    } else {
+      // No reset value - delete the property to use global default
+      const groupData = { ...(currentPalette[field.group] || {}) };
+      delete (groupData as Record<string, string | undefined>)[field.property];
 
-    // Clean up empty groups
-    if (!updatedPalette.header || Object.keys(updatedPalette.header).length === 0) {
-      delete updatedPalette.header;
-    }
-    if (!updatedPalette.body || Object.keys(updatedPalette.body).length === 0) {
-      delete updatedPalette.body;
-    }
-    if (!updatedPalette.card || Object.keys(updatedPalette.card).length === 0) {
-      delete updatedPalette.card;
-    }
+      const updatedPalette: ColorPalette = {
+        ...currentPalette,
+        [field.group]: Object.keys(groupData).length > 0 ? groupData : undefined,
+      };
 
-    onPaletteChange(updatedPalette);
+      // Clean up empty groups
+      if (!updatedPalette.header || Object.keys(updatedPalette.header).length === 0) {
+        delete updatedPalette.header;
+      }
+      if (!updatedPalette.body || Object.keys(updatedPalette.body).length === 0) {
+        delete updatedPalette.body;
+      }
+      if (!updatedPalette.card || Object.keys(updatedPalette.card).length === 0) {
+        delete updatedPalette.card;
+      }
+
+      onPaletteChange(updatedPalette);
+    }
   };
 
   // UI state
@@ -365,10 +418,14 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     setPaletteMenuAnchor(null);
     setSelectedHarmony(harmony);
 
+    // Get base color for reset tracking
+    const baseColor = await getBaseColor();
+    setIconBaseColor(baseColor.hex);
+
     // If preview was shown, palette is already applied
     const preview = harmonyPreviews.get(harmony);
     if (preview) {
-      onPaletteChange({
+      const newPalette = {
         header: {
           background: preview.headerBg,
           text: preview.headerText,
@@ -380,7 +437,10 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
           border: preview.cardBorder,
           title: preview.cardTitle,
         },
-      });
+      };
+      onPaletteChange(newPalette);
+      // Update reset palette to the auto-generated colors
+      setResetPalette(newPalette);
       setImportSuccess(`Palette generated using ${harmony} harmony`);
       return;
     }
@@ -389,9 +449,10 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     setGeneratingPalette(true);
 
     try {
-      const baseColor = await getBaseColor();
       const result = generatePaletteFromColor(baseColor, { harmony });
       onPaletteChange(result.uiPalette);
+      // Update reset palette to the auto-generated colors
+      setResetPalette(result.uiPalette);
       setImportSuccess(`Palette generated using ${harmony} harmony`);
     } catch (err) {
       console.error('Failed to generate palette:', err);
@@ -645,6 +706,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 colorFields={colorFields}
                 getColorValue={getColorValue}
                 getPickerValue={getPickerValue}
+                getResetValue={getResetValue}
                 colorNames={colorNames}
                 selectedHarmony={selectedHarmony}
                 generatingPalette={generatingPalette}
