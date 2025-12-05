@@ -108,8 +108,11 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
   const connected = status?.connected ?? false;
   const initStatus = status?.initStatus;
   const ownership = status?.ownership;
-  const isOwner = ownership?.isOwner ?? false;
   const kubernetesReady = initStatus?.kubernetesReady ?? false;
+
+  // Use backend's isOwner - each extension runs its own backend with the same image name
+  // as the frontend, so the backend correctly identifies itself via Docker lookup
+  const isOwner = ownership?.isOwner ?? false;
 
   // Only show ownership status when it's meaningful:
   // - K8s is ready (required for ownership ConfigMap)
@@ -122,7 +125,6 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
 
   // Get Fleet extensions from installed extensions list
   const fleetExtensions = initStatus?.installedExtensions.filter(ext => ext.hasFleetLabel) ?? [];
-  const totalExtensions = initStatus?.installedExtensionsCount ?? 0;
 
   // Load Fleet extension images from Docker
   const loadFleetImages = useCallback(async () => {
@@ -391,13 +393,6 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
               No Fleet extensions detected. This may happen during initialization.
             </Typography>
           ) : null}
-
-          {/* Show other (non-Fleet) extensions count */}
-          {totalExtensions > fleetExtensions.length && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              + {totalExtensions - fleetExtensions.length} other extension{totalExtensions - fleetExtensions.length !== 1 ? 's' : ''} installed
-            </Typography>
-          )}
 
           {/* Uninstalled Fleet Images */}
           {uninstalledImages.length > 0 && (

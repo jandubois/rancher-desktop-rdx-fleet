@@ -14,6 +14,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { CommandExecutor } from '../services';
 import { backendService, InstalledExtension, OwnershipStatus } from '../services/BackendService';
+import { ddClient } from '../lib/ddClient';
 
 export interface BackendInitStatus {
   /** Whether initialization has been attempted */
@@ -39,35 +40,38 @@ export interface UseBackendInitOptions {
   onInitialized?: (ownership: OwnershipStatus) => void;
 }
 
-interface RdctlExtension {
-  name: string;
-  tag: string;
-  labels?: Record<string, string>;
-}
-
 /**
  * Parse rdctl extension ls output.
- * Output format: JSON array of objects with name, tag, and optionally labels.
+ * Output format: Plain text with header "Extension IDs" followed by image:tag lines.
+ * Example:
+ *   Extension IDs
+ *
+ *   fleet-gitops-extension:latest
+ *   my-fleet-extension:dev
  */
 function parseRdctlOutput(stdout: string): InstalledExtension[] {
-  try {
-    // rdctl extension ls --output json returns a JSON array
-    const extensions = JSON.parse(stdout) as RdctlExtension[];
-    if (!Array.isArray(extensions)) {
-      console.warn('[BackendInit] rdctl output is not an array');
-      return [];
-    }
+  const extensions: InstalledExtension[] = [];
+  const lines = stdout.split('\n');
 
-    return extensions.map((ext) => ({
-      name: ext.name,
-      tag: ext.tag,
-      labels: ext.labels,
-    }));
-  } catch (error) {
-    console.error('[BackendInit] Failed to parse rdctl output:', error);
-    console.debug('[BackendInit] Raw output:', stdout);
-    return [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip empty lines and header lines (lines without a colon are not image:tag format)
+    if (!trimmed || !trimmed.includes(':')) {
+      continue;
+    }
+    // Parse image:tag format - the tag is after the last colon
+    const lastColonIndex = trimmed.lastIndexOf(':');
+    if (lastColonIndex > 0) {
+      const name = trimmed.substring(0, lastColonIndex);
+      const tag = trimmed.substring(lastColonIndex + 1);
+      // Only include if both name and tag are non-empty
+      if (name && tag) {
+        extensions.push({ name, tag });
+      }
+    }
   }
+
+  return extensions;
 }
 
 /**
@@ -109,12 +113,10 @@ export function useBackendInit({
       let installedExtensions: InstalledExtension[] = [];
 
       try {
-        // Try rdctl extension ls with JSON output
+        // Run rdctl extension ls (outputs plain text, not JSON)
         const rdctlResult = await commandExecutor.rdExec('rdctl', [
           'extension',
           'ls',
-          '--output',
-          'json',
         ]);
 
         if (rdctlResult.stderr && !rdctlResult.stdout) {
@@ -122,8 +124,15 @@ export function useBackendInit({
         }
 
         if (rdctlResult.stdout) {
+          console.log('[BackendInit] Raw rdctl output:', rdctlResult.stdout);
           installedExtensions = parseRdctlOutput(rdctlResult.stdout);
-          console.log(`[BackendInit] Found ${installedExtensions.length} installed extensions`);
+          console.log(`[BackendInit] Found ${installedExtensions.length} installed extensions:`,
+            installedExtensions.map(e => e.name));
+          // Log to backend for docker logs visibility
+          backendService.debugLog('BackendInit', 'rdctl extension ls output', {
+            raw: rdctlResult.stdout,
+            parsed: installedExtensions,
+          });
         }
       } catch (rdctlError) {
         console.warn('[BackendInit] rdctl failed, continuing without extension list:', rdctlError);
@@ -150,11 +159,16 @@ export function useBackendInit({
         // Continue without kubeconfig - ownership check will fail but backend will still work
       }
 
-      // Step 3: Post to /api/init
+      // Step 3: Get own extension image name from Docker SDK
+      const ownExtensionImage = (ddClient.extension as { image?: string })?.image;
+      console.log(`[BackendInit] Own extension image: ${ownExtensionImage || 'unknown'}`);
+
+      // Step 4: Post to /api/init
       console.log('[BackendInit] Posting to backend /api/init...');
       const ownership = await backendService.initialize({
         installedExtensions,
         kubeconfig,
+        ownExtensionImage,
       });
 
       console.log('[BackendInit] Initialization complete:', ownership.status, ownership.message);

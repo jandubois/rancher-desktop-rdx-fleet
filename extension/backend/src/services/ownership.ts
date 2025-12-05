@@ -9,6 +9,7 @@
 
 import * as k8s from '@kubernetes/client-node';
 import os from 'os';
+import { dockerService } from './docker';
 
 /** Installed extension info from rdctl extension ls */
 export interface InstalledExtension {
@@ -55,8 +56,49 @@ export class OwnershipService {
 
   constructor() {
     this.ownContainerId = os.hostname();
-    this.ownExtensionName = process.env.EXTENSION_NAME || 'fleet-gitops';
+    this.ownExtensionName = process.env.EXTENSION_NAME || 'fleet-gitops-extension';
     this.ownPriority = parseInt(process.env.EXTENSION_PRIORITY || '100', 10);
+  }
+
+  /**
+   * Initialize own extension name by looking up this container's image from Docker.
+   * This gives the backend its actual identity, not whatever the frontend claims.
+   */
+  async initializeOwnIdentity(): Promise<void> {
+    try {
+      const containers = await dockerService.listContainers();
+      const shortId = this.ownContainerId.substring(0, 12);
+
+      const ownContainer = containers.find(c =>
+        c.id === shortId || c.id.startsWith(shortId)
+      );
+
+      if (ownContainer) {
+        this.ownExtensionName = ownContainer.image;
+        this.log(`Detected own image from Docker: ${this.ownExtensionName}`);
+      } else {
+        this.log(`Could not find own container (id: ${shortId}), using default: ${this.ownExtensionName}`);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.log(`Failed to detect own image from Docker: ${msg}`);
+    }
+  }
+
+  /**
+   * Set this extension's own image name (full image:tag).
+   * @deprecated Use initializeOwnIdentity() instead - backend should determine its own identity from Docker.
+   */
+  setOwnExtensionName(imageName: string): void {
+    // No longer overwrite - backend identity is determined from Docker
+    this.log(`Ignoring frontend-provided extension name: ${imageName} (backend identity is: ${this.ownExtensionName})`);
+  }
+
+  /**
+   * Get this extension's own image name.
+   */
+  getOwnExtensionName(): string {
+    return this.ownExtensionName;
   }
 
   private log(message: string): void {
@@ -248,6 +290,58 @@ export class OwnershipService {
   }
 
   /**
+   * Transfer ownership to another extension.
+   * This writes the new owner to the ConfigMap, allowing another extension to take control.
+   */
+  async transferOwnership(newOwnerExtensionName: string): Promise<void> {
+    if (!this.k8sApi) {
+      throw new Error('Kubernetes client not initialized');
+    }
+
+    // Ensure namespace exists before creating ConfigMap
+    await this.ensureNamespace();
+
+    const now = new Date().toISOString();
+    const configMapData: Record<string, string> = {
+      ownerExtensionName: newOwnerExtensionName,
+      ownerContainerId: '', // Empty - the new owner will fill this in when it reclaims
+      claimedAt: now,
+      ownerPriority: '100', // Default priority
+    };
+
+    const configMap: k8s.V1ConfigMap = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: {
+        name: CONFIGMAP_NAME,
+        namespace: NAMESPACE,
+      },
+      data: configMapData,
+    };
+
+    try {
+      // Try to create first
+      await this.k8sApi.createNamespacedConfigMap(NAMESPACE, configMap);
+      this.log(`Created ownership ConfigMap: transferred to ${newOwnerExtensionName}`);
+    } catch (error: unknown) {
+      // If already exists, update it
+      if (error && typeof error === 'object' && 'response' in error) {
+        const httpError = error as { response?: { statusCode?: number } };
+        if (httpError.response?.statusCode === 409) {
+          await this.k8sApi.replaceNamespacedConfigMap(
+            CONFIGMAP_NAME,
+            NAMESPACE,
+            configMap
+          );
+          this.log(`Updated ownership ConfigMap: transferred to ${newOwnerExtensionName}`);
+          return;
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Main ownership check algorithm (race-condition safe).
    *
    * @param installedExtensions - List of installed Fleet extensions from rdctl
@@ -310,9 +404,12 @@ export class OwnershipService {
       }
 
       // Case 3: Different owner - check if still installed
-      const ownerInstalled = installedExtensions.some(
-        ext => ext.name === currentOwner || ext.name.includes(currentOwner)
-      );
+      // Compare full image names (repository:tag) for exact matching
+      const ownerInstalled = installedExtensions.some(ext => {
+        const fullImageName = ext.tag ? `${ext.name}:${ext.tag}` : ext.name;
+        this.log(`  Comparing: ${fullImageName} === ${currentOwner} ? ${fullImageName === currentOwner}`);
+        return fullImageName === currentOwner;
+      });
 
       this.log(`Current owner: ${currentOwner} (container: ${currentOwnerId})`);
       this.log(`Owner installed: ${ownerInstalled}`);

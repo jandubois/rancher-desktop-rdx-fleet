@@ -224,7 +224,7 @@ Message:      ${ownership.message}`}
 {`Initialized:   ${initStatus.initialized ? 'Yes' : 'No'}
 Kubernetes:    ${initStatus.kubernetesReady ? 'Ready' : 'Not Ready'}
 Docker:        ${initStatus.dockerAvailable ? 'Available' : 'Not Available'}
-Extensions:    ${initStatus.installedExtensionsCount} installed`}
+Extensions:    ${initStatus.installedExtensions.length} installed`}
               </Box>
               {initStatus.installedExtensions.length > 0 && (
                 <Box sx={{ ml: 2, mt: 0.5 }}>

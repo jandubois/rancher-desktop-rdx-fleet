@@ -20,7 +20,7 @@ identityRouter.get('/', (req, res) => {
 
     // Extension name - can be overridden via environment variable
     // This should match the image name/label used to identify the extension
-    extensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+    extensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
 
     // Extension type: 'base' or 'custom'
     extensionType: process.env.EXTENSION_TYPE || 'base',

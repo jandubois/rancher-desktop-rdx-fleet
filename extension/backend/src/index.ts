@@ -4,8 +4,11 @@ import os from 'os';
 import { healthRouter } from './routes/health';
 import { identityRouter } from './routes/identity';
 import { initRouter } from './routes/init';
+import { ownershipRouter } from './routes/ownership';
 import { fleetRouter } from './routes/fleet';
+import { debugRouter } from './routes/debug';
 import { fleetService } from './services/fleet';
+import { ownershipService } from './services/ownership';
 
 const app = express();
 // k3s kubeconfig mounted from VM (container runs as root to read it)
@@ -73,7 +76,9 @@ app.use((req, res, next) => {
 app.use('/health', healthRouter);
 app.use('/identity', identityRouter);
 app.use('/api/init', initRouter);
+app.use('/api/ownership', ownershipRouter);
 app.use('/api/fleet', fleetRouter);
+app.use('/api/debug', debugRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -94,12 +99,15 @@ if (fs.existsSync(SOCKET_PATH)) {
 }
 
 // Start server on Unix socket
-app.listen(SOCKET_PATH, () => {
+app.listen(SOCKET_PATH, async () => {
   // Make socket accessible
   fs.chmodSync(SOCKET_PATH, 0o666);
   console.log(`Fleet GitOps backend listening on socket ${SOCKET_PATH}`);
   console.log(`Container ID: ${os.hostname()}`);
-  console.log(`Extension name: ${process.env.EXTENSION_NAME || 'fleet-gitops'}`);
+
+  // Detect own extension image from Docker (more reliable than env var)
+  await ownershipService.initializeOwnIdentity();
+  console.log(`Extension image: ${ownershipService.getOwnExtensionName()}`);
 
   // Auto-install Fleet on startup with retry logic
   const startAutoInstall = async () => {

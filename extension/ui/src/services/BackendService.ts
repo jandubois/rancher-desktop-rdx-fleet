@@ -56,7 +56,6 @@ export interface OwnershipStatus {
 export interface InitStatus {
   initialized: boolean;
   lastInitTime: string | null;
-  installedExtensionsCount: number;
   installedExtensions: {
     name: string;
     tag?: string;
@@ -181,6 +180,7 @@ export class BackendService {
     installedExtensions: InstalledExtension[];
     kubeconfig?: string;
     debugInfo?: string[];
+    ownExtensionImage?: string;
   }): Promise<OwnershipStatus> {
     if (!this.vmService) {
       throw new Error('vm.service not available');
@@ -205,7 +205,7 @@ export class BackendService {
     if (!this.vmService) {
       throw new Error('vm.service not available');
     }
-    return await this.vmService.get('/api/init/ownership') as OwnershipDebugInfo;
+    return await this.vmService.get('/api/ownership') as OwnershipDebugInfo;
   }
 
   /**
@@ -215,7 +215,18 @@ export class BackendService {
     if (!this.vmService) {
       throw new Error('vm.service not available');
     }
-    const data = await this.vmService.post('/api/init/check-ownership', {}) as { ownership: OwnershipStatus };
+    const data = await this.vmService.post('/api/ownership/check', {}) as { ownership: OwnershipStatus };
+    return data.ownership;
+  }
+
+  /**
+   * Transfer ownership to another extension
+   */
+  async transferOwnership(newOwner: string): Promise<OwnershipStatus> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    const data = await this.vmService.post('/api/ownership/transfer', { newOwner }) as { ownership: OwnershipStatus };
     return data.ownership;
   }
 
@@ -285,6 +296,21 @@ export class BackendService {
       error?: string;
       message?: string;
     };
+  }
+
+  /**
+   * Log debug information to the backend (visible via docker logs)
+   */
+  async debugLog(source: string, message: string, data?: unknown): Promise<void> {
+    if (!this.vmService) {
+      console.warn('[debugLog] vm.service not available');
+      return;
+    }
+    try {
+      await this.vmService.post('/api/debug/log', { source, message, data });
+    } catch (error) {
+      console.warn('[debugLog] Failed to send debug log:', error);
+    }
   }
 }
 

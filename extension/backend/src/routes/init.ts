@@ -1,11 +1,11 @@
 /**
- * Initialization and Ownership Routes
+ * Initialization Routes - Backend initialization with extension context.
  *
  * Handles:
  * - POST /api/init - Initialize backend with extensions list and kubeconfig
  * - GET /api/init - Get current initialization status
- * - GET /api/init/ownership - Get detailed ownership status for debugging
- * - POST /api/init/check-ownership - Re-run ownership check
+ *
+ * Note: Ownership routes are in /api/ownership (see ownership.ts)
  */
 
 import { Router } from 'express';
@@ -44,7 +44,7 @@ function log(message: string): void {
  * Body: { installedExtensions: [...], kubeconfig?: string }
  */
 initRouter.post('/', async (req, res) => {
-  const { installedExtensions, kubeconfig, debugInfo } = req.body;
+  const { installedExtensions, kubeconfig, debugInfo, ownExtensionImage } = req.body;
 
   log('=== Initialization request received ===');
 
@@ -52,6 +52,12 @@ initRouter.post('/', async (req, res) => {
   if (debugInfo && Array.isArray(debugInfo) && debugInfo.length > 0) {
     log('Frontend debug info:');
     debugInfo.forEach((info: string) => log(`  ${info}`));
+  }
+
+  // Set own extension image name if provided by frontend
+  if (ownExtensionImage && typeof ownExtensionImage === 'string') {
+    ownershipService.setOwnExtensionName(ownExtensionImage);
+    log(`Own extension image set to: ${ownExtensionImage}`);
   }
 
   // Validate input
@@ -208,7 +214,7 @@ initRouter.post('/', async (req, res) => {
       lastOwnershipStatus = {
         isOwner: false,
         ownContainerId: os.hostname(),
-        ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+        ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
         status: 'error',
         message: `Error during ownership check: ${msg}`,
         debugLog: ownershipService.getDebugLog(),
@@ -219,7 +225,7 @@ initRouter.post('/', async (req, res) => {
     lastOwnershipStatus = {
       isOwner: false,
       ownContainerId: os.hostname(),
-      ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+      ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
       status: 'pending',
       message: 'Waiting for Kubernetes client initialization',
       debugLog: [],
@@ -245,7 +251,6 @@ initRouter.get('/', async (req, res) => {
   res.json({
     initialized,
     lastInitTime,
-    installedExtensionsCount: installedFleetExtensions.length,
     installedExtensions: installedFleetExtensions.map(e => ({
       name: e.name,
       tag: e.tag,
@@ -262,74 +267,9 @@ initRouter.get('/', async (req, res) => {
     } : null,
     ownIdentity: {
       containerId: os.hostname(),
-      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+      extensionName: ownershipService.getOwnExtensionName(),
     },
   });
-});
-
-/**
- * Get detailed ownership status for debugging.
- *
- * GET /api/init/ownership
- */
-initRouter.get('/ownership', async (req, res) => {
-  const dockerInfo = await dockerService.getFleetContainerDebugInfo();
-
-  res.json({
-    ownership: lastOwnershipStatus,
-    ownIdentity: {
-      containerId: os.hostname(),
-      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
-      priority: process.env.EXTENSION_PRIORITY || '100',
-    },
-    kubernetes: {
-      ready: ownershipService.isReady(),
-    },
-    docker: {
-      available: dockerInfo.available,
-      fleetContainers: dockerInfo.containers,
-      ownContainer: dockerInfo.ownContainer,
-    },
-    installedExtensions: installedFleetExtensions,
-    logs: {
-      init: initializationLog,
-      ownership: ownershipService.getDebugLog(),
-      docker: dockerService.getDebugLog(),
-    },
-  });
-});
-
-/**
- * Re-run ownership check.
- *
- * POST /api/init/check-ownership
- */
-initRouter.post('/check-ownership', async (req, res) => {
-  log('Manual ownership check requested');
-
-  if (!ownershipService.isReady()) {
-    return res.status(503).json({
-      error: 'Kubernetes client not ready',
-      message: 'Send kubeconfig via POST /api/init first',
-    });
-  }
-
-  try {
-    lastOwnershipStatus = await ownershipService.checkOwnership(
-      installedFleetExtensions,
-      (extensionName) => dockerService.isExtensionRunning(extensionName)
-    );
-
-    res.json({
-      ownership: lastOwnershipStatus,
-    });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    log(`ERROR during manual ownership check: ${msg}`);
-    res.status(500).json({
-      error: msg,
-    });
-  }
 });
 
 // Export stored data for use by other modules
@@ -339,4 +279,9 @@ export function getInitState() {
     installedFleetExtensions,
     lastOwnershipStatus,
   };
+}
+
+// Allow ownership router to update status
+export function setOwnershipStatus(status: OwnershipStatus) {
+  lastOwnershipStatus = status;
 }
