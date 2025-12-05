@@ -6,7 +6,7 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
+import BuildIcon from '@mui/icons-material/Build';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import RestoreIcon from '@mui/icons-material/Restore';
@@ -818,27 +818,20 @@ function App() {
                 <Button
                   variant="contained"
                   size="small"
+                  onClick={() => setConfirmResetOpen(true)}
+                  startIcon={<RestoreIcon />}
+                  color="warning"
+                >
+                  Reset
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
                   onClick={handleCancelEditMode}
                   startIcon={<CloseIcon />}
                   color="error"
                 >
                   Cancel
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => setConfirmResetOpen(true)}
-                  startIcon={<RestoreIcon />}
-                  sx={{
-                    borderColor: palette.header.text,
-                    color: palette.header.text,
-                    '&:hover': {
-                      borderColor: palette.header.text,
-                      bgcolor: 'rgba(255,255,255,0.1)',
-                    },
-                  }}
-                >
-                  Reset
                 </Button>
                 <Button
                   variant="contained"
@@ -856,7 +849,7 @@ function App() {
                 title="Enter edit mode"
                 sx={{ color: palette.header.text }}
               >
-                <EditIcon />
+                <BuildIcon />
               </IconButton>
             )
           )}

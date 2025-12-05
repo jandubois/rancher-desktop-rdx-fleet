@@ -774,7 +774,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
             {/* Load Tab */}
             <TabPanel value={activeTab} index={1}>
               <EditModeLoadTab
-                fleetImages={fleetImages}
+                fleetImages={fleetImages.filter(img => `${img.repository}:${img.tag}` !== baseImage)}
                 selectedImage={selectedImage}
                 loadingImages={loadingImages}
                 importing={importing}
