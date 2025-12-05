@@ -600,7 +600,12 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                       )}
                       {/* Delete button - show if not base image */}
                       {canModify && (
-                        <Tooltip title={img.isInstalled ? 'Uninstall and delete image' : 'Delete image'}>
+                        <Tooltip
+                          title={img.isInstalled ? 'Uninstall and delete image' : 'Delete image'}
+                          placement="top"
+                          enterDelay={500}
+                          enterNextDelay={500}
+                        >
                           <IconButton
                             size="small"
                             color="error"
@@ -616,7 +621,12 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                 >
                   {/* Radio button for selecting active extension */}
                   <ListItemIcon sx={{ minWidth: 32 }}>
-                    <Tooltip title={img.isActive ? 'Active extension' : 'Click to activate'}>
+                    <Tooltip
+                      title={img.isActive ? 'Active extension' : 'Click to activate'}
+                      placement="top"
+                      enterDelay={500}
+                      enterNextDelay={500}
+                    >
                       <span>
                         <Radio
                           size="small"
@@ -637,40 +647,38 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                   </ListItemIcon>
                   <ListItemText
                     primary={
-                      <Tooltip title={img.title ? `Title: ${img.title}` : ''} placement="top-start">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                            {img.imageName}
-                          </Typography>
-                          {img.isThisExtension && (
-                            <Chip
-                              size="small"
-                              label="This"
-                              color="primary"
-                              variant="outlined"
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          )}
-                          {img.type && (
-                            <Chip
-                              size="small"
-                              label={img.type}
-                              color={img.type === 'base' ? 'info' : 'default'}
-                              variant="outlined"
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          )}
-                          {!img.isInstalled && (
-                            <Chip
-                              size="small"
-                              label="not installed"
-                              color="default"
-                              variant="outlined"
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          )}
-                        </Box>
-                      </Tooltip>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {img.imageName}
+                        </Typography>
+                        {img.isThisExtension && (
+                          <Chip
+                            size="small"
+                            label="This"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        )}
+                        {img.type && (
+                          <Chip
+                            size="small"
+                            label={img.type}
+                            color={img.type === 'base' ? 'info' : 'default'}
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        )}
+                        {!img.isInstalled && (
+                          <Chip
+                            size="small"
+                            label="not installed"
+                            color="default"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        )}
+                      </Box>
                     }
                   />
                 </ListItem>
