@@ -13,7 +13,7 @@ import Tab from '@mui/material/Tab';
 import BuildIcon from '@mui/icons-material/Build';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
-import { Manifest, CardDefinition, DEFAULT_MANIFEST } from '../manifest';
+import { Manifest, CardDefinition } from '../manifest';
 import { ColorPalette, defaultPalette } from '../theme/palette';
 import {
   downloadExtensionZip,
@@ -29,8 +29,6 @@ import {
   ImportResult,
 } from '../utils/extensionBuilder';
 import type { IconState } from './EditableHeaderIcon';
-import { DEFAULT_ICON_HEIGHT } from '../utils/extensionStateStorage';
-import { ConfirmDialog } from './ConfirmDialog';
 import { EditModeLoadTab } from './EditModeLoadTab';
 import { EditModeBuildTab } from './EditModeBuildTab';
 import { EditModeEditTab, ColorFieldConfig, HarmonyPreview } from './EditModeEditTab';
@@ -99,7 +97,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -231,7 +229,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   // Build tab state
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
   const [baseImage, setBaseImage] = useState('');
-  const [baseImageStatus, setBaseImageStatus] = useState('Detecting...');
   const [downloading, setDownloading] = useState(false);
   const [building, setBuilding] = useState(false);
   const [buildOutput, setBuildOutput] = useState<string | null>(null);
@@ -249,9 +246,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Confirmation dialog state
-  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   // Auto-palette state
   const [paletteMenuAnchor, setPaletteMenuAnchor] = useState<null | HTMLElement>(null);
@@ -538,24 +532,17 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     }
   };
 
-  // Detect base image on mount
+  // Detect base image on mount (auto-detect from currently running extension)
   useEffect(() => {
     if (!baseImage) {
       detectCurrentExtensionImageAsync()
         .then((result: DetectionResult) => {
           if (result.image) {
             setBaseImage(result.image);
-            const statusParts = [`[${result.source}] ${result.image}`];
-            if (result.details) {
-              statusParts.push(`(${result.details})`);
-            }
-            setBaseImageStatus(statusParts.join(' '));
-          } else {
-            setBaseImageStatus(`Could not detect (${result.details || result.source})`);
           }
         })
         .catch((err) => {
-          setBaseImageStatus(`Detection failed: ${err.message || err}`);
+          console.error('Failed to detect base image:', err);
         });
     }
   }, [baseImage]);
@@ -688,21 +675,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     }
   };
 
-  const handleResetToDefaults = () => {
-    setConfirmResetOpen(false);
-    setImportError(null);
-    setImportSuccess(null);
-    if (onConfigLoaded) {
-      onConfigLoaded(DEFAULT_MANIFEST);
-    }
-    if (onIconStateChange) {
-      onIconStateChange(null);
-    }
-    if (onIconHeightChange) {
-      onIconHeightChange(DEFAULT_ICON_HEIGHT);
-    }
-  };
-
   const getImageDisplayName = (img: FleetExtensionImage): string => {
     return img.title || `${img.repository}:${img.tag}`;
   };
@@ -811,7 +783,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 onRefreshImages={refreshFleetImages}
                 onLoadFromImage={handleLoadFromImage}
                 onFileUpload={handleFileUpload}
-                onResetToDefaults={() => setConfirmResetOpen(true)}
                 getImageDisplayName={getImageDisplayName}
               />
             </TabPanel>
@@ -820,7 +791,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
             <TabPanel value={activeTab} index={2}>
               <EditModeBuildTab
                 baseImage={baseImage}
-                baseImageStatus={baseImageStatus}
                 imageName={imageName}
                 downloading={downloading}
                 building={building}
@@ -828,10 +798,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 buildError={buildError}
                 imageNameWarning={imageNameWarning}
                 titleWarning={titleWarning}
-                onBaseImageChange={(value) => {
-                  setBaseImage(value);
-                  setBaseImageStatus('Manually set');
-                }}
                 onImageNameChange={setImageName}
                 onDownload={handleDownload}
                 onBuild={handleBuild}
@@ -849,17 +815,6 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
           </Box>
         </Collapse>
       </Paper>
-
-      {/* Confirmation Dialog */}
-      <ConfirmDialog
-        open={confirmResetOpen}
-        title="Reset to Defaults"
-        message="This will reset all configuration to the default values. Any unsaved changes will be lost."
-        confirmLabel="Reset"
-        confirmColor="warning"
-        onConfirm={handleResetToDefaults}
-        onCancel={() => setConfirmResetOpen(false)}
-      />
     </>
   );
 }
