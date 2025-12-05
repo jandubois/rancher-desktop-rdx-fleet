@@ -327,6 +327,35 @@ export class BackendService {
   }
 
   // ============================================
+  // Icon Operations (via backend Docker API)
+  // ============================================
+
+  /**
+   * Get icons for all Fleet extension images.
+   * Uses the backend to extract icons from Docker images.
+   */
+  async getFleetIcons(): Promise<FleetIconsResponse> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.get('/api/icons') as FleetIconsResponse;
+  }
+
+  /**
+   * Extract icon from a specific image.
+   */
+  async extractIcon(imageName: string, iconPath: string): Promise<IconResult | null> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    try {
+      return await this.vmService.post('/api/icons/extract', { imageName, iconPath }) as IconResult;
+    } catch {
+      return null;
+    }
+  }
+
+  // ============================================
   // GitRepo Operations (via backend Kubernetes client)
   // ============================================
 
@@ -560,6 +589,34 @@ export interface BuildResult {
   imageName: string;
   output: string;
   error?: string;
+}
+
+// ============================================
+// Icon Types
+// ============================================
+
+/** Icon result from backend */
+export interface IconResult {
+  data: string;      // Base64 encoded icon data
+  mimeType: string;  // MIME type of the icon
+}
+
+/** Fleet image with icon info from GET /api/icons */
+export interface FleetImageWithIcon {
+  id: string;
+  repository: string;
+  tag: string;
+  type: 'base' | 'custom';
+  title?: string;
+  baseImage?: string;
+  iconPath?: string;
+  iconData?: string;
+  iconMimeType?: string;
+}
+
+/** Icons response from GET /api/icons */
+export interface FleetIconsResponse {
+  images: FleetImageWithIcon[];
 }
 
 /** Default backend service instance */

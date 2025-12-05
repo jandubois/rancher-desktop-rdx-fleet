@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { Manifest, CardDefinition, ImageCardSettings } from '../manifest';
 import type { BundledImage } from '../manifest';
 import { ddClient } from '../lib/ddClient';
-import { backendService } from '../services/BackendService';
+import { backendService, IconResult } from '../services/BackendService';
 import type { CustomIcon } from '../components/IconUpload';
 import type { IconState } from '../components/EditableHeaderIcon';
 import { DEFAULT_ICON_HEIGHT } from './extensionStateStorage';
@@ -23,6 +23,9 @@ export interface FleetExtensionImage {
   type: 'base' | 'custom';  // Fleet extension type
   title?: string;       // Human-readable title from OCI label
   baseImage?: string;   // For custom extensions, the base image used
+  iconPath?: string;    // Icon path from Docker label (e.g., "/icons/fleet-icon.svg")
+  iconData?: string;    // Base64 encoded icon data (extracted from image)
+  iconMimeType?: string; // MIME type of the icon
 }
 
 // Import result from image or ZIP
@@ -596,52 +599,83 @@ export async function buildExtension(
   }
 }
 
+// Extract icon data from a Docker image using the backend API
+export async function extractExtensionIcon(imageName: string, iconPath: string): Promise<IconResult | null> {
+  try {
+    return await backendService.extractIcon(imageName, iconPath);
+  } catch (err) {
+    console.warn(`Failed to extract icon from ${imageName}:`, err);
+    return null;
+  }
+}
+
 // List local Docker images that are Fleet extensions (have the fleet label)
+// Uses the backend API to get images with their icons already extracted
 export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]> {
   try {
-    // First, get image IDs that have the fleet label
-    const listResult = await ddClient.docker.cli.exec('images', [
-      '--filter', 'label=io.rancher-desktop.fleet.type',
-      '--format', '{{.ID}}',
-    ]);
+    // Use backend API to get all Fleet images with icons
+    // This is more efficient and keeps Docker operations in the backend
+    const response = await backendService.getFleetIcons();
 
-    const imageIds = (listResult.stdout || '').split('\n').filter(id => id.trim());
-    if (imageIds.length === 0) {
+    return response.images.map(img => ({
+      id: img.id,
+      repository: img.repository,
+      tag: img.tag,
+      type: img.type,
+      title: img.title,
+      baseImage: img.baseImage,
+      iconPath: img.iconPath,
+      iconData: img.iconData,
+      iconMimeType: img.iconMimeType,
+    }));
+  } catch (err) {
+    console.error('Failed to list Fleet extension images from backend:', err);
+
+    // Fallback to direct Docker CLI if backend is not available
+    try {
+      const listResult = await ddClient.docker.cli.exec('images', [
+        '--filter', 'label=io.rancher-desktop.fleet.type',
+        '--format', '{{.ID}}',
+      ]);
+
+      const imageIds = (listResult.stdout || '').split('\n').filter(id => id.trim());
+      if (imageIds.length === 0) {
+        return [];
+      }
+
+      const inspectResult = await ddClient.docker.cli.exec('inspect', imageIds);
+      const inspectData = JSON.parse(inspectResult.stdout || '[]');
+
+      const images: FleetExtensionImage[] = [];
+
+      for (const img of inspectData) {
+        const labels = img.Config?.Labels || {};
+        const fleetType = labels['io.rancher-desktop.fleet.type'];
+
+        if (fleetType) {
+          const repoTag = img.RepoTags?.[0] || '';
+          const [repository, tag] = repoTag.includes(':')
+            ? [repoTag.substring(0, repoTag.lastIndexOf(':')), repoTag.substring(repoTag.lastIndexOf(':') + 1)]
+            : [repoTag, 'latest'];
+
+          images.push({
+            id: img.Id?.substring(7, 19) || '',
+            repository,
+            tag,
+            type: fleetType as 'base' | 'custom',
+            title: labels['org.opencontainers.image.title'],
+            baseImage: labels['io.rancher-desktop.fleet.base-image'],
+            iconPath: labels['com.docker.desktop.extension.icon'],
+            // No icon data in fallback mode
+          });
+        }
+      }
+
+      return images;
+    } catch (fallbackErr) {
+      console.error('Fallback Docker CLI also failed:', fallbackErr);
       return [];
     }
-
-    // Then inspect those images to get full details including labels
-    const inspectResult = await ddClient.docker.cli.exec('inspect', imageIds);
-    const inspectData = JSON.parse(inspectResult.stdout || '[]');
-
-    const images: FleetExtensionImage[] = [];
-
-    for (const img of inspectData) {
-      const labels = img.Config?.Labels || {};
-      const fleetType = labels['io.rancher-desktop.fleet.type'];
-
-      if (fleetType) {
-        // Get repository and tag from RepoTags
-        const repoTag = img.RepoTags?.[0] || '';
-        const [repository, tag] = repoTag.includes(':')
-          ? [repoTag.substring(0, repoTag.lastIndexOf(':')), repoTag.substring(repoTag.lastIndexOf(':') + 1)]
-          : [repoTag, 'latest'];
-
-        images.push({
-          id: img.Id?.substring(7, 19) || '', // Short ID (remove sha256: prefix)
-          repository,
-          tag,
-          type: fleetType as 'base' | 'custom',
-          title: labels['org.opencontainers.image.title'],
-          baseImage: labels['io.rancher-desktop.fleet.base-image'],
-        });
-      }
-    }
-
-    return images;
-  } catch (err) {
-    console.error('Failed to list Fleet extension images:', err);
-    return [];
   }
 }
 
