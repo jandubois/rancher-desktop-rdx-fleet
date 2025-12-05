@@ -314,8 +314,16 @@ function App() {
 
   // Handle config loaded from external source (image or ZIP)
   const handleConfigLoaded = useCallback((loadedManifest: Manifest) => {
-    setManifest(loadedManifest);
-    setManifestCards(loadedManifest.cards);
+    // Preserve edit_mode: true when loading in edit mode (loaded manifests often have edit_mode: false)
+    const manifestWithEditMode: Manifest = {
+      ...loadedManifest,
+      layout: {
+        ...loadedManifest.layout,
+        edit_mode: true,
+      },
+    };
+    setManifest(manifestWithEditMode);
+    setManifestCards(manifestWithEditMode.cards);
 
     // Load iconHeight from branding if present
     if (loadedManifest.branding?.iconHeight) {
