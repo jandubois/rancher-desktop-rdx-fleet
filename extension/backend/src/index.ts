@@ -4,6 +4,7 @@ import os from 'os';
 import { healthRouter } from './routes/health';
 import { identityRouter } from './routes/identity';
 import { initRouter } from './routes/init';
+import { ownershipRouter } from './routes/ownership';
 import { fleetRouter } from './routes/fleet';
 import { debugRouter } from './routes/debug';
 import { fleetService } from './services/fleet';
@@ -74,6 +75,7 @@ app.use((req, res, next) => {
 app.use('/health', healthRouter);
 app.use('/identity', identityRouter);
 app.use('/api/init', initRouter);
+app.use('/api/ownership', ownershipRouter);
 app.use('/api/fleet', fleetRouter);
 app.use('/api/debug', debugRouter);
 

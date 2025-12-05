@@ -204,7 +204,7 @@ export class BackendService {
     if (!this.vmService) {
       throw new Error('vm.service not available');
     }
-    return await this.vmService.get('/api/init/ownership') as OwnershipDebugInfo;
+    return await this.vmService.get('/api/ownership') as OwnershipDebugInfo;
   }
 
   /**
@@ -214,7 +214,7 @@ export class BackendService {
     if (!this.vmService) {
       throw new Error('vm.service not available');
     }
-    const data = await this.vmService.post('/api/init/check-ownership', {}) as { ownership: OwnershipStatus };
+    const data = await this.vmService.post('/api/ownership/check', {}) as { ownership: OwnershipStatus };
     return data.ownership;
   }
 
@@ -225,7 +225,7 @@ export class BackendService {
     if (!this.vmService) {
       throw new Error('vm.service not available');
     }
-    const data = await this.vmService.post('/api/init/transfer-ownership', { newOwner }) as { ownership: OwnershipStatus };
+    const data = await this.vmService.post('/api/ownership/transfer', { newOwner }) as { ownership: OwnershipStatus };
     return data.ownership;
   }
 

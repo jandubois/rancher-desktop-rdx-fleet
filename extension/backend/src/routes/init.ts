@@ -1,12 +1,11 @@
 /**
- * Initialization and Ownership Routes
+ * Initialization Routes - Backend initialization with extension context.
  *
  * Handles:
  * - POST /api/init - Initialize backend with extensions list and kubeconfig
  * - GET /api/init - Get current initialization status
- * - GET /api/init/ownership - Get detailed ownership status for debugging
- * - POST /api/init/transfer-ownership - Transfer ownership to another extension
- * - POST /api/init/check-ownership - Re-run ownership check
+ *
+ * Note: Ownership routes are in /api/ownership (see ownership.ts)
  */
 
 import { Router } from 'express';
@@ -267,120 +266,6 @@ initRouter.get('/', async (req, res) => {
   });
 });
 
-/**
- * Get detailed ownership status for debugging.
- *
- * GET /api/init/ownership
- */
-initRouter.get('/ownership', async (req, res) => {
-  const dockerInfo = await dockerService.getFleetContainerDebugInfo();
-
-  res.json({
-    ownership: lastOwnershipStatus,
-    ownIdentity: {
-      containerId: os.hostname(),
-      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
-      priority: process.env.EXTENSION_PRIORITY || '100',
-    },
-    kubernetes: {
-      ready: ownershipService.isReady(),
-    },
-    docker: {
-      available: dockerInfo.available,
-      fleetContainers: dockerInfo.containers,
-      ownContainer: dockerInfo.ownContainer,
-    },
-    installedExtensions: installedFleetExtensions,
-    logs: {
-      init: initializationLog,
-      ownership: ownershipService.getDebugLog(),
-      docker: dockerService.getDebugLog(),
-    },
-  });
-});
-
-/**
- * Transfer ownership to another extension.
- *
- * POST /api/init/transfer-ownership
- * Body: { newOwner: string }
- */
-initRouter.post('/transfer-ownership', async (req, res) => {
-  const { newOwner } = req.body;
-
-  log(`Transfer ownership requested to: ${newOwner}`);
-
-  if (!newOwner || typeof newOwner !== 'string') {
-    return res.status(400).json({
-      error: 'newOwner is required and must be a string',
-    });
-  }
-
-  if (!ownershipService.isReady()) {
-    return res.status(503).json({
-      error: 'Kubernetes client not ready',
-      message: 'Send kubeconfig via POST /api/init first',
-    });
-  }
-
-  try {
-    await ownershipService.transferOwnership(newOwner);
-
-    // Re-run ownership check to update status
-    lastOwnershipStatus = await ownershipService.checkOwnership(
-      installedFleetExtensions,
-      (extensionName) => dockerService.isExtensionRunning(extensionName)
-    );
-
-    log(`Ownership transferred to ${newOwner}, status: ${lastOwnershipStatus.status}`);
-
-    res.json({
-      success: true,
-      newOwner,
-      ownership: lastOwnershipStatus,
-    });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    log(`ERROR during ownership transfer: ${msg}`);
-    res.status(500).json({
-      error: msg,
-    });
-  }
-});
-
-/**
- * Re-run ownership check.
- *
- * POST /api/init/check-ownership
- */
-initRouter.post('/check-ownership', async (req, res) => {
-  log('Manual ownership check requested');
-
-  if (!ownershipService.isReady()) {
-    return res.status(503).json({
-      error: 'Kubernetes client not ready',
-      message: 'Send kubeconfig via POST /api/init first',
-    });
-  }
-
-  try {
-    lastOwnershipStatus = await ownershipService.checkOwnership(
-      installedFleetExtensions,
-      (extensionName) => dockerService.isExtensionRunning(extensionName)
-    );
-
-    res.json({
-      ownership: lastOwnershipStatus,
-    });
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    log(`ERROR during manual ownership check: ${msg}`);
-    res.status(500).json({
-      error: msg,
-    });
-  }
-});
-
 // Export stored data for use by other modules
 export function getInitState() {
   return {
@@ -388,4 +273,9 @@ export function getInitState() {
     installedFleetExtensions,
     lastOwnershipStatus,
   };
+}
+
+// Allow ownership router to update status
+export function setOwnershipStatus(status: OwnershipStatus) {
+  lastOwnershipStatus = status;
 }
