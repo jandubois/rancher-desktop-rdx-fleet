@@ -11,7 +11,7 @@
  * view of the extension ownership mechanism for users working on custom extensions.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -179,7 +179,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     ownership.status !== 'error';
 
   // Get all installed extensions (for matching with Docker images)
-  const allInstalledExtensions = initStatus?.installedExtensions ?? [];
+  const allInstalledExtensions = useMemo(
+    () => initStatus?.installedExtensions ?? [],
+    [initStatus?.installedExtensions]
+  );
 
   // Load Fleet extension images from Docker
   const loadFleetImages = useCallback(async () => {
@@ -218,10 +221,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
   }, [commandExecutor]);
 
   // Normalize image reference to full form: repository:tag (lowercase)
-  const normalizeImageRef = (name: string): string => {
+  const normalizeImageRef = useCallback((name: string): string => {
     const lower = name.toLowerCase();
     return lower.includes(':') ? lower : `${lower}:latest`;
-  };
+  }, []);
 
   // Create unified list of all images with their status
   const unifiedImages: UnifiedImageInfo[] = fleetImages.map(img => {
