@@ -22,17 +22,13 @@ import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
+import Radio from '@mui/material/Radio';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import ExtensionIcon from '@mui/icons-material/Extension';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import ErrorIcon from '@mui/icons-material/Error';
-import StarIcon from '@mui/icons-material/Star';
-import ImageIcon from '@mui/icons-material/Image';
-import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import StopIcon from '@mui/icons-material/Stop';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { BackendStatus, backendService, InstalledExtension } from '../services/BackendService';
@@ -148,7 +144,7 @@ function getStatusText(status: string): string {
  * Tab content showing installed Fleet extensions and ownership status.
  */
 /** Operation type for tracking which button is spinning */
-type OperationType = 'install' | 'uninstall' | 'activate' | 'delete';
+type OperationType = 'uninstall' | 'activate' | 'delete';
 
 export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeExtensionsTabProps) {
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
@@ -266,8 +262,15 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     };
   });
 
-  // Find the base image for fallback when deleting active image
-  const baseImage = unifiedImages.find(img => img.type === 'base');
+  // Sort so base extension always comes first
+  const sortedUnifiedImages = [...unifiedImages].sort((a, b) => {
+    if (a.type === 'base' && b.type !== 'base') return -1;
+    if (a.type !== 'base' && b.type === 'base') return 1;
+    return 0;
+  });
+
+  // Find the base image for fallback when deleting/uninstalling active image
+  const baseImage = sortedUnifiedImages.find(img => img.type === 'base');
 
   // Debug logging - log extension matching data to backend
   useEffect(() => {
@@ -287,7 +290,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           hasFleetLabel: ext.hasFleetLabel,
           fleetType: ext.fleetType,
         })),
-        unifiedResults: unifiedImages.map(img => ({
+        unifiedResults: sortedUnifiedImages.map(img => ({
           imageName: img.imageName,
           isInstalled: img.isInstalled,
           isActive: img.isActive,
@@ -303,35 +306,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         ownIdentity: initStatus?.ownIdentity,
       });
     }
-  }, [fleetImages, allInstalledExtensions, unifiedImages, ownership, isOwner, initStatus, normalizeImageRef]);
-
-  // Install a Fleet extension image
-  const handleInstall = async (img: UnifiedImageInfo) => {
-    setOperatingImage({ image: img.imageName, op: 'install' });
-    setOperationError(null);
-
-    try {
-      const result = await commandExecutor.rdExec('rdctl', [
-        'extension',
-        'install',
-        img.imageName,
-      ]);
-
-      if (result.stderr && result.stderr.includes('Error')) {
-        throw new Error(result.stderr);
-      }
-
-      // Refresh extension list and UI after successful install
-      await loadFleetImages();
-      await refreshInstalledExtensions();
-      onRefresh();
-    } catch (error) {
-      console.error('Failed to install extension:', error);
-      setOperationError(error instanceof Error ? error.message : 'Failed to install extension');
-    } finally {
-      setOperatingImage(null);
-    }
-  };
+  }, [fleetImages, allInstalledExtensions, sortedUnifiedImages, ownership, isOwner, initStatus, normalizeImageRef]);
 
   // Uninstall a Fleet extension
   const handleUninstall = async (img: UnifiedImageInfo) => {
@@ -347,6 +322,26 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
 
       if (result.stderr && result.stderr.includes('Error')) {
         throw new Error(result.stderr);
+      }
+
+      // If this was the active extension and there's a base image, activate the base
+      if (img.isActive && baseImage && baseImage.imageName !== img.imageName) {
+        console.log(`[ExtensionsTab] Activating base extension after uninstall: ${baseImage.imageName}`);
+
+        // Ensure base is installed
+        if (!baseImage.isInstalled) {
+          const installResult = await commandExecutor.rdExec('rdctl', [
+            'extension',
+            'install',
+            baseImage.imageName,
+          ]);
+          if (installResult.stderr && installResult.stderr.includes('Error')) {
+            console.warn('Failed to install base extension:', installResult.stderr);
+          }
+        }
+
+        // Transfer ownership to base
+        await backendService.transferOwnership(baseImage.imageName);
       }
 
       // Refresh extension list and UI after successful uninstall
@@ -417,17 +412,24 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           throw new Error(uninstallResult.stderr);
         }
 
-        // If this was the active image and there's a base image, install the base
+        // If this was the active image and there's a base image, activate the base
         if (img.isActive && baseImage && baseImage.imageName !== img.imageName) {
-          const installResult = await commandExecutor.rdExec('rdctl', [
-            'extension',
-            'install',
-            baseImage.imageName,
-          ]);
+          console.log(`[ExtensionsTab] Activating base extension after delete: ${baseImage.imageName}`);
 
-          if (installResult.stderr && installResult.stderr.includes('Error')) {
-            console.warn('Failed to install base image as fallback:', installResult.stderr);
+          // Ensure base is installed
+          if (!baseImage.isInstalled) {
+            const installResult = await commandExecutor.rdExec('rdctl', [
+              'extension',
+              'install',
+              baseImage.imageName,
+            ]);
+            if (installResult.stderr && installResult.stderr.includes('Error')) {
+              console.warn('Failed to install base extension:', installResult.stderr);
+            }
           }
+
+          // Transfer ownership to base
+          await backendService.transferOwnership(baseImage.imageName);
         }
       }
 
@@ -487,7 +489,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         {/* Extension count chip */}
         <Chip
           size="small"
-          label={`${unifiedImages.filter(i => i.isInstalled).length} installed, ${unifiedImages.length} images`}
+          label={`${sortedUnifiedImages.filter(i => i.isInstalled).length} installed, ${sortedUnifiedImages.length} images`}
           color="primary"
           variant="outlined"
         />
@@ -496,7 +498,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         {ownershipDetermined && (
           <Chip
             size="small"
-            icon={isOwner ? <StarIcon /> : undefined}
+            icon={isOwner ? <CheckCircleIcon /> : undefined}
             label={getStatusText(ownership.status)}
             color={getStatusColor(ownership.status)}
             variant={isOwner ? 'filled' : 'outlined'}
@@ -571,10 +573,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       )}
 
       {/* Fleet Extension Images List */}
-      {unifiedImages.length > 0 ? (
+      {sortedUnifiedImages.length > 0 ? (
         <Box>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-            Fleet Extension Images ({unifiedImages.length})
+            Fleet Extension Images ({sortedUnifiedImages.length})
           </Typography>
           {operationError && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
@@ -583,13 +585,12 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
             </Box>
           )}
           <List dense disablePadding>
-            {unifiedImages.map((img, index) => {
+            {sortedUnifiedImages.map((img, index) => {
               // Check if this specific image+operation is in progress
               const isActivating = operatingImage?.image === img.imageName && operatingImage?.op === 'activate';
-              const isInstalling = operatingImage?.image === img.imageName && operatingImage?.op === 'install';
               const isUninstalling = operatingImage?.image === img.imageName && operatingImage?.op === 'uninstall';
               const isDeleting = operatingImage?.image === img.imageName && operatingImage?.op === 'delete';
-              const canDelete = img.type !== 'base'; // Base image cannot be deleted
+              const canModify = img.type !== 'base'; // Base image cannot be uninstalled or deleted
 
               return (
                 <ListItem
@@ -601,48 +602,23 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                     pr: 1,
                   }}
                   secondaryAction={
-                    <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      {/* Activate button - show if installed but not active, and ownership has been determined */}
-                      {img.isInstalled && !img.isActive && ownershipDetermined && (
-                        <Tooltip title="Activate this extension">
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => handleActivate(img)}
-                            disabled={!!operatingImage}
-                          >
-                            {isActivating ? <CircularProgress size={18} /> : <PlayArrowIcon fontSize="small" />}
-                          </IconButton>
-                        </Tooltip>
-                      )}
-                      {/* Install button - show if not installed */}
-                      {!img.isInstalled && (
-                        <Tooltip title="Install extension">
-                          <IconButton
-                            size="small"
-                            color="primary"
-                            onClick={() => handleInstall(img)}
-                            disabled={!!operatingImage}
-                          >
-                            {isInstalling ? <CircularProgress size={18} /> : <DownloadIcon fontSize="small" />}
-                          </IconButton>
-                        </Tooltip>
-                      )}
+                    <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
                       {/* Uninstall button - show if installed and not base image */}
-                      {img.isInstalled && img.type !== 'base' && (
-                        <Tooltip title="Uninstall extension">
-                          <IconButton
-                            size="small"
-                            color="warning"
-                            onClick={() => handleUninstall(img)}
-                            disabled={!!operatingImage}
-                          >
-                            {isUninstalling ? <CircularProgress size={18} /> : <StopIcon fontSize="small" />}
-                          </IconButton>
-                        </Tooltip>
+                      {img.isInstalled && canModify && (
+                        <Button
+                          size="small"
+                          variant="outlined"
+                          color="warning"
+                          onClick={() => handleUninstall(img)}
+                          disabled={!!operatingImage}
+                          startIcon={isUninstalling ? <CircularProgress size={14} /> : undefined}
+                          sx={{ minWidth: 'auto', px: 1, py: 0.25, fontSize: '0.75rem' }}
+                        >
+                          {isUninstalling ? 'Uninstalling...' : 'Uninstall'}
+                        </Button>
                       )}
                       {/* Delete button - show if not base image */}
-                      {canDelete && (
+                      {canModify && (
                         <Tooltip title={img.isInstalled ? 'Uninstall and delete image' : 'Delete image'}>
                           <IconButton
                             size="small"
@@ -657,20 +633,26 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                     </Box>
                   }
                 >
-                  <ListItemIcon sx={{ minWidth: 36 }}>
-                    {img.isActive ? (
-                      <Tooltip title="Active (current owner)">
-                        <StarIcon color="success" fontSize="small" />
-                      </Tooltip>
-                    ) : img.isInstalled ? (
-                      <Tooltip title="Installed">
-                        <ExtensionIcon fontSize="small" color="primary" />
-                      </Tooltip>
-                    ) : (
-                      <Tooltip title="Docker image (not installed)">
-                        <ImageIcon fontSize="small" color="action" />
-                      </Tooltip>
+                  {/* Radio button for selecting active extension */}
+                  <ListItemIcon sx={{ minWidth: 32 }}>
+                    <Tooltip title={img.isActive ? 'Active extension' : 'Click to activate'}>
+                      <span>
+                        <Radio
+                          size="small"
+                          checked={img.isActive}
+                          onChange={() => !img.isActive && handleActivate(img)}
+                          disabled={!!operatingImage || !ownershipDetermined}
+                          sx={{ p: 0.5 }}
+                        />
+                      </span>
+                    </Tooltip>
+                    {isActivating && (
+                      <CircularProgress size={16} sx={{ position: 'absolute', ml: 0.25 }} />
                     )}
+                  </ListItemIcon>
+                  {/* Extension icon */}
+                  <ListItemIcon sx={{ minWidth: 28 }}>
+                    <ExtensionIcon fontSize="small" color={img.isInstalled ? 'primary' : 'action'} />
                   </ListItemIcon>
                   <ListItemText
                     primary={
@@ -697,11 +679,11 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                               sx={{ height: 18, fontSize: '0.65rem' }}
                             />
                           )}
-                          {img.isInstalled && (
+                          {!img.isInstalled && (
                             <Chip
                               size="small"
-                              label="installed"
-                              color="success"
+                              label="not installed"
+                              color="default"
                               variant="outlined"
                               sx={{ height: 18, fontSize: '0.65rem' }}
                             />
