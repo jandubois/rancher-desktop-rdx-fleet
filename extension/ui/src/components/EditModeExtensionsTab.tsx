@@ -566,24 +566,25 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                 >
                   {/* Radio button for selecting active extension */}
                   <ListItemIcon sx={{ minWidth: 32 }}>
-                    <Tooltip
-                      title={img.isActive ? 'Active extension' : 'Click to activate'}
-                      placement="top"
-                      enterDelay={500}
-                      enterNextDelay={500}
-                    >
-                      <span>
-                        <Radio
-                          size="small"
-                          checked={img.isActive}
-                          onChange={() => !img.isActive && handleActivate(img)}
-                          disabled={!!operatingImage || !ownershipDetermined}
-                          sx={{ p: 0.5 }}
-                        />
-                      </span>
-                    </Tooltip>
-                    {isActivating && (
-                      <CircularProgress size={16} sx={{ position: 'absolute', ml: 0.25 }} />
+                    {isActivating ? (
+                      <CircularProgress size={20} sx={{ ml: 0.25 }} />
+                    ) : (
+                      <Tooltip
+                        title={img.isActive ? 'Active extension' : 'Click to activate'}
+                        placement="top"
+                        enterDelay={500}
+                        enterNextDelay={500}
+                      >
+                        <span>
+                          <Radio
+                            size="small"
+                            checked={img.isActive}
+                            onChange={() => !img.isActive && handleActivate(img)}
+                            disabled={!!operatingImage || !ownershipDetermined}
+                            sx={{ p: 0.5 }}
+                          />
+                        </span>
+                      </Tooltip>
                     )}
                   </ListItemIcon>
                   {/* Extension icon */}
