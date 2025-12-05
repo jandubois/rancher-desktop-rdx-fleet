@@ -39,35 +39,38 @@ export interface UseBackendInitOptions {
   onInitialized?: (ownership: OwnershipStatus) => void;
 }
 
-interface RdctlExtension {
-  name: string;
-  tag: string;
-  labels?: Record<string, string>;
-}
-
 /**
  * Parse rdctl extension ls output.
- * Output format: JSON array of objects with name, tag, and optionally labels.
+ * Output format: Plain text with header "Extension IDs" followed by image:tag lines.
+ * Example:
+ *   Extension IDs
+ *
+ *   fleet-gitops-extension:latest
+ *   my-fleet-extension:dev
  */
 function parseRdctlOutput(stdout: string): InstalledExtension[] {
-  try {
-    // rdctl extension ls --output json returns a JSON array
-    const extensions = JSON.parse(stdout) as RdctlExtension[];
-    if (!Array.isArray(extensions)) {
-      console.warn('[BackendInit] rdctl output is not an array');
-      return [];
-    }
+  const extensions: InstalledExtension[] = [];
+  const lines = stdout.split('\n');
 
-    return extensions.map((ext) => ({
-      name: ext.name,
-      tag: ext.tag,
-      labels: ext.labels,
-    }));
-  } catch (error) {
-    console.error('[BackendInit] Failed to parse rdctl output:', error);
-    console.debug('[BackendInit] Raw output:', stdout);
-    return [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip empty lines and header lines (lines without a colon are not image:tag format)
+    if (!trimmed || !trimmed.includes(':')) {
+      continue;
+    }
+    // Parse image:tag format - the tag is after the last colon
+    const lastColonIndex = trimmed.lastIndexOf(':');
+    if (lastColonIndex > 0) {
+      const name = trimmed.substring(0, lastColonIndex);
+      const tag = trimmed.substring(lastColonIndex + 1);
+      // Only include if both name and tag are non-empty
+      if (name && tag) {
+        extensions.push({ name, tag });
+      }
+    }
   }
+
+  return extensions;
 }
 
 /**
@@ -109,12 +112,10 @@ export function useBackendInit({
       let installedExtensions: InstalledExtension[] = [];
 
       try {
-        // Try rdctl extension ls with JSON output
+        // Run rdctl extension ls (outputs plain text, not JSON)
         const rdctlResult = await commandExecutor.rdExec('rdctl', [
           'extension',
           'ls',
-          '--output',
-          'json',
         ]);
 
         if (rdctlResult.stderr && !rdctlResult.stdout) {
