@@ -55,7 +55,7 @@ export class OwnershipService {
 
   constructor() {
     this.ownContainerId = os.hostname();
-    this.ownExtensionName = process.env.EXTENSION_NAME || 'fleet-gitops';
+    this.ownExtensionName = process.env.EXTENSION_NAME || 'fleet-gitops-extension';
     this.ownPriority = parseInt(process.env.EXTENSION_PRIORITY || '100', 10);
   }
 

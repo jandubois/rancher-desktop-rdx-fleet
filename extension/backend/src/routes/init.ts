@@ -208,7 +208,7 @@ initRouter.post('/', async (req, res) => {
       lastOwnershipStatus = {
         isOwner: false,
         ownContainerId: os.hostname(),
-        ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+        ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
         status: 'error',
         message: `Error during ownership check: ${msg}`,
         debugLog: ownershipService.getDebugLog(),
@@ -219,7 +219,7 @@ initRouter.post('/', async (req, res) => {
     lastOwnershipStatus = {
       isOwner: false,
       ownContainerId: os.hostname(),
-      ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+      ownExtensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
       status: 'pending',
       message: 'Waiting for Kubernetes client initialization',
       debugLog: [],
@@ -261,7 +261,7 @@ initRouter.get('/', async (req, res) => {
     } : null,
     ownIdentity: {
       containerId: os.hostname(),
-      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
     },
   });
 });
@@ -278,7 +278,7 @@ initRouter.get('/ownership', async (req, res) => {
     ownership: lastOwnershipStatus,
     ownIdentity: {
       containerId: os.hostname(),
-      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops',
+      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
       priority: process.env.EXTENSION_PRIORITY || '100',
     },
     kubernetes: {

@@ -24,7 +24,7 @@ services:
 
     # Environment variables for extension identification
     environment:
-      - EXTENSION_NAME=fleet-gitops
+      - EXTENSION_NAME=fleet-gitops-extension
       - EXTENSION_TYPE=base
       - EXTENSION_VERSION=1.0.0
 

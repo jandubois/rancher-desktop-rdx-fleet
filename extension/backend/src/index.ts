@@ -101,7 +101,7 @@ app.listen(SOCKET_PATH, () => {
   fs.chmodSync(SOCKET_PATH, 0o666);
   console.log(`Fleet GitOps backend listening on socket ${SOCKET_PATH}`);
   console.log(`Container ID: ${os.hostname()}`);
-  console.log(`Extension name: ${process.env.EXTENSION_NAME || 'fleet-gitops'}`);
+  console.log(`Extension name: ${process.env.EXTENSION_NAME || 'fleet-gitops-extension'}`);
 
   // Auto-install Fleet on startup with retry logic
   const startAutoInstall = async () => {

@@ -186,7 +186,7 @@ export function generateMetadataJson(config: ExtensionConfig): string {
 
 // Generate Dockerfile for custom extension
 export function generateDockerfile(config: ExtensionConfig, hasBundledImages = false): string {
-  const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops:latest';
+  const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops-extension:latest';
   const extensionName = config.name || 'My Fleet Extension';
   const hasCustomIcon = isCustomIcon(config.iconState);
   const iconPath = getIconPath(config);
@@ -268,13 +268,13 @@ docker extension install my-fleet-extension:dev
 To use a different base image, modify the Dockerfile:
 
 \`\`\`dockerfile
-ARG BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops:v1.0.0
+ARG BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops-extension:v1.0.0
 \`\`\`
 
 Or pass it at build time:
 
 \`\`\`bash
-docker build --build-arg BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops:v1.0.0 -t my-fleet-extension:dev .
+docker build --build-arg BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops-extension:v1.0.0 -t my-fleet-extension:dev .
 \`\`\`
 `;
 }
@@ -482,7 +482,7 @@ export async function buildExtension(
   imageName: string,
   onProgress?: (message: string) => void
 ): Promise<BuildResult> {
-  const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops:latest';
+  const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops-extension:latest';
   const extensionTitle = config.name || 'My Fleet Extension';
   const hasCustomIcon = isCustomIcon(config.iconState);
   const isIconDeleted = config.iconState === 'deleted';
