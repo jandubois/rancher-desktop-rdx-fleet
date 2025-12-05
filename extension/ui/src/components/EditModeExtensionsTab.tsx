@@ -97,50 +97,6 @@ export interface EditModeExtensionsTabProps {
   onRefresh: () => void;
 }
 
-/** Get status chip color based on ownership status */
-function getStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' {
-  switch (status) {
-    case 'claimed':
-    case 'reclaimed':
-    case 'taken-over':
-      return 'success';
-    case 'yielded':
-      return 'warning';
-    case 'error':
-      return 'error';
-    case 'waiting':
-    case 'pending':
-      return 'info';
-    default:
-      return 'info';
-  }
-}
-
-/** Get human-readable status text */
-function getStatusText(status: string): string {
-  switch (status) {
-    case 'claimed':
-      return 'Active Owner';
-    case 'reclaimed':
-      return 'Reclaimed Control';
-    case 'taken-over':
-      return 'Took Control';
-    case 'yielded':
-      return 'Standby';
-    case 'waiting':
-      return 'Waiting...';
-    case 'pending':
-      return 'Initializing...';
-    case 'error':
-      return 'Error';
-    default:
-      return status;
-  }
-}
-
-/**
- * Tab content showing installed Fleet extensions and ownership status.
- */
 /** Operation type for tracking which button is spinning */
 type OperationType = 'uninstall' | 'activate' | 'delete';
 
@@ -480,17 +436,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           color="primary"
           variant="outlined"
         />
-
-        {/* Ownership status chip - only show when ownership is determined */}
-        {ownershipDetermined && (
-          <Chip
-            size="small"
-            icon={isOwner ? <CheckCircleIcon /> : undefined}
-            label={getStatusText(ownership.status)}
-            color={getStatusColor(ownership.status)}
-            variant={isOwner ? 'filled' : 'outlined'}
-          />
-        )}
 
         {/* Show initializing chip when K8s not ready or ownership pending */}
         {connected && !ownershipDetermined && (
