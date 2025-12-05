@@ -16,7 +16,7 @@ Before starting, create a todo list with ALL of the following items:
 4. Check test coverage for code changes
 5. Verify test comment headers are up-to-date
 6. Check for library reimplementations
-7. Check for historical/refactoring comments in code
+7. Check for @deprecated annotations (BLOCKING) and historical comments
 8. Check for new dependencies and license compatibility
 9. Check if documentation needs updates
 10. Run parallel lint/test/build
@@ -213,10 +213,34 @@ If you find reimplementations:
 
 **IMPORTANT: Code comments should only describe the current state of the code, not its history.**
 
+### 5.1 Check for @deprecated annotations (BLOCKING)
+
+**CRITICAL: `@deprecated` JSDoc annotations are NOT allowed in this codebase.**
+
+Run this check to find any `@deprecated` annotations in changed files:
+
+```bash
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | xargs grep -n '@deprecated' 2>/dev/null || echo "No @deprecated found"
+```
+
+**If `@deprecated` annotations are found, you MUST fix them before proceeding:**
+
+1. **If the code is truly unused**: Delete it entirely
+2. **If the code is still needed**: Remove the `@deprecated` annotation and keep the code as-is
+3. **If transitioning to a new API**: Just use the new API directly - don't mark old code as deprecated
+
+**Why we don't use `@deprecated`:**
+- Deprecated code accumulates and never gets removed
+- It creates confusion about what's "safe" to use
+- Historical context belongs in commit messages and PRs, not in code
+- If code shouldn't be used, delete it; if it's needed, keep it without warnings
+
+### 5.2 Check for historical/refactoring comments
+
 Search for comments that reference refactoring, previous implementations, API changes, or backwards compatibility:
 
 ```bash
-git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | xargs grep -l -i -E '(refactor|previous|formerly|used to|was changed|backwards.?compat|migrat|deprecat)' 2>/dev/null || echo "No matches found"
+git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$' | xargs grep -l -i -E '(refactor|previous|formerly|used to|was changed|backwards.?compat|migrat)' 2>/dev/null || echo "No matches found"
 ```
 
 **Comments to avoid in code:**
@@ -225,7 +249,6 @@ git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$'
 - "Changed from X to Y for..."
 - "Migrated from..." or "Migration note..."
 - "For backwards compatibility with..."
-- "Deprecated: use X instead"
 - Any reference to a previous state of the software
 
 **Where historical context belongs:**
@@ -237,8 +260,9 @@ git diff origin/main...HEAD --name-only --diff-filter=AM | grep -E '\.(ts|tsx)$'
 If you find such comments, remove or rewrite them to describe only the current behavior.
 
 **Decision Required**: After checking, explicitly state your conclusion:
+- If `@deprecated` found: **STOP** - remove the annotations as described above before proceeding.
 - If historical comments found: List which files and what changes you made to fix them.
-- If no issues found: Confirm you searched for historical comments and none were found.
+- If no issues found: Confirm you searched for `@deprecated` and historical comments and none were found.
 
 ## 6. Check for New Dependencies and License Compatibility
 

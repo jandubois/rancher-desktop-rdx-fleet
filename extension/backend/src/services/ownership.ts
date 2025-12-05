@@ -86,11 +86,10 @@ export class OwnershipService {
   }
 
   /**
-   * Set this extension's own image name (full image:tag).
-   * @deprecated Use initializeOwnIdentity() instead - backend should determine its own identity from Docker.
+   * No-op: Extension identity is determined from Docker, not from frontend.
+   * Kept for API compatibility.
    */
   setOwnExtensionName(imageName: string): void {
-    // No longer overwrite - backend identity is determined from Docker
     this.log(`Ignoring frontend-provided extension name: ${imageName} (backend identity is: ${this.ownExtensionName})`);
   }
 
