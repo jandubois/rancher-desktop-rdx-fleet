@@ -234,10 +234,11 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     const isThisExtension = !!installedExt && initStatus?.ownIdentity.extensionName === installedExt.name;
 
     // Check if this is the currently active (owner) extension
-    // Compare using the full image name (repository:tag) which is the canonical identifier
+    // Use currentOwner from backend (the actual owner from ConfigMap), not ownExtensionName (this extension's name)
+    const currentOwner = ownership?.currentOwner;
     const isActive = !!installedExt && (
-      ownership?.ownExtensionName === imageName ||
-      ownership?.ownExtensionName === normalizedImageName ||
+      currentOwner === imageName ||
+      currentOwner === normalizedImageName ||
       (isThisExtension && isOwner)
     );
 
@@ -286,6 +287,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         })),
         ownership: {
           ownExtensionName: ownership?.ownExtensionName,
+          currentOwner: ownership?.currentOwner,
           isOwner,
           status: ownership?.status,
         },
