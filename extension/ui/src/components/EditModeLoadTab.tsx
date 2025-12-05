@@ -14,7 +14,6 @@ import MenuItem from '@mui/material/MenuItem';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import UploadIcon from '@mui/icons-material/Upload';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import RestoreIcon from '@mui/icons-material/Restore';
 import { FleetExtensionImage } from '../utils/extensionBuilder';
 
 export interface EditModeLoadTabProps {
@@ -36,8 +35,6 @@ export interface EditModeLoadTabProps {
   onLoadFromImage: () => void;
   /** Callback when a file is selected for upload */
   onFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  /** Callback to reset to defaults */
-  onResetToDefaults: () => void;
   /** Function to get display name for an image */
   getImageDisplayName: (img: FleetExtensionImage) => string;
 }
@@ -52,7 +49,6 @@ export function EditModeLoadTab({
   onRefreshImages,
   onLoadFromImage,
   onFileUpload,
-  onResetToDefaults,
   getImageDisplayName,
 }: EditModeLoadTabProps) {
   return (
@@ -121,16 +117,6 @@ export function EditModeLoadTab({
           disabled={importing}
         >
           Browse...
-        </Button>
-        <Box sx={{ flex: 1 }} />
-        <Button
-          variant="text"
-          color="secondary"
-          startIcon={<RestoreIcon />}
-          onClick={onResetToDefaults}
-          disabled={importing}
-        >
-          Reset to Defaults
         </Button>
       </Box>
     </>

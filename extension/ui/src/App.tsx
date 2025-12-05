@@ -6,9 +6,10 @@ import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
+import BuildIcon from '@mui/icons-material/Build';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
+import RestoreIcon from '@mui/icons-material/Restore';
 import {
   DndContext,
   closestCenter,
@@ -54,6 +55,7 @@ import {
   DependencyConfirmationDialog,
   INITIAL_DEPENDENCY_DIALOG_STATE,
   DependencyDialogState,
+  ConfirmDialog,
 } from './components';
 import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver, useBackendStatus, useBackendInit } from './hooks';
 import { useServices } from './context';
@@ -103,6 +105,9 @@ function App() {
 
   // Title validation warning from build tab
   const [titleWarning, setTitleWarning] = useState<string | null>(null);
+
+  // Reset to defaults confirmation dialog state
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   // Edit mode snapshot for undo/cancel functionality
   const [editModeSnapshot, setEditModeSnapshot] = useState<EditModeSnapshot | null>(
@@ -472,6 +477,14 @@ function App() {
     setEditMode(false);
   }, [editModeSnapshot]);
 
+  // Handle reset to defaults - restore default manifest, icon, and icon height
+  const handleResetToDefaults = useCallback(() => {
+    setConfirmResetOpen(false);
+    handleConfigLoaded(DEFAULT_MANIFEST);
+    setIconState(null);
+    setIconHeight(DEFAULT_ICON_HEIGHT);
+  }, [handleConfigLoaded]);
+
   // Insert a placeholder card after a given card ID
   const insertCardAfter = (afterCardId: string) => {
     placeholderIdCounter.current += 1;
@@ -805,6 +818,15 @@ function App() {
                 <Button
                   variant="contained"
                   size="small"
+                  onClick={() => setConfirmResetOpen(true)}
+                  startIcon={<RestoreIcon />}
+                  color="warning"
+                >
+                  Reset
+                </Button>
+                <Button
+                  variant="contained"
+                  size="small"
                   onClick={handleCancelEditMode}
                   startIcon={<CloseIcon />}
                   color="error"
@@ -827,7 +849,7 @@ function App() {
                 title="Enter edit mode"
                 sx={{ color: palette.header.text }}
               >
-                <EditIcon />
+                <BuildIcon />
               </IconButton>
             )
           )}
@@ -900,6 +922,17 @@ function App() {
         state={dependencyDialog}
         onClose={() => setDependencyDialog(INITIAL_DEPENDENCY_DIALOG_STATE)}
         onConfirm={handleDependencyConfirm}
+      />
+
+      {/* Reset to Defaults Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmResetOpen}
+        title="Reset to Defaults"
+        message="This will reset all configuration to the default values. Any unsaved changes will be lost."
+        confirmLabel="Reset"
+        confirmColor="warning"
+        onConfirm={handleResetToDefaults}
+        onCancel={() => setConfirmResetOpen(false)}
       />
     </Box>
   );

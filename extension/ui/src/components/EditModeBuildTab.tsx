@@ -12,10 +12,8 @@ import DownloadIcon from '@mui/icons-material/Download';
 import BuildIcon from '@mui/icons-material/Build';
 
 export interface EditModeBuildTabProps {
-  /** Base image for building */
+  /** Base image for building (auto-detected from current running extension) */
   baseImage: string;
-  /** Base image detection status message */
-  baseImageStatus: string;
   /** Output image name */
   imageName: string;
   /** Whether download is in progress */
@@ -30,8 +28,6 @@ export interface EditModeBuildTabProps {
   imageNameWarning?: string | null;
   /** Validation warning for title */
   titleWarning?: string | null;
-  /** Callback when base image changes */
-  onBaseImageChange: (value: string) => void;
   /** Callback when image name changes */
   onImageNameChange: (value: string) => void;
   /** Callback to download as ZIP */
@@ -42,7 +38,6 @@ export interface EditModeBuildTabProps {
 
 export function EditModeBuildTab({
   baseImage,
-  baseImageStatus,
   imageName,
   downloading,
   building,
@@ -50,7 +45,6 @@ export function EditModeBuildTab({
   buildError,
   imageNameWarning,
   titleWarning,
-  onBaseImageChange,
   onImageNameChange,
   onDownload,
   onBuild,
@@ -60,18 +54,6 @@ export function EditModeBuildTab({
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         Build or download your custom extension as a Docker image or ZIP file.
       </Typography>
-
-      {/* Base image input */}
-      <TextField
-        label="Base Image"
-        value={baseImage}
-        onChange={(e) => onBaseImageChange(e.target.value)}
-        size="small"
-        fullWidth
-        sx={{ mb: 2 }}
-        placeholder="e.g., fleet-gitops-extension:next"
-        helperText={baseImageStatus}
-      />
 
       {/* Output image name input */}
       <TextField
