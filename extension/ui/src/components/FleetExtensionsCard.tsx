@@ -303,14 +303,14 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
                 borderRadius: 1,
                 bgcolor: isOwner ? 'success.light' : 'warning.light',
                 display: 'flex',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 gap: 1,
               }}
             >
               {isOwner ? (
-                <CheckCircleIcon color="success" sx={{ mt: 0.25 }} />
+                <CheckCircleIcon color="success" />
               ) : (
-                <WarningIcon color="warning" sx={{ mt: 0.25 }} />
+                <WarningIcon color="warning" />
               )}
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 {isOwner
