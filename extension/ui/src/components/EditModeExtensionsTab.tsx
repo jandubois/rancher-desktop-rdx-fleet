@@ -147,11 +147,14 @@ function getStatusText(status: string): string {
 /**
  * Tab content showing installed Fleet extensions and ownership status.
  */
+/** Operation type for tracking which button is spinning */
+type OperationType = 'install' | 'uninstall' | 'activate' | 'delete';
+
 export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeExtensionsTabProps) {
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
   const [fleetImages, setFleetImages] = useState<FleetExtensionImage[]>([]);
   const [loadingImages, setLoadingImages] = useState(false);
-  const [operatingImage, setOperatingImage] = useState<string | null>(null);
+  const [operatingImage, setOperatingImage] = useState<{ image: string; op: OperationType } | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
 
   const { commandExecutor } = useServices();
@@ -301,7 +304,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
 
   // Install a Fleet extension image
   const handleInstall = async (img: UnifiedImageInfo) => {
-    setOperatingImage(img.imageName);
+    setOperatingImage({ image: img.imageName, op: 'install' });
     setOperationError(null);
 
     try {
@@ -329,7 +332,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
 
   // Uninstall a Fleet extension
   const handleUninstall = async (img: UnifiedImageInfo) => {
-    setOperatingImage(img.imageName);
+    setOperatingImage({ image: img.imageName, op: 'uninstall' });
     setOperationError(null);
 
     try {
@@ -357,7 +360,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
 
   // Activate an extension (transfer ownership to it)
   const handleActivate = async (img: UnifiedImageInfo) => {
-    setOperatingImage(img.imageName);
+    setOperatingImage({ image: img.imageName, op: 'activate' });
     setOperationError(null);
 
     try {
@@ -395,7 +398,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
 
   // Delete a Docker image
   const handleDelete = async (img: UnifiedImageInfo) => {
-    setOperatingImage(img.imageName);
+    setOperatingImage({ image: img.imageName, op: 'delete' });
     setOperationError(null);
 
     try {
@@ -578,7 +581,11 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           )}
           <List dense disablePadding>
             {unifiedImages.map((img, index) => {
-              const isOperating = operatingImage === img.imageName;
+              // Check if this specific image+operation is in progress
+              const isActivating = operatingImage?.image === img.imageName && operatingImage?.op === 'activate';
+              const isInstalling = operatingImage?.image === img.imageName && operatingImage?.op === 'install';
+              const isUninstalling = operatingImage?.image === img.imageName && operatingImage?.op === 'uninstall';
+              const isDeleting = operatingImage?.image === img.imageName && operatingImage?.op === 'delete';
               const canDelete = img.type !== 'base'; // Base image cannot be deleted
 
               return (
@@ -592,8 +599,8 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                   }}
                   secondaryAction={
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      {/* Activate button - show if installed but not active */}
-                      {img.isInstalled && !img.isActive && (
+                      {/* Activate button - show if installed but not active, and ownership has been determined */}
+                      {img.isInstalled && !img.isActive && ownershipDetermined && (
                         <Tooltip title="Activate this extension">
                           <IconButton
                             size="small"
@@ -601,7 +608,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                             onClick={() => handleActivate(img)}
                             disabled={!!operatingImage}
                           >
-                            {isOperating ? <CircularProgress size={18} /> : <PlayArrowIcon fontSize="small" />}
+                            {isActivating ? <CircularProgress size={18} /> : <PlayArrowIcon fontSize="small" />}
                           </IconButton>
                         </Tooltip>
                       )}
@@ -614,7 +621,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                             onClick={() => handleInstall(img)}
                             disabled={!!operatingImage}
                           >
-                            {isOperating ? <CircularProgress size={18} /> : <DownloadIcon fontSize="small" />}
+                            {isInstalling ? <CircularProgress size={18} /> : <DownloadIcon fontSize="small" />}
                           </IconButton>
                         </Tooltip>
                       )}
@@ -627,7 +634,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                             onClick={() => handleUninstall(img)}
                             disabled={!!operatingImage}
                           >
-                            {isOperating ? <CircularProgress size={18} /> : <StopIcon fontSize="small" />}
+                            {isUninstalling ? <CircularProgress size={18} /> : <StopIcon fontSize="small" />}
                           </IconButton>
                         </Tooltip>
                       )}
@@ -640,7 +647,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                             onClick={() => handleDelete(img)}
                             disabled={!!operatingImage}
                           >
-                            {isOperating ? <CircularProgress size={18} /> : <DeleteIcon fontSize="small" />}
+                            {isDeleting ? <CircularProgress size={18} /> : <DeleteIcon fontSize="small" />}
                           </IconButton>
                         </Tooltip>
                       )}
