@@ -122,7 +122,6 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
 
   // Get Fleet extensions from installed extensions list
   const fleetExtensions = initStatus?.installedExtensions.filter(ext => ext.hasFleetLabel) ?? [];
-  const totalExtensions = initStatus?.installedExtensionsCount ?? 0;
 
   // Load Fleet extension images from Docker
   const loadFleetImages = useCallback(async () => {
@@ -391,13 +390,6 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
               No Fleet extensions detected. This may happen during initialization.
             </Typography>
           ) : null}
-
-          {/* Show other (non-Fleet) extensions count */}
-          {totalExtensions > fleetExtensions.length && (
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              + {totalExtensions - fleetExtensions.length} other extension{totalExtensions - fleetExtensions.length !== 1 ? 's' : ''} installed
-            </Typography>
-          )}
 
           {/* Uninstalled Fleet Images */}
           {uninstalledImages.length > 0 && (

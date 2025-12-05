@@ -56,7 +56,6 @@ export interface OwnershipStatus {
 export interface InitStatus {
   initialized: boolean;
   lastInitTime: string | null;
-  installedExtensionsCount: number;
   installedExtensions: {
     name: string;
     tag?: string;

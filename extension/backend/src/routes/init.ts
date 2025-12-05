@@ -245,7 +245,6 @@ initRouter.get('/', async (req, res) => {
   res.json({
     initialized,
     lastInitTime,
-    installedExtensionsCount: installedFleetExtensions.length,
     installedExtensions: installedFleetExtensions.map(e => ({
       name: e.name,
       tag: e.tag,
