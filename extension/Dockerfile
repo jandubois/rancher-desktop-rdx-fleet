@@ -30,7 +30,6 @@ LABEL com.docker.desktop.extension.icon="/icons/fleet-icon.svg"
 # Fleet extension labels - used to identify and filter Fleet extensions
 LABEL io.rancher-desktop.fleet.type="base"
 LABEL io.rancher-desktop.fleet.version="1.0"
-LABEL io.rancher-desktop.fleet.name="fleet-gitops-extension"
 
 # Copy UI build (for extension installation)
 COPY --from=ui-builder /app/build /ui

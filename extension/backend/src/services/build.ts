@@ -14,7 +14,6 @@ export interface BuildRequest {
   imageName: string;
   baseImage: string;
   title: string;
-  extensionId: string;   // Canonical identifier for io.rancher-desktop.fleet.name label
   manifest: string;      // Base64 encoded manifest.yaml content
   metadata: string;      // Base64 encoded metadata.json content
   iconPath?: string;     // Path for icon label (e.g., "/icons/custom-icon.svg")
@@ -101,7 +100,6 @@ LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
     dockerfile += `
 # Mark this as a custom Fleet extension (enables config extraction)
 LABEL io.rancher-desktop.fleet.type="custom"
-LABEL io.rancher-desktop.fleet.name="${request.extensionId}"
 LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"
 
 # Override manifest with custom configuration

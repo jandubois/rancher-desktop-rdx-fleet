@@ -105,17 +105,20 @@ export function EditModeBuildTab({
 
       {/* Build output */}
       {buildOutput && (
-        <Alert severity="info" sx={{ mt: 2 }}>
+        <Alert severity="info" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
             component="pre"
             sx={{
               m: 0,
+              width: '100%',
               fontFamily: 'monospace',
               fontSize: '0.8rem',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
               maxHeight: 300,
-              overflow: 'auto',
+              overflowY: 'auto',
+              overflowX: 'hidden',
             }}
           >
             {buildOutput}
@@ -125,17 +128,20 @@ export function EditModeBuildTab({
 
       {/* Build error */}
       {buildError && (
-        <Alert severity="error" sx={{ mt: 2 }}>
+        <Alert severity="error" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
             component="pre"
             sx={{
               m: 0,
+              width: '100%',
               fontFamily: 'monospace',
               fontSize: '0.8rem',
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
               maxHeight: 200,
-              overflow: 'auto',
+              overflowY: 'auto',
+              overflowX: 'hidden',
             }}
           >
             {buildError}

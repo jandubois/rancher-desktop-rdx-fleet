@@ -332,7 +332,6 @@ export interface BuildRequest {
   imageName: string;
   baseImage: string;
   title: string;
-  extensionId: string;   // Canonical identifier for io.rancher-desktop.fleet.name label
   manifest: string;      // Base64 encoded manifest.yaml content
   metadata: string;      // Base64 encoded metadata.json content
   iconPath?: string;     // Path for icon label (e.g., "/icons/custom-icon.svg")

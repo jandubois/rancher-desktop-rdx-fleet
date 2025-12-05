@@ -125,16 +125,14 @@ initRouter.post('/', async (req, res) => {
   // Second, add Fleet extensions detected from Docker that weren't in the rdctl list
   // This handles the case when rdctl extension ls returns empty or fails
   const fleetContainersFromDocker = dockerContainers.filter(c =>
-    c.labels['io.rancher-desktop.fleet.type'] ||
-    c.labels['io.rancher-desktop.fleet.name']
+    c.labels['io.rancher-desktop.fleet.type']
   );
 
   log(`Found ${fleetContainersFromDocker.length} Fleet containers from Docker`);
 
   for (const container of fleetContainersFromDocker) {
-    // Extract extension name from container name or image
+    // Extract extension name from image
     const imageName = container.image.split(':')[0]; // Remove tag
-    const fleetName = container.labels['io.rancher-desktop.fleet.name'] || imageName;
 
     // Check if this extension is already in the list
     const alreadyExists = installedFleetExtensions.some(ext =>
@@ -142,9 +140,9 @@ initRouter.post('/', async (req, res) => {
     );
 
     if (!alreadyExists) {
-      log(`  + Adding Fleet extension from Docker: ${fleetName} (image: ${container.image})`);
+      log(`  + Adding Fleet extension from Docker: ${imageName} (image: ${container.image})`);
       installedFleetExtensions.push({
-        name: fleetName,
+        name: imageName,
         tag: container.image.split(':')[1] || 'latest',
         labels: container.labels,
       });

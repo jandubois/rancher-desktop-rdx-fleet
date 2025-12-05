@@ -33,9 +33,6 @@ buildRouter.post('/', async (req: Request, res: Response) => {
   if (!request.title) {
     return res.status(400).json({ error: 'title is required' });
   }
-  if (!request.extensionId) {
-    return res.status(400).json({ error: 'extensionId is required' });
-  }
   if (!request.manifest) {
     return res.status(400).json({ error: 'manifest is required' });
   }
@@ -79,7 +76,7 @@ buildRouter.post('/stream', async (req: Request, res: Response) => {
   const request = req.body as BuildRequest;
 
   // Validate required fields
-  if (!request.imageName || !request.baseImage || !request.title || !request.extensionId || !request.manifest || !request.metadata) {
+  if (!request.imageName || !request.baseImage || !request.title || !request.manifest || !request.metadata) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
