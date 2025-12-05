@@ -97,50 +97,6 @@ export interface EditModeExtensionsTabProps {
   onRefresh: () => void;
 }
 
-/** Get status chip color based on ownership status */
-function getStatusColor(status: string): 'success' | 'warning' | 'error' | 'info' {
-  switch (status) {
-    case 'claimed':
-    case 'reclaimed':
-    case 'taken-over':
-      return 'success';
-    case 'yielded':
-      return 'warning';
-    case 'error':
-      return 'error';
-    case 'waiting':
-    case 'pending':
-      return 'info';
-    default:
-      return 'info';
-  }
-}
-
-/** Get human-readable status text */
-function getStatusText(status: string): string {
-  switch (status) {
-    case 'claimed':
-      return 'Active Owner';
-    case 'reclaimed':
-      return 'Reclaimed Control';
-    case 'taken-over':
-      return 'Took Control';
-    case 'yielded':
-      return 'Standby';
-    case 'waiting':
-      return 'Waiting...';
-    case 'pending':
-      return 'Initializing...';
-    case 'error':
-      return 'Error';
-    default:
-      return status;
-  }
-}
-
-/**
- * Tab content showing installed Fleet extensions and ownership status.
- */
 /** Operation type for tracking which button is spinning */
 type OperationType = 'uninstall' | 'activate' | 'delete';
 
@@ -452,19 +408,15 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     }
   };
 
-  const handleRecheckOwnership = async () => {
+  const handleRefresh = async () => {
     setRecheckingOwnership(true);
     try {
       await backendService.recheckOwnership();
-      onRefresh();
     } catch (error) {
       console.error('Failed to recheck ownership:', error);
     } finally {
       setRecheckingOwnership(false);
     }
-  };
-
-  const handleRefresh = () => {
     onRefresh();
     loadFleetImages();
   };
@@ -473,13 +425,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     <Box>
       {/* Header with status and refresh */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        {loading ? (
-          <CircularProgress size={20} />
-        ) : (
-          <ExtensionIcon color={connected && kubernetesReady ? (ownershipDetermined && isOwner ? 'success' : 'primary') : 'disabled'} />
-        )}
-
-        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, flexGrow: 1 }}>
           Fleet Extensions Status
         </Typography>
 
@@ -491,17 +437,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           variant="outlined"
         />
 
-        {/* Ownership status chip - only show when ownership is determined */}
-        {ownershipDetermined && (
-          <Chip
-            size="small"
-            icon={isOwner ? <CheckCircleIcon /> : undefined}
-            label={getStatusText(ownership.status)}
-            color={getStatusColor(ownership.status)}
-            variant={isOwner ? 'filled' : 'outlined'}
-          />
-        )}
-
         {/* Show initializing chip when K8s not ready or ownership pending */}
         {connected && !ownershipDetermined && (
           <Chip
@@ -512,9 +447,11 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           />
         )}
 
-        <IconButton size="small" onClick={handleRefresh} disabled={loading || loadingImages}>
-          <RefreshIcon fontSize="small" />
-        </IconButton>
+        <Tooltip title="Refresh status and images">
+          <IconButton size="small" onClick={handleRefresh} disabled={loading || loadingImages || recheckingOwnership}>
+            {(loading || recheckingOwnership) ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Connection status message */}
@@ -546,35 +483,27 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
             borderRadius: 1,
             bgcolor: isOwner ? 'success.light' : 'warning.light',
             display: 'flex',
-            alignItems: 'flex-start',
+            alignItems: 'center',
             gap: 1,
           }}
         >
           {isOwner ? (
-            <CheckCircleIcon color="success" sx={{ mt: 0.25 }} />
+            <CheckCircleIcon color="success" />
           ) : (
-            <WarningIcon color="warning" sx={{ mt: 0.25 }} />
+            <WarningIcon color="warning" />
           )}
-          <Box>
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {isOwner
-                ? 'This extension controls Fleet'
-                : `Another extension controls Fleet: ${ownership.currentOwner}`
-              }
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              {ownership.message}
-            </Typography>
-          </Box>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {isOwner
+              ? 'This extension controls Fleet'
+              : `Another extension controls Fleet: ${ownership.currentOwner}`
+            }
+          </Typography>
         </Box>
       )}
 
       {/* Fleet Extension Images List */}
       {sortedUnifiedImages.length > 0 ? (
         <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-            Fleet Extension Images ({sortedUnifiedImages.length})
-          </Typography>
           {operationError && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
               <ErrorIcon fontSize="small" />
@@ -616,7 +545,12 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                       )}
                       {/* Delete button - show if not base image */}
                       {canModify && (
-                        <Tooltip title={img.isInstalled ? 'Uninstall and delete image' : 'Delete image'}>
+                        <Tooltip
+                          title={img.isInstalled ? 'Uninstall and delete image' : 'Delete image'}
+                          placement="top"
+                          enterDelay={500}
+                          enterNextDelay={500}
+                        >
                           <IconButton
                             size="small"
                             color="error"
@@ -632,19 +566,25 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                 >
                   {/* Radio button for selecting active extension */}
                   <ListItemIcon sx={{ minWidth: 32 }}>
-                    <Tooltip title={img.isActive ? 'Active extension' : 'Click to activate'}>
-                      <span>
-                        <Radio
-                          size="small"
-                          checked={img.isActive}
-                          onChange={() => !img.isActive && handleActivate(img)}
-                          disabled={!!operatingImage || !ownershipDetermined}
-                          sx={{ p: 0.5 }}
-                        />
-                      </span>
-                    </Tooltip>
-                    {isActivating && (
-                      <CircularProgress size={16} sx={{ position: 'absolute', ml: 0.25 }} />
+                    {isActivating ? (
+                      <CircularProgress size={20} sx={{ ml: 0.25 }} />
+                    ) : (
+                      <Tooltip
+                        title={img.isActive ? 'Active extension' : 'Click to activate'}
+                        placement="top"
+                        enterDelay={500}
+                        enterNextDelay={500}
+                      >
+                        <span>
+                          <Radio
+                            size="small"
+                            checked={img.isActive}
+                            onChange={() => !img.isActive && handleActivate(img)}
+                            disabled={!!operatingImage || !ownershipDetermined}
+                            sx={{ p: 0.5 }}
+                          />
+                        </span>
+                      </Tooltip>
                     )}
                   </ListItemIcon>
                   {/* Extension icon */}
@@ -653,40 +593,38 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                   </ListItemIcon>
                   <ListItemText
                     primary={
-                      <Tooltip title={img.title ? `Title: ${img.title}` : ''} placement="top-start">
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                            {img.imageName}
-                          </Typography>
-                          {img.isThisExtension && (
-                            <Chip
-                              size="small"
-                              label="This"
-                              color="primary"
-                              variant="outlined"
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          )}
-                          {img.type && (
-                            <Chip
-                              size="small"
-                              label={img.type}
-                              color={img.type === 'base' ? 'info' : 'default'}
-                              variant="outlined"
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          )}
-                          {!img.isInstalled && (
-                            <Chip
-                              size="small"
-                              label="not installed"
-                              color="default"
-                              variant="outlined"
-                              sx={{ height: 18, fontSize: '0.65rem' }}
-                            />
-                          )}
-                        </Box>
-                      </Tooltip>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
+                          {img.imageName}
+                        </Typography>
+                        {img.isThisExtension && (
+                          <Chip
+                            size="small"
+                            label="This"
+                            color="primary"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        )}
+                        {img.type && (
+                          <Chip
+                            size="small"
+                            label={img.type}
+                            color={img.type === 'base' ? 'info' : 'default'}
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        )}
+                        {!img.isInstalled && (
+                          <Chip
+                            size="small"
+                            label="not installed"
+                            color="default"
+                            variant="outlined"
+                            sx={{ height: 18, fontSize: '0.65rem' }}
+                          />
+                        )}
+                      </Box>
                     }
                   />
                 </ListItem>
@@ -701,31 +639,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       ) : null}
 
 
-      {/* Actions */}
-      {connected && initStatus?.kubernetesReady && (
-        <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleRecheckOwnership}
-            disabled={recheckingOwnership}
-            startIcon={recheckingOwnership ? <CircularProgress size={16} /> : <RefreshIcon />}
-          >
-            {recheckingOwnership ? 'Checking...' : 'Recheck Ownership'}
-          </Button>
-        </Box>
-      )}
-
-      {/* Debug info footer */}
-      {status?.identity && (
-        <Box sx={{ mt: 2, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-            Container: {status.identity.containerId.substring(0, 12)}... |
-            Version: {status.identity.version} |
-            K8s: {initStatus?.kubernetesReady ? 'Ready' : 'Not Ready'}
-          </Typography>
-        </Box>
-      )}
     </Box>
   );
 }

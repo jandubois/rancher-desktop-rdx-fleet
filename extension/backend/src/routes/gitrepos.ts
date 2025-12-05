@@ -9,7 +9,7 @@
  */
 
 import { Router } from 'express';
-import { gitRepoService } from '../services/gitrepos';
+import { gitRepoService } from '../services/gitrepos.js';
 
 export const gitReposRouter = Router();
 

@@ -1,19 +1,19 @@
 import express from 'express';
 import fs from 'fs';
 import os from 'os';
-import { healthRouter } from './routes/health';
-import { identityRouter } from './routes/identity';
-import { initRouter } from './routes/init';
-import { ownershipRouter } from './routes/ownership';
-import { fleetRouter } from './routes/fleet';
-import { debugRouter } from './routes/debug';
-import { buildRouter } from './routes/build';
-import { gitReposRouter } from './routes/gitrepos';
-import { secretsRouter } from './routes/secrets';
-import { fleetService } from './services/fleet';
-import { ownershipService } from './services/ownership';
-import { gitRepoService } from './services/gitrepos';
-import { secretsService } from './services/secrets';
+import { healthRouter } from './routes/health.js';
+import { identityRouter } from './routes/identity.js';
+import { initRouter } from './routes/init.js';
+import { ownershipRouter } from './routes/ownership.js';
+import { fleetRouter } from './routes/fleet.js';
+import { debugRouter } from './routes/debug.js';
+import { buildRouter } from './routes/build.js';
+import { gitReposRouter } from './routes/gitrepos.js';
+import { secretsRouter } from './routes/secrets.js';
+import { fleetService } from './services/fleet.js';
+import { ownershipService } from './services/ownership.js';
+import { gitRepoService } from './services/gitrepos.js';
+import { secretsService } from './services/secrets.js';
 
 const app = express();
 // k3s kubeconfig mounted from VM (container runs as root to read it)

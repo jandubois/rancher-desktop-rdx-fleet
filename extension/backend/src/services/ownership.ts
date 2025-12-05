@@ -9,7 +9,7 @@
 
 import * as k8s from '@kubernetes/client-node';
 import os from 'os';
-import { dockerService } from './docker';
+import { dockerService } from './docker.js';
 
 /** Installed extension info from rdctl extension ls */
 export interface InstalledExtension {
@@ -399,7 +399,7 @@ export class OwnershipService {
           isOwner: true,
           currentOwner,
           status: 'reclaimed',
-          message: `Reclaimed ownership after restart (was container ${currentOwnerId})`,
+          message: 'Reclaimed ownership after restart',
         };
       }
 

@@ -10,11 +10,11 @@
 
 import { Router } from 'express';
 import os from 'os';
-import { ownershipService, InstalledExtension, OwnershipStatus } from '../services/ownership';
-import { dockerService } from '../services/docker';
-import { fleetService } from '../services/fleet';
-import { gitRepoService } from '../services/gitrepos';
-import { secretsService } from '../services/secrets';
+import { ownershipService, InstalledExtension, OwnershipStatus } from '../services/ownership.js';
+import { dockerService } from '../services/docker.js';
+import { fleetService } from '../services/fleet.js';
+import { gitRepoService } from '../services/gitrepos.js';
+import { secretsService } from '../services/secrets.js';
 
 export const initRouter = Router();
 

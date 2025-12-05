@@ -8,7 +8,7 @@
  */
 
 import { Router } from 'express';
-import { fleetService } from '../services/fleet';
+import { fleetService } from '../services/fleet.js';
 
 export const fleetRouter = Router();
 
