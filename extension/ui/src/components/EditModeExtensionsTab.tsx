@@ -352,18 +352,32 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     setOperationError(null);
 
     try {
-      // If not installed, install it first
+      // If not installed, install it first (inline to avoid operatingImage being cleared by handleInstall)
       if (!img.isInstalled) {
-        await handleInstall(img);
+        console.log(`[ExtensionsTab] Installing ${img.imageName} before activation...`);
+        const result = await commandExecutor.rdExec('rdctl', [
+          'extension',
+          'install',
+          img.imageName,
+        ]);
+
+        if (result.stderr && result.stderr.includes('Error')) {
+          throw new Error(result.stderr);
+        }
+
+        // Refresh extension list after install
+        await refreshInstalledExtensions();
       }
 
       // Transfer ownership to this extension
-      // Use the repository name (without tag) as the extension name
-      const extensionName = img.repository;
+      // Extract just the base name (e.g., "fleet-gitops-extension" from "ghcr.io/rancher/fleet-gitops-extension")
+      // This must match how docker.ts extracts image base names for running container detection
+      const extensionName = img.repository.split('/').pop() || img.repository;
       console.log(`[ExtensionsTab] Transferring ownership to: ${extensionName}`);
       await backendService.transferOwnership(extensionName);
 
       // Refresh to show updated status
+      await loadFleetImages();
       onRefresh();
     } catch (error) {
       console.error('Failed to activate extension:', error);
