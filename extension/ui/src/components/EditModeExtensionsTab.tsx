@@ -140,10 +140,8 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     ownership.status !== 'waiting' &&
     ownership.status !== 'error';
 
-  // Get all installed extensions (not just Fleet-labeled ones, for matching purposes)
+  // Get all installed extensions (for matching with Docker images)
   const allInstalledExtensions = initStatus?.installedExtensions ?? [];
-  const fleetExtensions = allInstalledExtensions.filter(ext => ext.hasFleetLabel);
-  const totalExtensions = initStatus?.installedExtensionsCount ?? 0;
 
   // Load Fleet extension images from Docker
   const loadFleetImages = useCallback(async () => {
@@ -176,8 +174,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
 
     // Check if this image is installed as an extension
     // Compare normalized full image names (repository:tag)
+    // Note: ext.name is just the repository, ext.tag is the tag
     const installedExt = allInstalledExtensions.find(ext => {
-      const normalizedExtName = normalizeImageRef(ext.name);
+      const extFullName = ext.tag ? `${ext.name}:${ext.tag}` : ext.name;
+      const normalizedExtName = normalizeImageRef(extFullName);
       return normalizedExtName === normalizedImageName;
     });
 
@@ -220,7 +220,9 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         })),
         installedExtensions: allInstalledExtensions.map(ext => ({
           name: ext.name,
-          normalized: normalizeImageRef(ext.name),
+          tag: ext.tag,
+          fullName: ext.tag ? `${ext.name}:${ext.tag}` : ext.name,
+          normalized: normalizeImageRef(ext.tag ? `${ext.name}:${ext.tag}` : ext.name),
           hasFleetLabel: ext.hasFleetLabel,
           fleetType: ext.fleetType,
         })),
@@ -631,12 +633,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         </Typography>
       ) : null}
 
-      {/* Show other (non-Fleet) extensions count */}
-      {totalExtensions > fleetExtensions.length && (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-          + {totalExtensions - fleetExtensions.length} other extension{totalExtensions - fleetExtensions.length !== 1 ? 's' : ''} installed
-        </Typography>
-      )}
 
       {/* Actions */}
       {connected && initStatus?.kubernetesReady && (
