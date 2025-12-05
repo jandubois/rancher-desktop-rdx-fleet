@@ -11,17 +11,18 @@ echo "PR_START_TIME=$(date +%s)" > /tmp/pr_timing.txt && date "+PR command start
 
 Before starting, create a todo list with ALL of the following items:
 1. Fetch, check status, and rebase early
-2. Start npm install in background
-3. Check test coverage for code changes
-4. Verify test comment headers are up-to-date
-5. Check for library reimplementations
-6. Check for historical/refactoring comments in code
-7. Check for new dependencies and license compatibility
-8. Check if documentation needs updates
-9. Run parallel lint/test/build
-10. Push changes
-11. Generate `gh pr create` command for user
-12. Display elapsed time
+2. Analyze commit history and clean up if needed (squash/drop experimental commits)
+3. Start npm install in background
+4. Check test coverage for code changes
+5. Verify test comment headers are up-to-date
+6. Check for library reimplementations
+7. Check for historical/refactoring comments in code
+8. Check for new dependencies and license compatibility
+9. Check if documentation needs updates
+10. Run parallel lint/test/build
+11. Push changes
+12. Analyze actual diff and generate `gh pr create` command
+13. Display elapsed time
 
 Mark each todo as `in_progress` when you start it and `completed` when done. Do NOT skip any steps.
 
@@ -74,10 +75,46 @@ git rebase origin/main
 
 If conflicts occur, resolve them before proceeding. This catches merge conflicts early instead of after running all the checks.
 
-Then get the commit log (useful for writing PR description later):
+### 1.1 Analyze Commit History for Cleanup
+
+Get the commit log and analyze if the branch needs cleanup:
 ```bash
 git log --oneline origin/main..HEAD
 ```
+
+**Look for signs of experimentation that should be cleaned up:**
+- Multiple commits that add and then remove the same code
+- "fix typo", "oops", "undo", "revert" commits
+- WIP commits or commits with incomplete implementations
+- Many small commits that could logically be one feature commit
+- Commits that contradict each other (e.g., "add feature X" followed by "remove feature X")
+
+**If cleanup is needed**, use interactive rebase to create clean, logical commits:
+```bash
+git rebase -i origin/main
+```
+
+Guidelines for cleaning up:
+1. **Squash** related commits into single logical units (e.g., all commits for one feature become one commit)
+2. **Drop** commits that were completely undone by later commits
+3. **Reword** commit messages to accurately describe what remains in the final code
+4. Focus on what the branch **actually delivers**, not the journey to get there
+
+**Example cleanup scenario:**
+```
+# Before cleanup:
+abc1234 Add user validation
+def5678 Fix validation bug
+ghi9012 Add email check
+jkl3456 Remove email check (didn't work)
+mno7890 Try different approach for email
+pqr1234 Fix typo
+
+# After cleanup:
+xyz9999 Add user validation with email check
+```
+
+After cleanup, the commit history should tell a clean story of what was implemented, not the experimentation process.
 
 ---
 
@@ -306,6 +343,26 @@ git fetch origin main && git rebase origin/main && git push -f
 ```
 
 ## 10. Create PR Command
+
+### 10.1 Analyze Actual Changes (Not Commit Messages)
+
+**IMPORTANT: Always base the PR description on the actual diff, not commit messages.**
+
+Commit messages may be outdated, misleading, or reflect abandoned approaches if the branch wasn't cleaned up. Instead, analyze what actually changed:
+
+```bash
+git diff origin/main...HEAD --stat
+git diff origin/main...HEAD
+```
+
+When writing the PR summary:
+1. **Read the actual diff** to understand what code was added, modified, or removed
+2. **Ignore commit messages** as the source of truth - they may describe work that was later undone
+3. **Focus on the end result** - what does this branch deliver compared to main?
+4. **Describe behavior changes** - what will users/developers experience differently?
+
+### 10.2 Generate the PR Command
+
 Provide a copyable `gh pr create` command using HEREDOC format:
 
 ```bash
