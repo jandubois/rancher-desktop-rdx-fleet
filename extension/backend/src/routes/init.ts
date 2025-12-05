@@ -10,15 +10,13 @@
 
 import { Router } from 'express';
 import os from 'os';
-import * as fs from 'fs';
 import { ownershipService, InstalledExtension, OwnershipStatus } from '../services/ownership';
 import { dockerService } from '../services/docker';
 import { fleetService } from '../services/fleet';
+import { gitRepoService } from '../services/gitrepos';
+import { secretsService } from '../services/secrets';
 
 export const initRouter = Router();
-
-// Shared kubeconfig path for fleet service
-export const SHARED_KUBECONFIG_PATH = '/tmp/kubeconfig-patched';
 
 // Store initialization state
 let initialized = false;
@@ -153,12 +151,9 @@ initRouter.post('/', async (req, res) => {
 
   // Initialize kubernetes client if kubeconfig provided
   if (kubeconfig) {
-    log('Kubeconfig provided, initializing Kubernetes client...');
+    log('Kubeconfig provided, initializing Kubernetes clients...');
     try {
-      await ownershipService.initialize(kubeconfig);
-      log('Kubernetes client initialized successfully');
-
-      // Also save patched kubeconfig for fleet service (kubectl/helm)
+      // Patch kubeconfig for use inside the container
       let patchedKubeconfig = kubeconfig;
       patchedKubeconfig = patchedKubeconfig.replace(/https:\/\/localhost:/g, 'https://host.docker.internal:');
       patchedKubeconfig = patchedKubeconfig.replace(/https:\/\/127\.0\.0\.1:/g, 'https://host.docker.internal:');
@@ -166,13 +161,17 @@ initRouter.post('/', async (req, res) => {
         /(server: https:\/\/host\.docker\.internal:[0-9]+)/g,
         '$1\n    insecure-skip-tls-verify: true'
       );
-      fs.writeFileSync(SHARED_KUBECONFIG_PATH, patchedKubeconfig);
-      log(`Wrote patched kubeconfig to ${SHARED_KUBECONFIG_PATH}`);
 
-      // Initialize fleet service with the patched kubeconfig (if not already initialized from startup)
+      // Initialize ownership service
+      await ownershipService.initialize(kubeconfig);
+      log('Ownership service initialized');
+
+      // Initialize all Kubernetes services (if not already initialized from startup)
       if (!fleetService.isReady()) {
         fleetService.initialize(patchedKubeconfig);
-        log('Fleet service initialized with frontend kubeconfig');
+        gitRepoService.initialize(patchedKubeconfig);
+        secretsService.initialize(patchedKubeconfig);
+        log('All Kubernetes services initialized with frontend kubeconfig');
 
         // Trigger Fleet auto-install now that kubeconfig is available
         log('Triggering Fleet auto-install...');
@@ -183,11 +182,20 @@ initRouter.post('/', async (req, res) => {
           log(`Fleet install error: ${err}`);
         });
       } else {
+        // Ensure gitRepo and secrets services are initialized even if fleet was initialized at startup
+        if (!gitRepoService.isReady()) {
+          gitRepoService.initialize(patchedKubeconfig);
+          log('GitRepo service initialized');
+        }
+        if (!secretsService.isReady()) {
+          secretsService.initialize(patchedKubeconfig);
+          log('Secrets service initialized');
+        }
         log('Fleet service already initialized (from backend startup)');
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      log(`ERROR initializing Kubernetes client: ${msg}`);
+      log(`ERROR initializing Kubernetes clients: ${msg}`);
     }
   } else {
     log('WARNING: No kubeconfig provided, ownership check will fail');

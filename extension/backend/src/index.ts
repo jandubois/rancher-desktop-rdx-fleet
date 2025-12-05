@@ -8,8 +8,12 @@ import { ownershipRouter } from './routes/ownership';
 import { fleetRouter } from './routes/fleet';
 import { debugRouter } from './routes/debug';
 import { buildRouter } from './routes/build';
+import { gitReposRouter } from './routes/gitrepos';
+import { secretsRouter } from './routes/secrets';
 import { fleetService } from './services/fleet';
 import { ownershipService } from './services/ownership';
+import { gitRepoService } from './services/gitrepos';
+import { secretsService } from './services/secrets';
 
 const app = express();
 // k3s kubeconfig mounted from VM (container runs as root to read it)
@@ -82,6 +86,8 @@ app.use('/api/ownership', ownershipRouter);
 app.use('/api/fleet', fleetRouter);
 app.use('/api/debug', debugRouter);
 app.use('/api/build', buildRouter);
+app.use('/api/gitrepos', gitReposRouter);
+app.use('/api/secrets', secretsRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
@@ -130,12 +136,15 @@ app.listen(SOCKET_PATH, async () => {
         continue;
       }
 
-      // Initialize fleet service if not already initialized
+      // Initialize all Kubernetes services if not already initialized
       if (!fleetService.isReady()) {
         try {
           fleetService.initialize(kubeconfig);
+          gitRepoService.initialize(kubeconfig);
+          secretsService.initialize(kubeconfig);
+          console.log('All Kubernetes services initialized');
         } catch (error) {
-          console.error('Failed to initialize fleet service:', error);
+          console.error('Failed to initialize Kubernetes services:', error);
           const delay = Math.min(baseDelay * Math.pow(1.5, attempt - 1), maxDelay);
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
