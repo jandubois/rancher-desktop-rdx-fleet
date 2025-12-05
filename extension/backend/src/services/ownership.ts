@@ -9,6 +9,7 @@
 
 import * as k8s from '@kubernetes/client-node';
 import os from 'os';
+import { dockerService } from './docker';
 
 /** Installed extension info from rdctl extension ls */
 export interface InstalledExtension {
@@ -60,12 +61,37 @@ export class OwnershipService {
   }
 
   /**
+   * Initialize own extension name by looking up this container's image from Docker.
+   * This gives the backend its actual identity, not whatever the frontend claims.
+   */
+  async initializeOwnIdentity(): Promise<void> {
+    try {
+      const containers = await dockerService.listContainers();
+      const shortId = this.ownContainerId.substring(0, 12);
+
+      const ownContainer = containers.find(c =>
+        c.id === shortId || c.id.startsWith(shortId)
+      );
+
+      if (ownContainer) {
+        this.ownExtensionName = ownContainer.image;
+        this.log(`Detected own image from Docker: ${this.ownExtensionName}`);
+      } else {
+        this.log(`Could not find own container (id: ${shortId}), using default: ${this.ownExtensionName}`);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.log(`Failed to detect own image from Docker: ${msg}`);
+    }
+  }
+
+  /**
    * Set this extension's own image name (full image:tag).
-   * Called during initialization when frontend provides the image name.
+   * @deprecated Use initializeOwnIdentity() instead - backend should determine its own identity from Docker.
    */
   setOwnExtensionName(imageName: string): void {
-    this.ownExtensionName = imageName;
-    this.log(`Set own extension name to: ${imageName}`);
+    // No longer overwrite - backend identity is determined from Docker
+    this.log(`Ignoring frontend-provided extension name: ${imageName} (backend identity is: ${this.ownExtensionName})`);
   }
 
   /**
