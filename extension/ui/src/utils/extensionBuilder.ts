@@ -154,11 +154,17 @@ function getIconPath(config: ExtensionConfig): string | null {
 }
 
 // Generate metadata.json for the extension
-// Inherits host binaries from base extension for kubectl/helm access
+// Includes vm.composefile for backend service and all host binaries
 export function generateMetadataJson(config: ExtensionConfig): string {
   const iconPath = getIconPath(config);
   const metadata: Record<string, unknown> = {
     ...(iconPath && { icon: iconPath }),  // Only include icon if not deleted
+    vm: {
+      composefile: 'compose.yaml',
+      exposes: {
+        socket: 'fleet-gitops.sock',
+      },
+    },
     ui: {
       'dashboard-tab': {
         title: config.name || 'My Fleet Extension',
@@ -177,6 +183,36 @@ export function generateMetadataJson(config: ExtensionConfig): string {
           darwin: [{ path: '/host/darwin/kubectl-apply-json' }],
           linux: [{ path: '/host/linux/kubectl-apply-json' }],
           windows: [{ path: '/host/windows/kubectl-apply-json.cmd' }],
+        },
+        {
+          darwin: [{ path: '/host/darwin/gh-token' }],
+          linux: [{ path: '/host/linux/gh-token' }],
+          windows: [{ path: '/host/windows/gh-token.cmd' }],
+        },
+        {
+          darwin: [{ path: '/host/darwin/gh-auth-status' }],
+          linux: [{ path: '/host/linux/gh-auth-status' }],
+          windows: [{ path: '/host/windows/gh-auth-status.cmd' }],
+        },
+        {
+          darwin: [{ path: '/host/darwin/cred-helper-check' }],
+          linux: [{ path: '/host/linux/cred-helper-check' }],
+          windows: [{ path: '/host/windows/cred-helper-check.cmd' }],
+        },
+        {
+          darwin: [{ path: '/host/darwin/cred-store' }],
+          linux: [{ path: '/host/linux/cred-store' }],
+          windows: [{ path: '/host/windows/cred-store.cmd' }],
+        },
+        {
+          darwin: [{ path: '/host/darwin/cred-get' }],
+          linux: [{ path: '/host/linux/cred-get' }],
+          windows: [{ path: '/host/windows/cred-get.cmd' }],
+        },
+        {
+          darwin: [{ path: '/host/darwin/cred-delete' }],
+          linux: [{ path: '/host/linux/cred-delete' }],
+          windows: [{ path: '/host/windows/cred-delete.cmd' }],
         },
       ],
     },
