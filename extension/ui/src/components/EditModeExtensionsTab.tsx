@@ -34,35 +34,7 @@ import { BackendStatus, backendService, InstalledExtension } from '../services/B
 import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
 import { ExtensionImageIcon } from './ExtensionImageIcon';
 import { useServices } from '../context/ServiceContext';
-
-/**
- * Parse rdctl extension ls output.
- * Output format: Plain text with header "Extension IDs" followed by image:tag lines.
- */
-function parseRdctlOutput(stdout: string): InstalledExtension[] {
-  const extensions: InstalledExtension[] = [];
-  const lines = stdout.split('\n');
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    // Skip empty lines and header lines (lines without a colon are not image:tag format)
-    if (!trimmed || !trimmed.includes(':')) {
-      continue;
-    }
-    // Parse image:tag format - the tag is after the last colon
-    const lastColonIndex = trimmed.lastIndexOf(':');
-    if (lastColonIndex > 0) {
-      const name = trimmed.substring(0, lastColonIndex);
-      const tag = trimmed.substring(lastColonIndex + 1);
-      // Only include if both name and tag are non-empty
-      if (name && tag) {
-        extensions.push({ name, tag });
-      }
-    }
-  }
-
-  return extensions;
-}
+import { RdctlExtensionsApiResponse } from '../hooks/useBackendInit';
 
 /** Unified image info combining Docker image and extension status */
 interface UnifiedImageInfo {
@@ -156,17 +128,24 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     loadFleetImages();
   }, [loadFleetImages, status]);
 
-  // Refresh installed extensions list by re-running rdctl and updating backend
+  // Refresh installed extensions list by re-running rdctl api and updating backend
   const refreshInstalledExtensions = useCallback(async () => {
     try {
-      // Run rdctl extension ls to get current extension list
-      const rdctlResult = await commandExecutor.rdExec('rdctl', ['extension', 'ls']);
+      // Run rdctl api /v1/extensions to get current extension list with labels
+      const rdctlResult = await commandExecutor.rdExec('rdctl', ['api', '/v1/extensions']);
 
       if (rdctlResult.stdout) {
-        const installedExtensions = parseRdctlOutput(rdctlResult.stdout);
+        const apiResponse = JSON.parse(rdctlResult.stdout) as RdctlExtensionsApiResponse;
+        const installedExtensions: InstalledExtension[] = Object.entries(apiResponse).map(
+          ([name, info]) => ({
+            name,
+            tag: info.version || 'latest',
+            labels: info.labels,
+          })
+        );
         console.log('[ExtensionsTab] Refreshed extensions list:', installedExtensions.map(e => `${e.name}:${e.tag}`));
 
-        // Update backend with new extension list
+        // Update backend with new extension list (labels included)
         await backendService.initialize({ installedExtensions });
       }
     } catch (error) {
