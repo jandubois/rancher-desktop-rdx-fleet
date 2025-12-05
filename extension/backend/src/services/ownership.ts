@@ -310,8 +310,9 @@ export class OwnershipService {
       }
 
       // Case 3: Different owner - check if still installed
+      // Use exact match only - substring matching causes "fleet-gitops-extension" to match "fleet-gitops"
       const ownerInstalled = installedExtensions.some(
-        ext => ext.name === currentOwner || ext.name.includes(currentOwner)
+        ext => ext.name === currentOwner
       );
 
       this.log(`Current owner: ${currentOwner} (container: ${currentOwnerId})`);

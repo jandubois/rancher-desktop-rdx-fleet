@@ -99,16 +99,21 @@ export class DockerService {
     const containers = await this.listContainers();
 
     const found = containers.some(c => {
-      // Check by label
+      // Check by label (exact match)
       if (c.labels['io.rancher-desktop.fleet.name'] === extensionName) {
         return true;
       }
-      // Check by image name
-      if (c.image.includes(extensionName)) {
+      // Check by image base name (exact match)
+      // Extract base name: "ghcr.io/foo/bar:tag" -> "bar"
+      const imageBaseName = c.image.split('/').pop()?.split(':')[0] || '';
+      if (imageBaseName === extensionName) {
         return true;
       }
-      // Check container name
-      if (c.name.includes(extensionName)) {
+      // Check container name for exact segment match
+      // Container names like "desktop-extension-fleet-gitops-extension-backend-1"
+      // should match "fleet-gitops-extension" but NOT "fleet-gitops"
+      const containerSegments = c.name.toLowerCase().split(/[-_]/);
+      if (containerSegments.includes(extensionName.toLowerCase())) {
         return true;
       }
       return false;
