@@ -59,6 +59,22 @@ export class OwnershipService {
     this.ownPriority = parseInt(process.env.EXTENSION_PRIORITY || '100', 10);
   }
 
+  /**
+   * Set this extension's own image name (full image:tag).
+   * Called during initialization when frontend provides the image name.
+   */
+  setOwnExtensionName(imageName: string): void {
+    this.ownExtensionName = imageName;
+    this.log(`Set own extension name to: ${imageName}`);
+  }
+
+  /**
+   * Get this extension's own image name.
+   */
+  getOwnExtensionName(): string {
+    return this.ownExtensionName;
+  }
+
   private log(message: string): void {
     const timestamp = new Date().toISOString();
     const entry = `[${timestamp}] ${message}`;

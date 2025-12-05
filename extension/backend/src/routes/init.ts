@@ -44,7 +44,7 @@ function log(message: string): void {
  * Body: { installedExtensions: [...], kubeconfig?: string }
  */
 initRouter.post('/', async (req, res) => {
-  const { installedExtensions, kubeconfig, debugInfo } = req.body;
+  const { installedExtensions, kubeconfig, debugInfo, ownExtensionImage } = req.body;
 
   log('=== Initialization request received ===');
 
@@ -52,6 +52,12 @@ initRouter.post('/', async (req, res) => {
   if (debugInfo && Array.isArray(debugInfo) && debugInfo.length > 0) {
     log('Frontend debug info:');
     debugInfo.forEach((info: string) => log(`  ${info}`));
+  }
+
+  // Set own extension image name if provided by frontend
+  if (ownExtensionImage && typeof ownExtensionImage === 'string') {
+    ownershipService.setOwnExtensionName(ownExtensionImage);
+    log(`Own extension image set to: ${ownExtensionImage}`);
   }
 
   // Validate input
@@ -261,7 +267,7 @@ initRouter.get('/', async (req, res) => {
     } : null,
     ownIdentity: {
       containerId: os.hostname(),
-      extensionName: process.env.EXTENSION_NAME || 'fleet-gitops-extension',
+      extensionName: ownershipService.getOwnExtensionName(),
     },
   });
 });

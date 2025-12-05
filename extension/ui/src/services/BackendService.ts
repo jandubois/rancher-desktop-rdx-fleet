@@ -180,6 +180,7 @@ export class BackendService {
     installedExtensions: InstalledExtension[];
     kubeconfig?: string;
     debugInfo?: string[];
+    ownExtensionImage?: string;
   }): Promise<OwnershipStatus> {
     if (!this.vmService) {
       throw new Error('vm.service not available');

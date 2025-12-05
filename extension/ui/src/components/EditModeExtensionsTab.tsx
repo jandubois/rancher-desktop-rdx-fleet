@@ -234,9 +234,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     const isThisExtension = !!installedExt && initStatus?.ownIdentity.extensionName === installedExt.name;
 
     // Check if this is the currently active (owner) extension
-    // Either it's the current owner, or it's "this" extension and we're the owner
+    // Compare using the full image name (repository:tag) which is the canonical identifier
     const isActive = !!installedExt && (
-      ownership?.ownExtensionName === installedExt.name ||
+      ownership?.ownExtensionName === imageName ||
+      ownership?.ownExtensionName === normalizedImageName ||
       (isThisExtension && isOwner)
     );
 
@@ -355,11 +356,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     setOperationError(null);
 
     try {
-      // Require the io.rancher-desktop.fleet.name label for ownership transfer
-      if (!img.fleetName) {
-        throw new Error(`Extension ${img.imageName} is missing the io.rancher-desktop.fleet.name label`);
-      }
-
       // If not installed, install it first (inline to avoid operatingImage being cleared by handleInstall)
       if (!img.isInstalled) {
         console.log(`[ExtensionsTab] Installing ${img.imageName} before activation...`);
@@ -377,10 +373,9 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         await refreshInstalledExtensions();
       }
 
-      // Transfer ownership using the io.rancher-desktop.fleet.name label value
-      // This is the canonical identifier that matches how docker.ts checks for running containers
-      console.log(`[ExtensionsTab] Transferring ownership to: ${img.fleetName}`);
-      await backendService.transferOwnership(img.fleetName);
+      // Transfer ownership using the full image name as the canonical identifier
+      console.log(`[ExtensionsTab] Transferring ownership to: ${img.imageName}`);
+      await backendService.transferOwnership(img.imageName);
 
       // Refresh to show updated status
       await loadFleetImages();

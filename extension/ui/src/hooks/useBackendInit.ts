@@ -14,6 +14,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { CommandExecutor } from '../services';
 import { backendService, InstalledExtension, OwnershipStatus } from '../services/BackendService';
+import { ddClient } from '../lib/ddClient';
 
 export interface BackendInitStatus {
   /** Whether initialization has been attempted */
@@ -158,11 +159,16 @@ export function useBackendInit({
         // Continue without kubeconfig - ownership check will fail but backend will still work
       }
 
-      // Step 3: Post to /api/init
+      // Step 3: Get own extension image name from Docker SDK
+      const ownExtensionImage = (ddClient.extension as { image?: string })?.image;
+      console.log(`[BackendInit] Own extension image: ${ownExtensionImage || 'unknown'}`);
+
+      // Step 4: Post to /api/init
       console.log('[BackendInit] Posting to backend /api/init...');
       const ownership = await backendService.initialize({
         installedExtensions,
         kubeconfig,
+        ownExtensionImage,
       });
 
       console.log('[BackendInit] Initialization complete:', ownership.status, ownership.message);
