@@ -24,7 +24,6 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Radio from '@mui/material/Radio';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import ExtensionIcon from '@mui/icons-material/Extension';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import WarningIcon from '@mui/icons-material/Warning';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -33,6 +32,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 
 import { BackendStatus, backendService, InstalledExtension } from '../services/BackendService';
 import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
+import { ExtensionImageIcon } from './ExtensionImageIcon';
 import { useServices } from '../context/ServiceContext';
 
 /**
@@ -86,6 +86,10 @@ interface UnifiedImageInfo {
   isActive: boolean;
   /** Whether this is the extension we're running in */
   isThisExtension: boolean;
+  /** Base64 encoded icon data */
+  iconData?: string;
+  /** MIME type of the icon */
+  iconMimeType?: string;
 }
 
 export interface EditModeExtensionsTabProps {
@@ -212,6 +216,8 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       isInstalled: !!installedExt,
       isActive: !!isActive,
       isThisExtension: !!isThisExtension,
+      iconData: img.iconData,
+      iconMimeType: img.iconMimeType,
     };
   });
 
@@ -589,7 +595,12 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
                   </ListItemIcon>
                   {/* Extension icon */}
                   <ListItemIcon sx={{ minWidth: 28 }}>
-                    <ExtensionIcon fontSize="small" color={img.isInstalled ? 'primary' : 'action'} />
+                    <ExtensionImageIcon
+                      iconData={img.iconData}
+                      iconMimeType={img.iconMimeType}
+                      size={20}
+                      fallbackColor={img.isInstalled ? 'primary' : 'action'}
+                    />
                   </ListItemIcon>
                   <ListItemText
                     primary={
