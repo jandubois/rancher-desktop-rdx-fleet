@@ -3,7 +3,7 @@
  *
  * On startup, this hook:
  * 1. Waits for the backend to be available
- * 2. Fetches installed extensions via `rdctl extension ls`
+ * 2. Fetches installed extensions via `rdctl api /v1/extensions`
  * 3. Fetches kubeconfig via `kubectl config view --raw`
  * 4. Posts both to /api/init to enable ownership checking
  *
@@ -15,6 +15,23 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { CommandExecutor } from '../services';
 import { backendService, InstalledExtension, OwnershipStatus } from '../services/BackendService';
 import { ddClient } from '../lib/ddClient';
+
+/**
+ * Response from rdctl api /v1/extensions
+ * Keys are extension names, values contain version, metadata, and labels.
+ */
+export interface RdctlExtensionsApiResponse {
+  [extensionName: string]: {
+    version: string;
+    metadata?: {
+      vm?: { composefile?: string; exposes?: Record<string, string> };
+      icon?: string;
+      ui?: Record<string, unknown>;
+      host?: { binaries?: unknown[] };
+    };
+    labels?: Record<string, string>;
+  };
+}
 
 export interface BackendInitStatus {
   /** Whether initialization has been attempted */
@@ -41,34 +58,18 @@ export interface UseBackendInitOptions {
 }
 
 /**
- * Parse rdctl extension ls output.
- * Output format: Plain text with header "Extension IDs" followed by image:tag lines.
- * Example:
- *   Extension IDs
- *
- *   fleet-gitops-extension:latest
- *   my-fleet-extension:dev
+ * Parse rdctl api /v1/extensions JSON response.
+ * Returns extension info including labels directly from the API.
  */
-function parseRdctlOutput(stdout: string): InstalledExtension[] {
+function parseExtensionsApiResponse(json: RdctlExtensionsApiResponse): InstalledExtension[] {
   const extensions: InstalledExtension[] = [];
-  const lines = stdout.split('\n');
 
-  for (const line of lines) {
-    const trimmed = line.trim();
-    // Skip empty lines and header lines (lines without a colon are not image:tag format)
-    if (!trimmed || !trimmed.includes(':')) {
-      continue;
-    }
-    // Parse image:tag format - the tag is after the last colon
-    const lastColonIndex = trimmed.lastIndexOf(':');
-    if (lastColonIndex > 0) {
-      const name = trimmed.substring(0, lastColonIndex);
-      const tag = trimmed.substring(lastColonIndex + 1);
-      // Only include if both name and tag are non-empty
-      if (name && tag) {
-        extensions.push({ name, tag });
-      }
-    }
+  for (const [name, info] of Object.entries(json)) {
+    extensions.push({
+      name,
+      tag: info.version || 'latest',
+      labels: info.labels,
+    });
   }
 
   return extensions;
@@ -108,15 +109,15 @@ export function useBackendInit({
     setStatus((prev) => ({ ...prev, loading: true, error: undefined }));
 
     try {
-      // Step 1: Get installed extensions via rdctl
-      console.log('[BackendInit] Fetching installed extensions via rdctl...');
+      // Step 1: Get installed extensions via rdctl api /v1/extensions
+      console.log('[BackendInit] Fetching installed extensions via rdctl api...');
       let installedExtensions: InstalledExtension[] = [];
 
       try {
-        // Run rdctl extension ls (outputs plain text, not JSON)
+        // Run rdctl api /v1/extensions (returns JSON with full extension info including labels)
         const rdctlResult = await commandExecutor.rdExec('rdctl', [
-          'extension',
-          'ls',
+          'api',
+          '/v1/extensions',
         ]);
 
         if (rdctlResult.stderr && !rdctlResult.stdout) {
@@ -124,15 +125,24 @@ export function useBackendInit({
         }
 
         if (rdctlResult.stdout) {
-          console.log('[BackendInit] Raw rdctl output:', rdctlResult.stdout);
-          installedExtensions = parseRdctlOutput(rdctlResult.stdout);
-          console.log(`[BackendInit] Found ${installedExtensions.length} installed extensions:`,
-            installedExtensions.map(e => e.name));
-          // Log to backend for docker logs visibility
-          backendService.debugLog('BackendInit', 'rdctl extension ls output', {
-            raw: rdctlResult.stdout,
-            parsed: installedExtensions,
-          });
+          console.log('[BackendInit] Raw rdctl api output:', rdctlResult.stdout);
+          try {
+            const apiResponse = JSON.parse(rdctlResult.stdout) as RdctlExtensionsApiResponse;
+            installedExtensions = parseExtensionsApiResponse(apiResponse);
+            console.log(`[BackendInit] Found ${installedExtensions.length} installed extensions:`,
+              installedExtensions.map(e => `${e.name}:${e.tag}`));
+            // Log to backend for docker logs visibility
+            backendService.debugLog('BackendInit', 'rdctl api /v1/extensions output', {
+              extensionCount: installedExtensions.length,
+              extensions: installedExtensions.map(e => ({
+                name: e.name,
+                tag: e.tag,
+                fleetType: e.labels?.['io.rancher-desktop.fleet.type'],
+              })),
+            });
+          } catch (parseError) {
+            console.warn('[BackendInit] Failed to parse rdctl api response:', parseError);
+          }
         }
       } catch (rdctlError) {
         console.warn('[BackendInit] rdctl failed, continuing without extension list:', rdctlError);
