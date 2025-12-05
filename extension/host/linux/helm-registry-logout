@@ -1,0 +1,31 @@
+#!/bin/sh
+# Log out from a Helm OCI registry
+# Usage: helm-registry-logout <registry>
+#
+# This uses the helm registry logout command to remove authentication for an OCI registry.
+
+set -e
+
+if [ $# -ne 1 ]; then
+  echo '{"error":"Usage: helm-registry-logout <registry>"}' >&2
+  exit 1
+fi
+
+REGISTRY="$1"
+
+# Add ~/.rd/bin to PATH for helm
+export PATH="$HOME/.rd/bin:$PATH"
+
+# Check if helm is available
+if ! command -v helm >/dev/null 2>&1; then
+  echo '{"error":"helm command not found","debug":"PATH='"$PATH"'"}'
+  exit 1
+fi
+
+# Run helm registry logout
+if helm registry logout "$REGISTRY" 2>&1; then
+  echo '{"success":true}'
+else
+  # Logout may fail if not logged in, which is fine
+  echo '{"success":true,"note":"may not have been logged in"}'
+fi

@@ -54,6 +54,16 @@
         "darwin": [{ "path": "/host/darwin/cred-delete" }],
         "linux": [{ "path": "/host/linux/cred-delete" }],
         "windows": [{ "path": "/host/windows/cred-delete.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/helm-registry-login" }],
+        "linux": [{ "path": "/host/linux/helm-registry-login" }],
+        "windows": [{ "path": "/host/windows/helm-registry-login.cmd" }]
+      },
+      {
+        "darwin": [{ "path": "/host/darwin/helm-registry-logout" }],
+        "linux": [{ "path": "/host/linux/helm-registry-logout" }],
+        "windows": [{ "path": "/host/windows/helm-registry-logout.cmd" }]
       }
     ]
   }

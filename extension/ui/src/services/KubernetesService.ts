@@ -249,6 +249,131 @@ export class KubernetesService {
     ]);
   }
 
+  // ============================================
+  // Registry Secret Management
+  // ============================================
+
+  /** Name of the AppCo registry secret */
+  static readonly APPCO_SECRET_NAME = 'fleet-ext-appco-registry';
+
+  /**
+   * Check if a secret exists in the fleet-local namespace
+   */
+  async checkSecretExists(secretName: string): Promise<boolean> {
+    try {
+      const result = await this.executor.rdExec('kubectl', [
+        '--context', KUBE_CONTEXT,
+        'get', 'secret', secretName, '-n', FLEET_NAMESPACE,
+        '-o', 'jsonpath={.metadata.name}',
+      ]);
+      return !result.stderr && result.stdout === secretName;
+    } catch (err) {
+      const errMsg = getErrorMessage(err);
+      if (errMsg.includes('NotFound') || errMsg.includes('not found')) {
+        return false;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Create or update a dockerconfigjson secret for a registry.
+   * This secret can be used as imagePullSecrets for Fleet bundles.
+   *
+   * @param secretName Name of the secret to create
+   * @param registry Registry server URL (e.g., 'dp.apps.rancher.io')
+   * @param username Registry username
+   * @param password Registry password/token
+   */
+  async createRegistrySecret(
+    secretName: string,
+    registry: string,
+    username: string,
+    password: string
+  ): Promise<void> {
+    // Build the dockerconfigjson structure
+    const auth = btoa(`${username}:${password}`);
+    const dockerConfig = {
+      auths: {
+        [registry]: {
+          username,
+          password,
+          auth,
+        },
+      },
+    };
+    const dockerConfigJson = JSON.stringify(dockerConfig);
+
+    // Create the secret manifest
+    const secret = {
+      apiVersion: 'v1',
+      kind: 'Secret',
+      metadata: {
+        name: secretName,
+        namespace: FLEET_NAMESPACE,
+        labels: {
+          'app.kubernetes.io/managed-by': 'fleet-extension',
+          'fleet-extension/credential-type': 'registry',
+        },
+      },
+      type: 'kubernetes.io/dockerconfigjson',
+      data: {
+        '.dockerconfigjson': btoa(dockerConfigJson),
+      },
+    };
+
+    const jsonStr = JSON.stringify(secret);
+    await this.executor.exec('kubectl-apply-json', [
+      jsonStr,
+      '--context', KUBE_CONTEXT,
+    ]);
+  }
+
+  /**
+   * Delete a secret from the fleet-local namespace
+   */
+  async deleteSecret(secretName: string): Promise<void> {
+    try {
+      await this.executor.rdExec('kubectl', [
+        '--context', KUBE_CONTEXT,
+        'delete', 'secret', secretName, '-n', FLEET_NAMESPACE,
+      ]);
+    } catch (err) {
+      const errMsg = getErrorMessage(err);
+      // Ignore "not found" errors - secret may already be deleted
+      if (!errMsg.includes('NotFound') && !errMsg.includes('not found')) {
+        throw err;
+      }
+    }
+  }
+
+  /**
+   * Create or update the AppCo registry secret.
+   * This is a convenience method that uses the standard AppCo secret name.
+   */
+  async createAppCoRegistrySecret(username: string, password: string): Promise<void> {
+    await this.createRegistrySecret(
+      KubernetesService.APPCO_SECRET_NAME,
+      'dp.apps.rancher.io',
+      username,
+      password
+    );
+  }
+
+  /**
+   * Delete the AppCo registry secret.
+   */
+  async deleteAppCoRegistrySecret(): Promise<void> {
+    await this.deleteSecret(KubernetesService.APPCO_SECRET_NAME);
+  }
+
+  /**
+   * Check if the AppCo registry secret exists.
+   */
+  async checkAppCoRegistrySecretExists(): Promise<boolean> {
+    return this.checkSecretExists(KubernetesService.APPCO_SECRET_NAME);
+  }
+
   /**
    * Parse raw GitRepo items from kubectl JSON output
    */
