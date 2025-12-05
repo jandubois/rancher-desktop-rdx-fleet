@@ -8,9 +8,9 @@
  */
 
 import { Router } from 'express';
-import { ownershipService } from '../services/ownership';
-import { dockerService } from '../services/docker';
-import { getInitState, setOwnershipStatus } from './init';
+import { ownershipService } from '../services/ownership.js';
+import { dockerService } from '../services/docker.js';
+import { getInitState, setOwnershipStatus } from './init.js';
 
 export const ownershipRouter = Router();
 

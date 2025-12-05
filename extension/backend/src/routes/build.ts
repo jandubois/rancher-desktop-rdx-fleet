@@ -8,7 +8,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { buildService, BuildRequest, BuildProgress } from '../services/build';
+import { buildService, BuildRequest, BuildProgress } from '../services/build.js';
 
 export const buildRouter = Router();
 

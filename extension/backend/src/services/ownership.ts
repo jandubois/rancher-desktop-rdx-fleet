@@ -9,7 +9,7 @@
 
 import * as k8s from '@kubernetes/client-node';
 import os from 'os';
-import { dockerService } from './docker';
+import { dockerService } from './docker.js';
 
 /** Installed extension info from rdctl extension ls */
 export interface InstalledExtension {

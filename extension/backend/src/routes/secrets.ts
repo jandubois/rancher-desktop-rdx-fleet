@@ -11,7 +11,7 @@
  */
 
 import { Router } from 'express';
-import { secretsService, APPCO_SECRET_NAME } from '../services/secrets';
+import { secretsService, APPCO_SECRET_NAME } from '../services/secrets.js';
 
 export const secretsRouter = Router();
 
