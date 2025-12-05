@@ -330,17 +330,16 @@ export function EditModeEditTab({
           const isValid = isHexColor || isInherit;
           const pickerValue = getPickerValue(field, currentValue);
 
-          // Helper text based on state, including color name
+          // Color name for display inside input
           const colorName = isHexColor ? colorNames.get(currentValue) : null;
+          // Helper text for error/inherit/modified states only
           const helperText = !isValid
             ? 'Enter hex color (e.g., #1976d2) or "inherit"'
             : isInherit
             ? 'Inherits from parent'
-            : colorName
-            ? `${colorName}${isAtResetValue ? '' : ' (modified)'}`
-            : isAtResetValue
-            ? ''
-            : 'Modified';
+            : !isAtResetValue
+            ? 'Modified'
+            : '';
 
           return (
             <Box key={field.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -375,6 +374,20 @@ export function EditModeEditTab({
                         />
                       </InputAdornment>
                     ),
+                    endAdornment: colorName ? (
+                      <InputAdornment position="end">
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            whiteSpace: 'nowrap',
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          {colorName}
+                        </Typography>
+                      </InputAdornment>
+                    ) : null,
                   },
                 }}
               />
