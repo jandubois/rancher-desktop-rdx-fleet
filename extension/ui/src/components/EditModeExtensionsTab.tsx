@@ -346,15 +346,31 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     }
   };
 
-  // Activate an extension (install it, which will make it the owner via the ownership mechanism)
+  // Activate an extension (transfer ownership to it)
   const handleActivate = async (img: UnifiedImageInfo) => {
-    // If not installed, install it first
-    if (!img.isInstalled) {
-      await handleInstall(img);
+    setOperatingImage(img.imageName);
+    setOperationError(null);
+
+    try {
+      // If not installed, install it first
+      if (!img.isInstalled) {
+        await handleInstall(img);
+      }
+
+      // Transfer ownership to this extension
+      // Use the repository name (without tag) as the extension name
+      const extensionName = img.repository;
+      console.log(`[ExtensionsTab] Transferring ownership to: ${extensionName}`);
+      await backendService.transferOwnership(extensionName);
+
+      // Refresh to show updated status
+      onRefresh();
+    } catch (error) {
+      console.error('Failed to activate extension:', error);
+      setOperationError(error instanceof Error ? error.message : 'Failed to activate extension');
+    } finally {
+      setOperatingImage(null);
     }
-    // The ownership mechanism will handle making it active
-    // Trigger a recheck of ownership
-    await handleRecheckOwnership();
   };
 
   // Delete a Docker image
@@ -668,18 +684,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
               );
             })}
           </List>
-          {loadingImages && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-              <CircularProgress size={12} />
-              <Typography variant="caption" color="text.secondary">
-                Scanning for Fleet images...
-              </Typography>
-            </Box>
-          )}
         </Box>
       ) : connected ? (
         <Typography variant="body2" color="text.secondary">
-          No Fleet extension images found. {loadingImages ? 'Scanning...' : ''}
+          No Fleet extension images found.
         </Typography>
       ) : null}
 

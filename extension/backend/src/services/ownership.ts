@@ -248,6 +248,58 @@ export class OwnershipService {
   }
 
   /**
+   * Transfer ownership to another extension.
+   * This writes the new owner to the ConfigMap, allowing another extension to take control.
+   */
+  async transferOwnership(newOwnerExtensionName: string): Promise<void> {
+    if (!this.k8sApi) {
+      throw new Error('Kubernetes client not initialized');
+    }
+
+    // Ensure namespace exists before creating ConfigMap
+    await this.ensureNamespace();
+
+    const now = new Date().toISOString();
+    const configMapData: Record<string, string> = {
+      ownerExtensionName: newOwnerExtensionName,
+      ownerContainerId: '', // Empty - the new owner will fill this in when it reclaims
+      claimedAt: now,
+      ownerPriority: '100', // Default priority
+    };
+
+    const configMap: k8s.V1ConfigMap = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: {
+        name: CONFIGMAP_NAME,
+        namespace: NAMESPACE,
+      },
+      data: configMapData,
+    };
+
+    try {
+      // Try to create first
+      await this.k8sApi.createNamespacedConfigMap(NAMESPACE, configMap);
+      this.log(`Created ownership ConfigMap: transferred to ${newOwnerExtensionName}`);
+    } catch (error: unknown) {
+      // If already exists, update it
+      if (error && typeof error === 'object' && 'response' in error) {
+        const httpError = error as { response?: { statusCode?: number } };
+        if (httpError.response?.statusCode === 409) {
+          await this.k8sApi.replaceNamespacedConfigMap(
+            CONFIGMAP_NAME,
+            NAMESPACE,
+            configMap
+          );
+          this.log(`Updated ownership ConfigMap: transferred to ${newOwnerExtensionName}`);
+          return;
+        }
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Main ownership check algorithm (race-condition safe).
    *
    * @param installedExtensions - List of installed Fleet extensions from rdctl

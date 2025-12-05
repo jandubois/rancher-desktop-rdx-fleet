@@ -219,6 +219,17 @@ export class BackendService {
   }
 
   /**
+   * Transfer ownership to another extension
+   */
+  async transferOwnership(newOwner: string): Promise<OwnershipStatus> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    const data = await this.vmService.post('/api/init/transfer-ownership', { newOwner }) as { ownership: OwnershipStatus };
+    return data.ownership;
+  }
+
+  /**
    * Get full backend status (health + identity + init status)
    */
   async getStatus(): Promise<BackendStatus> {

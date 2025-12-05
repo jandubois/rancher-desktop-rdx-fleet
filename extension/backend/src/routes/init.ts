@@ -5,6 +5,7 @@
  * - POST /api/init - Initialize backend with extensions list and kubeconfig
  * - GET /api/init - Get current initialization status
  * - GET /api/init/ownership - Get detailed ownership status for debugging
+ * - POST /api/init/transfer-ownership - Transfer ownership to another extension
  * - POST /api/init/check-ownership - Re-run ownership check
  */
 
@@ -296,6 +297,55 @@ initRouter.get('/ownership', async (req, res) => {
       docker: dockerService.getDebugLog(),
     },
   });
+});
+
+/**
+ * Transfer ownership to another extension.
+ *
+ * POST /api/init/transfer-ownership
+ * Body: { newOwner: string }
+ */
+initRouter.post('/transfer-ownership', async (req, res) => {
+  const { newOwner } = req.body;
+
+  log(`Transfer ownership requested to: ${newOwner}`);
+
+  if (!newOwner || typeof newOwner !== 'string') {
+    return res.status(400).json({
+      error: 'newOwner is required and must be a string',
+    });
+  }
+
+  if (!ownershipService.isReady()) {
+    return res.status(503).json({
+      error: 'Kubernetes client not ready',
+      message: 'Send kubeconfig via POST /api/init first',
+    });
+  }
+
+  try {
+    await ownershipService.transferOwnership(newOwner);
+
+    // Re-run ownership check to update status
+    lastOwnershipStatus = await ownershipService.checkOwnership(
+      installedFleetExtensions,
+      (extensionName) => dockerService.isExtensionRunning(extensionName)
+    );
+
+    log(`Ownership transferred to ${newOwner}, status: ${lastOwnershipStatus.status}`);
+
+    res.json({
+      success: true,
+      newOwner,
+      ownership: lastOwnershipStatus,
+    });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    log(`ERROR during ownership transfer: ${msg}`);
+    res.status(500).json({
+      error: msg,
+    });
+  }
 });
 
 /**
