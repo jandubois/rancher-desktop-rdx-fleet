@@ -312,21 +312,27 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
               ) : (
                 <WarningIcon color="warning" />
               )}
-              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+              <Typography variant="body2" sx={{ fontWeight: 600, flexGrow: 1 }}>
                 {isOwner
                   ? 'This extension controls Fleet'
                   : `Another extension controls Fleet: ${ownership.currentOwner}`
                 }
               </Typography>
+              <Tooltip title="Re-run ownership check">
+                <IconButton
+                  size="small"
+                  onClick={handleRecheckOwnership}
+                  disabled={recheckingOwnership}
+                >
+                  {recheckingOwnership ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
             </Box>
           )}
 
           {/* Fleet Extensions List */}
           {fleetExtensions.length > 0 ? (
             <Box>
-              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                Installed Fleet Extensions ({fleetExtensions.length})
-              </Typography>
               <List dense disablePadding>
                 {fleetExtensions.map((ext, index) => {
                   const isCurrentOwner = ownership?.ownExtensionName === ext.name;
@@ -392,9 +398,6 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
           {/* Uninstalled Fleet Images */}
           {uninstalledImages.length > 0 && (
             <Box sx={{ mt: 2 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-                Fleet Extension Images (Not Installed) ({uninstalledImages.length})
-              </Typography>
               {installError && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
                   <ErrorIcon fontSize="small" />
@@ -467,31 +470,6 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
             </Box>
           )}
 
-          {/* Actions */}
-          {connected && initStatus?.kubernetesReady && (
-            <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-              <Button
-                size="small"
-                variant="outlined"
-                onClick={handleRecheckOwnership}
-                disabled={recheckingOwnership}
-                startIcon={recheckingOwnership ? <CircularProgress size={16} /> : <RefreshIcon />}
-              >
-                {recheckingOwnership ? 'Checking...' : 'Recheck Ownership'}
-              </Button>
-            </Box>
-          )}
-
-          {/* Debug info footer */}
-          {status?.identity && (
-            <Box sx={{ mt: 2, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-                Container: {status.identity.containerId.substring(0, 12)}... |
-                Version: {status.identity.version} |
-                K8s: {initStatus?.kubernetesReady ? 'Ready' : 'Not Ready'}
-              </Typography>
-            </Box>
-          )}
         </Box>
       </Collapse>
     </Paper>
