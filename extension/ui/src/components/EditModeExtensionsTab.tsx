@@ -35,9 +35,38 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import CircularProgress from '@mui/material/CircularProgress';
 
-import { BackendStatus, backendService } from '../services/BackendService';
+import { BackendStatus, backendService, InstalledExtension } from '../services/BackendService';
 import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
 import { useServices } from '../context/ServiceContext';
+
+/**
+ * Parse rdctl extension ls output.
+ * Output format: Plain text with header "Extension IDs" followed by image:tag lines.
+ */
+function parseRdctlOutput(stdout: string): InstalledExtension[] {
+  const extensions: InstalledExtension[] = [];
+  const lines = stdout.split('\n');
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Skip empty lines and header lines (lines without a colon are not image:tag format)
+    if (!trimmed || !trimmed.includes(':')) {
+      continue;
+    }
+    // Parse image:tag format - the tag is after the last colon
+    const lastColonIndex = trimmed.lastIndexOf(':');
+    if (lastColonIndex > 0) {
+      const name = trimmed.substring(0, lastColonIndex);
+      const tag = trimmed.substring(lastColonIndex + 1);
+      // Only include if both name and tag are non-empty
+      if (name && tag) {
+        extensions.push({ name, tag });
+      }
+    }
+  }
+
+  return extensions;
+}
 
 /** Unified image info combining Docker image and extension status */
 interface UnifiedImageInfo {
@@ -161,6 +190,24 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     loadFleetImages();
   }, [loadFleetImages, status]);
 
+  // Refresh installed extensions list by re-running rdctl and updating backend
+  const refreshInstalledExtensions = useCallback(async () => {
+    try {
+      // Run rdctl extension ls to get current extension list
+      const rdctlResult = await commandExecutor.rdExec('rdctl', ['extension', 'ls']);
+
+      if (rdctlResult.stdout) {
+        const installedExtensions = parseRdctlOutput(rdctlResult.stdout);
+        console.log('[ExtensionsTab] Refreshed extensions list:', installedExtensions.map(e => `${e.name}:${e.tag}`));
+
+        // Update backend with new extension list
+        await backendService.initialize({ installedExtensions });
+      }
+    } catch (error) {
+      console.error('[ExtensionsTab] Failed to refresh extensions list:', error);
+    }
+  }, [commandExecutor]);
+
   // Normalize image reference to full form: repository:tag (lowercase)
   const normalizeImageRef = (name: string): string => {
     const lower = name.toLowerCase();
@@ -259,8 +306,9 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         throw new Error(result.stderr);
       }
 
-      // Refresh after successful install
+      // Refresh extension list and UI after successful install
       await loadFleetImages();
+      await refreshInstalledExtensions();
       onRefresh();
     } catch (error) {
       console.error('Failed to install extension:', error);
@@ -286,8 +334,9 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         throw new Error(result.stderr);
       }
 
-      // Refresh after successful uninstall
+      // Refresh extension list and UI after successful uninstall
       await loadFleetImages();
+      await refreshInstalledExtensions();
       onRefresh();
     } catch (error) {
       console.error('Failed to uninstall extension:', error);
@@ -350,8 +399,9 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         throw new Error(deleteResult.stderr);
       }
 
-      // Refresh after successful delete
+      // Refresh extension list and UI after successful delete
       await loadFleetImages();
+      await refreshInstalledExtensions();
       onRefresh();
     } catch (error) {
       console.error('Failed to delete image:', error);
