@@ -80,8 +80,6 @@ interface UnifiedImageInfo {
   title?: string;
   /** For custom extensions, the base image used */
   baseImage?: string;
-  /** io.rancher-desktop.fleet.name label - canonical identifier for ownership */
-  fleetName?: string;
   /** Whether this image is installed as an extension */
   isInstalled: boolean;
   /** Whether this is the currently active (owner) extension */
@@ -255,7 +253,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       type: img.type,
       title: img.title,
       baseImage: img.baseImage,
-      fleetName: img.fleetName,
       isInstalled: !!installedExt,
       isActive: !!isActive,
       isThisExtension: !!isThisExtension,

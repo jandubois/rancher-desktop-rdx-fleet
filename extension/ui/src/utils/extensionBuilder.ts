@@ -3,6 +3,7 @@ import JSZip from 'jszip';
 import { Manifest, CardDefinition, ImageCardSettings } from '../manifest';
 import type { BundledImage } from '../manifest';
 import { ddClient } from '../lib/ddClient';
+import { backendService } from '../services/BackendService';
 import type { CustomIcon } from '../components/IconUpload';
 import type { IconState } from '../components/EditableHeaderIcon';
 import { DEFAULT_ICON_HEIGHT } from './extensionStateStorage';
@@ -22,7 +23,6 @@ export interface FleetExtensionImage {
   type: 'base' | 'custom';  // Fleet extension type
   title?: string;       // Human-readable title from OCI label
   baseImage?: string;   // For custom extensions, the base image used
-  fleetName?: string;   // io.rancher-desktop.fleet.name label - canonical identifier for ownership
 }
 
 // Import result from image or ZIP
@@ -221,20 +221,10 @@ export function generateMetadataJson(config: ExtensionConfig): string {
   return JSON.stringify(metadata, null, 2);
 }
 
-// Generate a sanitized extension identifier from the name
-function generateExtensionIdentifier(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-    || 'custom-fleet-extension';
-}
-
 // Generate Dockerfile for custom extension
 export function generateDockerfile(config: ExtensionConfig, hasBundledImages = false): string {
   const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops-extension:latest';
   const extensionName = config.name || 'My Fleet Extension';
-  const extensionId = generateExtensionIdentifier(extensionName);
   const hasCustomIcon = isCustomIcon(config.iconState);
   const iconPath = getIconPath(config);
 
@@ -261,7 +251,6 @@ LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
   dockerfile += `
 # Mark this as a custom Fleet extension (enables config extraction)
 LABEL io.rancher-desktop.fleet.type="custom"
-LABEL io.rancher-desktop.fleet.name="${extensionId}"
 LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"
 
 # Override manifest with custom configuration
@@ -535,13 +524,11 @@ export async function buildExtension(
 ): Promise<BuildResult> {
   const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops-extension:latest';
   const extensionTitle = config.name || 'My Fleet Extension';
-  const extensionId = generateExtensionIdentifier(extensionTitle);
   const hasCustomIcon = isCustomIcon(config.iconState);
   const isIconDeleted = config.iconState === 'deleted';
 
   // Collect bundled images from cards (this also updates src paths in settings)
   const bundledImages = collectBundledImages(config.cards);
-  const hasBundledImages = bundledImages.length > 0;
 
   // Create export manifest (strips bundledImage data from image cards)
   const exportManifest = createExportManifest(config);
@@ -554,161 +541,57 @@ export async function buildExtension(
   });
   const metadataJson = generateMetadataJson(config);
 
-  // Base64 encode the files for passing as environment variables
+  // Base64 encode the files for the backend API
   const manifestB64 = btoa(manifestYaml);
   const metadataB64 = btoa(metadataJson);
 
   // Prepare icon data if present
-  const iconB64 = hasCustomIcon ? (config.iconState as CustomIcon).data : '';
   const iconFilename = hasCustomIcon ? getCustomIconFilename(config.iconState as CustomIcon) : '';
 
-  // Base64 encode the title to safely pass it (handles special characters)
-  const titleB64 = btoa(extensionTitle);
-
-  // Determine the icon path for the label (empty string if deleted = no icon label)
-  const iconPath = isIconDeleted ? '' : (hasCustomIcon ? `/icons/${iconFilename}` : '/icons/fleet-icon.svg');
-
-  // Prepare bundled images data - JSON encoded array of {path, data} objects
-  const bundledImagesJson = JSON.stringify(bundledImages.map(img => ({
-    path: img.path,
-    data: img.data,
-  })));
-  const bundledImagesB64 = btoa(bundledImagesJson);
+  // Determine the icon path for the label (undefined if deleted = no icon label)
+  const iconPath = isIconDeleted ? undefined : (hasCustomIcon ? `/icons/${iconFilename}` : '/icons/fleet-icon.svg');
 
   onProgress?.('Preparing build context...');
-
-  // Build script that runs inside the helper container
-  // This creates the build context and runs docker build
-  const buildScript = `
-set -e
-mkdir -p /build/icons /build/images
-cd /build
-
-# Decode manifest and metadata from base64
-echo "$MANIFEST_B64" | base64 -d > manifest.yaml
-echo "$METADATA_B64" | base64 -d > metadata.json
-
-# Decode the extension title from base64
-EXT_TITLE_DECODED=$(echo "$TITLE_B64" | base64 -d)
-
-# Decode custom icon if present
-if [ -n "$ICON_B64" ] && [ -n "$ICON_FILENAME" ]; then
-  echo "$ICON_B64" | base64 -d > "icons/$ICON_FILENAME"
-fi
-
-# Decode bundled images if present
-if [ -n "$BUNDLED_IMAGES_B64" ] && [ "$HAS_BUNDLED_IMAGES" = "true" ]; then
-  # Decode the JSON array of images
-  IMAGES_JSON=$(echo "$BUNDLED_IMAGES_B64" | base64 -d)
-  # Parse and decode each image using a simple approach
-  echo "$IMAGES_JSON" | sed 's/},{/}\\n{/g' | sed 's/^\\[//' | sed 's/\\]$//' | while read -r img; do
-    # Extract path and data from JSON object
-    IMG_PATH=$(echo "$img" | sed 's/.*"path":"\\([^"]*\\)".*/\\1/')
-    IMG_DATA=$(echo "$img" | sed 's/.*"data":"\\([^"]*\\)".*/\\1/')
-    if [ -n "$IMG_PATH" ] && [ -n "$IMG_DATA" ]; then
-      echo "$IMG_DATA" | base64 -d > "$IMG_PATH"
-    fi
-  done
-fi
-
-# Create the Dockerfile using unquoted heredoc for variable expansion
-# Note: BASE_IMAGE ARG must be declared before FROM (for FROM instruction)
-# and again after FROM (to use in labels, since ARGs reset after FROM)
-cat > Dockerfile << EOF
-ARG BASE_IMAGE=base-image-not-set
-FROM \\\${BASE_IMAGE}
-ARG BASE_IMAGE
-LABEL org.opencontainers.image.title="$EXT_TITLE_DECODED"
-LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
-LABEL io.rancher-desktop.fleet.type="custom"
-LABEL io.rancher-desktop.fleet.name="$EXTENSION_ID"
-LABEL io.rancher-desktop.fleet.base-image="\\\${BASE_IMAGE}"
-COPY manifest.yaml /ui/manifest.yaml
-COPY metadata.json /metadata.json
-EOF
-
-# Add icon label only if ICON_PATH is set (not deleted)
-if [ -n "$ICON_PATH" ]; then
-  sed -i '/^LABEL org.opencontainers.image.description/a LABEL com.docker.desktop.extension.icon="'"$ICON_PATH"'"' Dockerfile
-fi
-
-# Add icon copy instruction if custom icon is present
-if [ "$HAS_CUSTOM_ICON" = "true" ]; then
-  echo "COPY icons/ /icons/" >> Dockerfile
-fi
-
-# Add bundled images copy instruction if present
-if [ "$HAS_BUNDLED_IMAGES" = "true" ]; then
-  echo "COPY images/ /images/" >> Dockerfile
-fi
-
-# Build the image
-docker build \\
-  --build-arg BASE_IMAGE="$BASE_IMAGE" \\
-  -t "$IMAGE_NAME" \\
-  .
-
-echo "Build complete: $IMAGE_NAME"
-`;
 
   try {
     onProgress?.('Starting Docker build...');
 
-    // Run the build using a helper container with docker CLI
-    // Mount the docker socket so it can build images
-    const envVars = [
-      '-e', `MANIFEST_B64=${manifestB64}`,
-      '-e', `METADATA_B64=${metadataB64}`,
-      '-e', `IMAGE_NAME=${imageName}`,
-      '-e', `TITLE_B64=${titleB64}`,
-      '-e', `EXTENSION_ID=${extensionId}`,
-      '-e', `ICON_PATH=${iconPath}`,
-      '-e', `BASE_IMAGE=${baseImage}`,
-      '-e', `HAS_CUSTOM_ICON=${hasCustomIcon}`,
-      '-e', `HAS_BUNDLED_IMAGES=${hasBundledImages}`,
-    ];
-
-    // Add icon environment variables if present
-    if (hasCustomIcon) {
-      envVars.push('-e', `ICON_B64=${iconB64}`);
-      envVars.push('-e', `ICON_FILENAME=${iconFilename}`);
-    }
-
-    // Add bundled images environment variable if present
-    if (hasBundledImages) {
-      envVars.push('-e', `BUNDLED_IMAGES_B64=${bundledImagesB64}`);
-    }
-
-    const result = await ddClient.docker.cli.exec('run', [
-      '--rm',
-      '-v', '/var/run/docker.sock:/var/run/docker.sock',
-      ...envVars,
-      'docker:cli',
-      'sh', '-c', buildScript,
-    ]);
-
-    const output = result.stdout || '';
-    const stderr = result.stderr || '';
-
-    onProgress?.('Build completed!');
-
-    return {
-      success: true,
+    // Build the request for the backend API
+    const buildRequest = {
       imageName,
-      output: output + (stderr ? `\n${stderr}` : ''),
+      baseImage,
+      title: extensionTitle,
+      manifest: manifestB64,
+      metadata: metadataB64,
+      iconPath,
+      icon: hasCustomIcon ? {
+        filename: iconFilename,
+        data: (config.iconState as CustomIcon).data,
+      } : undefined,
+      bundledImages: bundledImages.length > 0 ? bundledImages.map(img => ({
+        path: img.path,
+        data: img.data,
+      })) : undefined,
     };
+
+    // Call the backend API to build the image
+    const result = await backendService.buildImage(buildRequest);
+
+    if (result.success) {
+      onProgress?.('Build completed!');
+    } else {
+      onProgress?.(`Build failed: ${result.error}`);
+    }
+
+    return result;
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    // Try to extract useful output from the error
-    const errorOutput = (err as { stderr?: string; stdout?: string })?.stderr ||
-                        (err as { stderr?: string; stdout?: string })?.stdout ||
-                        errorMessage;
 
     return {
       success: false,
       imageName,
       output: '',
-      error: errorOutput,
+      error: errorMessage,
     };
   }
 }
@@ -751,7 +634,6 @@ export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]>
           type: fleetType as 'base' | 'custom',
           title: labels['org.opencontainers.image.title'],
           baseImage: labels['io.rancher-desktop.fleet.base-image'],
-          fleetName: labels['io.rancher-desktop.fleet.name'],
         });
       }
     }

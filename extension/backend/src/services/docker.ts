@@ -84,7 +84,6 @@ export class DockerService {
 
     const fleetContainers = containers.filter(c =>
       c.labels['io.rancher-desktop.fleet.type'] ||
-      c.labels['io.rancher-desktop.fleet.name'] ||
       c.image.includes('fleet-gitops-extension')
     );
 

@@ -312,6 +312,45 @@ export class BackendService {
       console.warn('[debugLog] Failed to send debug log:', error);
     }
   }
+
+  /**
+   * Build a custom extension image via the backend Docker API.
+   *
+   * @param request - Build request with image config
+   * @returns Build result with success status and output
+   */
+  async buildImage(request: BuildRequest): Promise<BuildResult> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/build', request) as BuildResult;
+  }
+}
+
+/** Build request for custom extension images */
+export interface BuildRequest {
+  imageName: string;
+  baseImage: string;
+  title: string;
+  manifest: string;      // Base64 encoded manifest.yaml content
+  metadata: string;      // Base64 encoded metadata.json content
+  iconPath?: string;     // Path for icon label (e.g., "/icons/custom-icon.svg")
+  icon?: {               // Custom icon data
+    filename: string;    // e.g., "custom-icon.svg"
+    data: string;        // Base64 encoded icon data
+  };
+  bundledImages?: Array<{  // Bundled images for image cards
+    path: string;        // e.g., "images/my-image.png"
+    data: string;        // Base64 encoded image data
+  }>;
+}
+
+/** Build result from the backend */
+export interface BuildResult {
+  success: boolean;
+  imageName: string;
+  output: string;
+  error?: string;
 }
 
 /** Default backend service instance */
