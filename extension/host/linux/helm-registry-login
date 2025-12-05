@@ -1,0 +1,35 @@
+#!/bin/sh
+# Log in to a Helm OCI registry
+# Usage: helm-registry-login <registry> <username> <password>
+#
+# This uses the helm registry login command to authenticate with an OCI registry.
+# Credentials are stored in ~/.config/helm/registry/config.json
+
+set -e
+
+if [ $# -ne 3 ]; then
+  echo '{"error":"Usage: helm-registry-login <registry> <username> <password>"}' >&2
+  exit 1
+fi
+
+REGISTRY="$1"
+USERNAME="$2"
+PASSWORD="$3"
+
+# Add ~/.rd/bin to PATH for helm
+export PATH="$HOME/.rd/bin:$PATH"
+
+# Check if helm is available
+if ! command -v helm >/dev/null 2>&1; then
+  echo '{"error":"helm command not found","debug":"PATH='"$PATH"'"}'
+  exit 1
+fi
+
+# Run helm registry login
+# Use --password-stdin to avoid password in process list
+if echo "$PASSWORD" | helm registry login "$REGISTRY" --username "$USERNAME" --password-stdin 2>&1; then
+  echo '{"success":true}'
+else
+  echo '{"error":"helm registry login failed"}'
+  exit 1
+fi

@@ -278,4 +278,77 @@ export class CredentialService {
     const cred = await this.getAppCoCredential();
     return cred !== null && !!cred.Username && !!cred.Secret;
   }
+
+  // ============================================
+  // Helm Registry Methods
+  // ============================================
+
+  /**
+   * Log in to a Helm OCI registry.
+   * This enables `helm pull oci://<registry>/...` commands.
+   *
+   * @param registry Registry server URL (e.g., 'dp.apps.rancher.io')
+   * @param username Registry username
+   * @param password Registry password/token
+   */
+  async helmRegistryLogin(registry: string, username: string, password: string): Promise<void> {
+    try {
+      const result = await this.executor.exec('helm-registry-login', [registry, username, password]);
+      const output = result.stdout.trim();
+
+      if (output) {
+        try {
+          const response = JSON.parse(output);
+          if (response.error) {
+            throw new Error(response.error);
+          }
+        } catch {
+          // If output isn't JSON, check for success indicators
+          if (!output.includes('Login Succeeded') && !output.includes('success')) {
+            console.warn('[CredentialService] Unexpected helm-registry-login output:', output);
+          }
+        }
+      }
+
+      if (result.stderr && result.stderr.includes('error')) {
+        throw new Error(result.stderr);
+      }
+    } catch (error) {
+      console.error('[CredentialService] Error logging into helm registry:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Log out from a Helm OCI registry.
+   *
+   * @param registry Registry server URL (e.g., 'dp.apps.rancher.io')
+   */
+  async helmRegistryLogout(registry: string): Promise<void> {
+    try {
+      const result = await this.executor.exec('helm-registry-logout', [registry]);
+      // Logout may fail if not logged in, which is fine
+      if (result.stderr && result.stderr.includes('error') && !result.stderr.includes('not logged in')) {
+        console.warn('[CredentialService] helm-registry-logout warning:', result.stderr);
+      }
+    } catch (error) {
+      // Logout errors are usually not critical
+      console.warn('[CredentialService] Error logging out of helm registry:', error);
+    }
+  }
+
+  /**
+   * Log in to AppCo Helm registry.
+   * This is a convenience method for the AppCo OCI registry.
+   */
+  async helmRegistryLoginAppCo(username: string, password: string): Promise<void> {
+    await this.helmRegistryLogin(APPCO_CREDENTIAL_SERVER, username, password);
+  }
+
+  /**
+   * Log out from AppCo Helm registry.
+   */
+  async helmRegistryLogoutAppCo(): Promise<void> {
+    await this.helmRegistryLogout(APPCO_CREDENTIAL_SERVER);
+  }
 }

@@ -1,0 +1,52 @@
+#!/bin/sh
+# Log in to a Helm OCI registry
+# Usage: helm-registry-login <registry> <username> <password>
+#
+# This uses the helm registry login command to authenticate with an OCI registry.
+# Credentials are stored in ~/.config/helm/registry/config.json
+
+set -e
+
+if [ $# -ne 3 ]; then
+  echo '{"error":"Usage: helm-registry-login <registry> <username> <password>"}' >&2
+  exit 1
+fi
+
+REGISTRY="$1"
+USERNAME="$2"
+PASSWORD="$3"
+
+# Find helm binary - check common macOS locations
+find_helm() {
+  # Check PATH first (includes ~/.rd/bin if shell is configured)
+  if command -v helm >/dev/null 2>&1; then
+    command -v helm
+    return 0
+  fi
+
+  # Check common macOS locations (including Rancher Desktop's ~/.rd/bin)
+  for dir in "$HOME/.rd/bin" /usr/local/bin /opt/homebrew/bin; do
+    if [ -x "$dir/helm" ]; then
+      echo "$dir/helm"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+HELM_PATH=$(find_helm)
+
+if [ -z "$HELM_PATH" ]; then
+  echo '{"error":"helm command not found","debug":"Searched PATH and common locations"}'
+  exit 1
+fi
+
+# Run helm registry login
+# Use --password-stdin to avoid password in process list
+if echo "$PASSWORD" | "$HELM_PATH" registry login "$REGISTRY" --username "$USERNAME" --password-stdin 2>&1; then
+  echo '{"success":true}'
+else
+  echo '{"error":"helm registry login failed"}'
+  exit 1
+fi
