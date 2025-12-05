@@ -498,10 +498,8 @@ class FleetService {
 
     const startTime = Date.now();
     let lastLogTime = 0;
-    let checkCount = 0;
 
     while (Date.now() - startTime < timeoutMs) {
-      checkCount++;
       const elapsed = Math.round((Date.now() - startTime) / 1000);
 
       try {
