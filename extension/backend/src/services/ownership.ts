@@ -378,10 +378,12 @@ export class OwnershipService {
       }
 
       // Case 3: Different owner - check if still installed
-      // Use exact match only - substring matching causes "fleet-gitops-extension" to match "fleet-gitops"
-      const ownerInstalled = installedExtensions.some(
-        ext => ext.name === currentOwner
-      );
+      // Compare full image names (repository:tag) for exact matching
+      const ownerInstalled = installedExtensions.some(ext => {
+        const fullImageName = ext.tag ? `${ext.name}:${ext.tag}` : ext.name;
+        this.log(`  Comparing: ${fullImageName} === ${currentOwner} ? ${fullImageName === currentOwner}`);
+        return fullImageName === currentOwner;
+      });
 
       this.log(`Current owner: ${currentOwner} (container: ${currentOwnerId})`);
       this.log(`Owner installed: ${ownerInstalled}`);
