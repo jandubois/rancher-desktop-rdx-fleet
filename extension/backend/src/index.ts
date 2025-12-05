@@ -7,6 +7,7 @@ import { initRouter } from './routes/init';
 import { ownershipRouter } from './routes/ownership';
 import { fleetRouter } from './routes/fleet';
 import { debugRouter } from './routes/debug';
+import { buildRouter } from './routes/build';
 import { fleetService } from './services/fleet';
 import { ownershipService } from './services/ownership';
 
@@ -53,7 +54,8 @@ function loadAndPatchKubeconfig(): string | null {
 const SOCKET_PATH = process.env.SOCKET_PATH || '/run/guest-services/fleet-gitops.sock';
 
 // Middleware
-app.use(express.json());
+// Increase body size limit for build requests with base64 encoded images
+app.use(express.json({ limit: '50mb' }));
 
 // CORS for frontend access
 app.use((req, res, next) => {
@@ -79,6 +81,7 @@ app.use('/api/init', initRouter);
 app.use('/api/ownership', ownershipRouter);
 app.use('/api/fleet', fleetRouter);
 app.use('/api/debug', debugRouter);
+app.use('/api/build', buildRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {
