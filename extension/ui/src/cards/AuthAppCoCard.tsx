@@ -21,9 +21,9 @@ import Switch from '@mui/material/Switch';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
-import StorefrontIcon from '@mui/icons-material/Storefront';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import { SuseGeekoIcon } from '../components/icons/SuseGeekoIcon';
 import { CardProps } from './types';
 import { AppCoCardSettings } from '../manifest/types';
 import { registerCard } from './registry';
@@ -76,7 +76,7 @@ export const AuthAppCoCard: React.FC<CardProps<AppCoCardSettings>> = ({
       <Box>
         {definition.title && (
           <Typography variant="h6" gutterBottom>
-            <StorefrontIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            <SuseGeekoIcon sx={{ mr: 1, verticalAlign: 'middle', height: '1.25em', width: 'auto' }} />
             {definition.title}
           </Typography>
         )}
@@ -114,7 +114,7 @@ export const AuthAppCoCard: React.FC<CardProps<AppCoCardSettings>> = ({
       <Box>
         {definition.title && (
           <Typography variant="h6" gutterBottom>
-            <StorefrontIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            <SuseGeekoIcon sx={{ mr: 1, verticalAlign: 'middle', height: '1.25em', width: 'auto' }} />
             {definition.title}
           </Typography>
         )}
@@ -129,7 +129,7 @@ export const AuthAppCoCard: React.FC<CardProps<AppCoCardSettings>> = ({
   // Header component (shared between collapsed and expanded views)
   const renderHeader = () => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <StorefrontIcon sx={{ verticalAlign: 'middle' }} />
+      <SuseGeekoIcon sx={{ verticalAlign: 'middle', height: '1.25em', width: 'auto' }} />
       {definition.title && (
         <Typography variant="h6" sx={{ flexGrow: 1 }}>
           {definition.title}
