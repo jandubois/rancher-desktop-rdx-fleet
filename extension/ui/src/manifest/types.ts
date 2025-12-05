@@ -41,6 +41,7 @@ export interface GitRepoCardSettings {
 export interface AuthCardSettings {
   required?: boolean;
   show_status?: boolean;
+  auto_collapse?: boolean;  // Auto-collapse when authenticated (default: false)
 }
 
 export interface AppCoCardSettings extends AuthCardSettings {

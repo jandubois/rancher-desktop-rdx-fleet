@@ -442,7 +442,18 @@ cards:
     settings:
       required: false          # Is authentication mandatory?
       show_status: true        # Show connection status indicator
+      auto_collapse: false     # Auto-collapse card when authenticated
 ```
+
+#### Collapsible Cards
+
+Auth cards can be collapsed to save screen space. When `auto_collapse` is enabled:
+- The card automatically collapses after successful authentication
+- A status chip shows the authenticated username (e.g., `@username`)
+- Click the expand button to access Disconnect or change credentials
+- If an error occurs (e.g., rate limit hit), the card auto-expands to show the error
+
+This setting can also be toggled in edit mode via the "Auto-collapse when authenticated" switch.
 
 #### Authentication Methods
 
@@ -498,7 +509,10 @@ cards:
     settings:
       required: false          # Is authentication mandatory?
       show_status: true        # Show connection status indicator
+      auto_collapse: false     # Auto-collapse card when authenticated
 ```
+
+> **Note**: AppCo auth cards also support collapsible mode. See [Collapsible Cards](#collapsible-cards) above for details.
 
 #### Getting Credentials
 
