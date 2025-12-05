@@ -32,6 +32,7 @@ export interface PersistedExtensionState {
   iconHeight?: number;  // Custom icon height in pixels
   editMode?: boolean;  // Whether edit mode is active
   editModeSnapshot?: EditModeSnapshot | null;  // Snapshot for cancel/undo
+  activeEditTab?: number;  // Currently active tab in edit mode panel
   timestamp: number;  // For debugging/versioning
 }
 

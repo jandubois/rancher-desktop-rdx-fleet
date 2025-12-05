@@ -68,6 +68,10 @@ interface EditModePanelProps {
   onBackendRefresh?: () => void;
   /** Callback when title validation warning changes */
   onTitleWarningChange?: (warning: string | null) => void;
+  /** Currently active tab index */
+  activeTab?: number;
+  /** Callback when active tab changes */
+  onActiveTabChange?: (tab: number) => void;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -95,7 +99,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, onIconHeightChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -221,7 +225,8 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
 
   // UI state
   const [expanded, setExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState(0);
+  // Use controlled or uncontrolled tab state
+  const activeTab = activeTabProp ?? 0;
 
   // Build tab state
   const [imageName, setImageName] = useState('my-fleet-extension:dev');
@@ -703,7 +708,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   };
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setActiveTab(newValue);
+    onActiveTabChange?.(newValue);
   };
 
   return (

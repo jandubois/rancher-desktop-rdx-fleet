@@ -109,6 +109,11 @@ function App() {
     () => cachedInitialState?.editModeSnapshot ?? null
   );
 
+  // Active tab in edit mode panel
+  const [activeEditTab, setActiveEditTab] = useState<number>(
+    () => cachedInitialState?.activeEditTab ?? 0
+  );
+
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
@@ -280,9 +285,10 @@ function App() {
       iconHeight,
       editMode,
       editModeSnapshot,
+      activeEditTab,
       timestamp: Date.now(),
     });
-  }, [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState, iconHeight, editMode, editModeSnapshot]);
+  }, [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState, iconHeight, editMode, editModeSnapshot, activeEditTab]);
 
   // Track current time for timeout checks (updated every 5s when there are active discovery operations)
   const [currentTime, setCurrentTime] = useState(() => Date.now());
@@ -848,6 +854,8 @@ function App() {
               backendLoading={backendLoading}
               onBackendRefresh={refreshBackend}
               onTitleWarningChange={setTitleWarning}
+              activeTab={activeEditTab}
+              onActiveTabChange={setActiveEditTab}
             />
           )}
 
