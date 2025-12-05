@@ -452,19 +452,15 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     }
   };
 
-  const handleRecheckOwnership = async () => {
+  const handleRefresh = async () => {
     setRecheckingOwnership(true);
     try {
       await backendService.recheckOwnership();
-      onRefresh();
     } catch (error) {
       console.error('Failed to recheck ownership:', error);
     } finally {
       setRecheckingOwnership(false);
     }
-  };
-
-  const handleRefresh = () => {
     onRefresh();
     loadFleetImages();
   };
@@ -473,13 +469,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     <Box>
       {/* Header with status and refresh */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        {loading ? (
-          <CircularProgress size={20} />
-        ) : (
-          <ExtensionIcon color={connected && kubernetesReady ? (ownershipDetermined && isOwner ? 'success' : 'primary') : 'disabled'} />
-        )}
-
-        <Typography variant="subtitle2" sx={{ flexGrow: 1 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, flexGrow: 1 }}>
           Fleet Extensions Status
         </Typography>
 
@@ -512,9 +502,11 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           />
         )}
 
-        <IconButton size="small" onClick={handleRefresh} disabled={loading || loadingImages}>
-          <RefreshIcon fontSize="small" />
-        </IconButton>
+        <Tooltip title="Refresh status and images">
+          <IconButton size="small" onClick={handleRefresh} disabled={loading || loadingImages || recheckingOwnership}>
+            {(loading || recheckingOwnership) ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
       </Box>
 
       {/* Connection status message */}
@@ -555,21 +547,12 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           ) : (
             <WarningIcon color="warning" />
           )}
-          <Typography variant="body2" sx={{ fontWeight: 600, flexGrow: 1 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
             {isOwner
               ? 'This extension controls Fleet'
               : `Another extension controls Fleet: ${ownership.currentOwner}`
             }
           </Typography>
-          <Tooltip title="Re-run ownership check">
-            <IconButton
-              size="small"
-              onClick={handleRecheckOwnership}
-              disabled={recheckingOwnership}
-            >
-              {recheckingOwnership ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
-            </IconButton>
-          </Tooltip>
         </Box>
       )}
 
