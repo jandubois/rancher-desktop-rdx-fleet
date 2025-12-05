@@ -66,8 +66,8 @@ import { generatePaletteFromColor } from './utils/paletteGenerator';
 const cachedInitialState = getInitialState();
 
 function App() {
-  // Get services from context
-  const { kubernetesService, gitHubService, commandExecutor } = useServices();
+  // Get services from context (kubernetesService is no longer needed - backend handles K8s ops)
+  const { gitHubService, commandExecutor } = useServices();
 
   // Manifest and edit mode state - prefer cached state from localStorage
   const [manifest, setManifest] = useState<Manifest>(
@@ -135,18 +135,17 @@ function App() {
   // Dependency confirmation dialog state
   const [dependencyDialog, setDependencyDialog] = useState<DependencyDialogState>(INITIAL_DEPENDENCY_DIALOG_STATE);
 
-  // Fleet status hook with injected service
+  // Fleet status hook (uses backend service)
   // Fleet is auto-installed by the backend, so no manual install function needed
   const {
     fleetState,
   } = useFleetStatus({
-    kubernetesService,
     onFleetReady: () => {
       fetchGitRepos();
     },
   });
 
-  // GitRepo management hook with injected service
+  // GitRepo management hook (uses backend service)
   const {
     gitRepos,
     loadingRepos,
@@ -159,7 +158,6 @@ function App() {
     updateGitRepoPaths,
     clearRepoError,
   } = useGitRepoManagement({
-    kubernetesService,
     fleetState,
     onReposLoaded: (repos) => {
       // Auto-discover paths for repos that don't have cached paths

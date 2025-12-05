@@ -3,12 +3,13 @@
  *
  * Handles credential storage, validation, and UI state for the AppCo auth card.
  * Also syncs credentials to:
- * - Kubernetes cluster (imagePullSecret for Fleet)
- * - Helm registry (for OCI chart pulls)
+ * - Kubernetes cluster (imagePullSecret for Fleet) - via backend service
+ * - Helm registry (for OCI chart pulls) - via host CLI
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { useCredentialService, useAppCoService, useKubernetesService } from '../../context/ServiceContext';
+import { useCredentialService, useAppCoService } from '../../context/ServiceContext';
+import { backendService } from '../../services/BackendService';
 import type { AppCoUser, CredHelperStatus } from '../../services';
 
 /** Auth state for AppCo */
@@ -31,7 +32,6 @@ export interface UseAppCoAuthResult {
 export function useAppCoAuth(): UseAppCoAuthResult {
   const credentialService = useCredentialService();
   const appCoService = useAppCoService();
-  const kubernetesService = useKubernetesService();
 
   // State
   const [authState, setAuthState] = useState<AppCoAuthState>('loading');
@@ -42,19 +42,19 @@ export function useAppCoAuth(): UseAppCoAuthResult {
 
   /**
    * Sync credentials to cluster and helm registry.
-   * Creates the K8s imagePullSecret and logs into helm registry.
+   * Creates the K8s imagePullSecret via backend and logs into helm registry via host.
    */
   const syncCredentialsToClusterAndHelm = useCallback(async (username: string, token: string) => {
-    // Sync to cluster - create imagePullSecret for Fleet
+    // Sync to cluster - create imagePullSecret for Fleet via backend
     try {
-      await kubernetesService.createAppCoRegistrySecret(username, token);
-      console.log('[useAppCoAuth] Created AppCo registry secret in cluster');
+      await backendService.createAppCoRegistrySecret(username, token);
+      console.log('[useAppCoAuth] Created AppCo registry secret in cluster via backend');
     } catch (err) {
       // Log but don't fail - cluster might not be ready yet
       console.warn('[useAppCoAuth] Failed to create cluster secret (cluster may not be ready):', err);
     }
 
-    // Sync to helm - enable helm pull from OCI registry
+    // Sync to helm - enable helm pull from OCI registry (must be on host)
     try {
       await credentialService.helmRegistryLoginAppCo(username, token);
       console.log('[useAppCoAuth] Logged into AppCo helm registry');
@@ -62,28 +62,28 @@ export function useAppCoAuth(): UseAppCoAuthResult {
       // Log but don't fail - helm registry login is nice-to-have
       console.warn('[useAppCoAuth] Failed to login to helm registry:', err);
     }
-  }, [kubernetesService, credentialService]);
+  }, [credentialService]);
 
   /**
    * Clean up credentials from cluster and helm registry.
    */
   const cleanupCredentialsFromClusterAndHelm = useCallback(async () => {
-    // Remove from cluster
+    // Remove from cluster via backend
     try {
-      await kubernetesService.deleteAppCoRegistrySecret();
-      console.log('[useAppCoAuth] Deleted AppCo registry secret from cluster');
+      await backendService.deleteAppCoRegistrySecret();
+      console.log('[useAppCoAuth] Deleted AppCo registry secret from cluster via backend');
     } catch (err) {
       console.warn('[useAppCoAuth] Failed to delete cluster secret:', err);
     }
 
-    // Logout from helm
+    // Logout from helm (must be on host)
     try {
       await credentialService.helmRegistryLogoutAppCo();
       console.log('[useAppCoAuth] Logged out from AppCo helm registry');
     } catch (err) {
       console.warn('[useAppCoAuth] Failed to logout from helm registry:', err);
     }
-  }, [kubernetesService, credentialService]);
+  }, [credentialService]);
 
   /**
    * Load initial state: check for stored credentials and validate.
@@ -171,7 +171,7 @@ export function useAppCoAuth(): UseAppCoAuthResult {
       // Store credentials in host credential helper
       await credentialService.storeAppCoCredential(trimmedUsername, trimmedToken);
 
-      // Sync to cluster (imagePullSecret) and helm registry
+      // Sync to cluster (imagePullSecret via backend) and helm registry (via host)
       await syncCredentialsToClusterAndHelm(trimmedUsername, trimmedToken);
 
       // Update state
@@ -196,7 +196,7 @@ export function useAppCoAuth(): UseAppCoAuthResult {
       // Delete stored credentials from host
       await credentialService.deleteAppCoCredential();
 
-      // Clean up from cluster and helm
+      // Clean up from cluster (via backend) and helm (via host)
       await cleanupCredentialsFromClusterAndHelm();
 
       // Reset state

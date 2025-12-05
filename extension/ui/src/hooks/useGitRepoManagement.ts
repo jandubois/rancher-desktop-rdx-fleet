@@ -1,16 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { KubernetesService } from '../services';
+import { backendService } from '../services/BackendService';
 import { getErrorMessage } from '../utils';
 import { GitRepo, FleetState } from '../types';
 
 interface UseGitRepoManagementOptions {
   fleetState: FleetState;
   onReposLoaded?: (repos: GitRepo[]) => void;
-  /**
-   * Optional KubernetesService for dependency injection.
-   * If not provided, the hook must be used within a ServiceProvider.
-   */
-  kubernetesService?: KubernetesService;
 }
 
 interface AddGitRepoResult {
@@ -32,51 +27,29 @@ interface UseGitRepoManagementResult {
 }
 
 /**
- * Hook for managing GitRepo resources.
+ * Hook for managing GitRepo resources via the backend service.
  *
- * Can be used in two ways:
- * 1. With injected service (for testing):
- *    ```ts
- *    const mockService = new KubernetesService(mockExecutor);
- *    useGitRepoManagement({ fleetState, kubernetesService: mockService });
- *    ```
- *
- * 2. With ServiceProvider context (for production):
- *    ```tsx
- *    <ServiceProvider>
- *      <ComponentUsingGitRepoManagement />
- *    </ServiceProvider>
- *    ```
+ * All Kubernetes operations are delegated to the backend, which uses
+ * the Kubernetes client library directly instead of kubectl CLI.
  */
 export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseGitRepoManagementResult {
-  const { fleetState, onReposLoaded, kubernetesService } = options;
+  const { fleetState, onReposLoaded } = options;
   const [gitRepos, setGitRepos] = useState<GitRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [repoError, setRepoError] = useState<string | null>(null);
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
 
   const onReposLoadedRef = useRef(onReposLoaded);
-  const serviceRef = useRef(kubernetesService);
 
   useEffect(() => {
     onReposLoadedRef.current = onReposLoaded;
   }, [onReposLoaded]);
 
-  useEffect(() => {
-    serviceRef.current = kubernetesService;
-  }, [kubernetesService]);
-
   const fetchGitRepos = useCallback(async () => {
-    const service = serviceRef.current;
-    if (!service) {
-      console.error('KubernetesService not available');
-      return;
-    }
-
     setLoadingRepos(true);
     setRepoError(null);
     try {
-      const repos = await service.fetchGitRepos();
+      const repos = await backendService.listGitRepos();
 
       // Only update state if data actually changed (prevents scroll reset)
       setGitRepos((prevRepos) => {
@@ -90,7 +63,8 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
       });
     } catch (err) {
       const errMsg = getErrorMessage(err);
-      if (errMsg.includes('No resources found')) {
+      // Backend returns empty array for no repos, not an error
+      if (errMsg.includes('No resources found') || errMsg.includes('503')) {
         setGitRepos([]);
       } else {
         console.error('Failed to fetch GitRepos:', err);
@@ -103,12 +77,6 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
 
   // Update GitRepo paths
   const updateGitRepoPaths = useCallback(async (repo: GitRepo, newPaths: string[]) => {
-    const service = serviceRef.current;
-    if (!service) {
-      console.error('KubernetesService not available');
-      return;
-    }
-
     setUpdatingRepo(repo.name);
 
     // Optimistic update - update local state immediately to prevent scroll jump
@@ -119,7 +87,13 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     );
 
     try {
-      await service.applyGitRepo(repo.name, repo.repo, repo.branch, newPaths);
+      await backendService.applyGitRepo({
+        name: repo.name,
+        repo: repo.repo,
+        branch: repo.branch,
+        paths: newPaths,
+        paused: repo.paused,
+      });
       // Don't call fetchGitRepos() - optimistic update is sufficient
       // The periodic refresh will sync any server-side changes
     } catch (err) {
@@ -143,11 +117,6 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
 
   // Add a new GitRepo
   const addGitRepo = useCallback(async (name: string, repoUrl: string, branch?: string): Promise<AddGitRepoResult> => {
-    const service = serviceRef.current;
-    if (!service) {
-      return { success: false, error: 'Service not configured' };
-    }
-
     if (!name || !repoUrl) return { success: false, error: 'Name and URL are required' };
 
     // Check if a repo with this name already exists
@@ -158,7 +127,11 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     }
 
     try {
-      await service.applyGitRepo(name, repoUrl, branch);
+      await backendService.applyGitRepo({
+        name,
+        repo: repoUrl,
+        branch,
+      });
       await fetchGitRepos();
       return { success: true };
     } catch (err) {
@@ -171,14 +144,8 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
 
   // Delete a GitRepo
   const deleteGitRepo = useCallback(async (name: string) => {
-    const service = serviceRef.current;
-    if (!service) {
-      console.error('KubernetesService not available');
-      return;
-    }
-
     try {
-      await service.deleteGitRepo(name);
+      await backendService.deleteGitRepo(name);
       await fetchGitRepos();
     } catch (err) {
       console.error('Failed to delete GitRepo:', err);

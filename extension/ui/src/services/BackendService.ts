@@ -325,7 +325,216 @@ export class BackendService {
     }
     return await this.vmService.post('/api/build', request) as BuildResult;
   }
+
+  // ============================================
+  // GitRepo Operations (via backend Kubernetes client)
+  // ============================================
+
+  /**
+   * List all GitRepos from the cluster
+   */
+  async listGitRepos(): Promise<GitRepo[]> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    const response = await this.vmService.get('/api/gitrepos') as { items: GitRepo[] };
+    return response.items;
+  }
+
+  /**
+   * Get a specific GitRepo by name
+   */
+  async getGitRepo(name: string): Promise<GitRepo | null> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    try {
+      return await this.vmService.get(`/api/gitrepos/${encodeURIComponent(name)}`) as GitRepo;
+    } catch (error) {
+      // Return null if not found
+      if (error instanceof Error && error.message.includes('404')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Create or update a GitRepo
+   */
+  async applyGitRepo(request: GitRepoRequest): Promise<GitRepo> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/gitrepos', request) as GitRepo;
+  }
+
+  /**
+   * Delete a GitRepo by name
+   */
+  async deleteGitRepo(name: string): Promise<void> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    // Use POST with _method override since vm.service may not support DELETE
+    await this.vmService.post(`/api/gitrepos/${encodeURIComponent(name)}/delete`, {});
+  }
+
+  // ============================================
+  // Registry Secret Operations (via backend Kubernetes client)
+  // ============================================
+
+  /**
+   * Check if a registry secret exists
+   */
+  async registrySecretExists(name: string): Promise<boolean> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    try {
+      const response = await this.vmService.get(`/api/secrets/registry/${encodeURIComponent(name)}`) as { exists: boolean };
+      return response.exists;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Create or update a registry secret
+   */
+  async createRegistrySecret(request: RegistrySecretRequest): Promise<SecretInfo> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/secrets/registry', request) as SecretInfo;
+  }
+
+  /**
+   * Delete a registry secret
+   */
+  async deleteRegistrySecret(name: string): Promise<void> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    // Use POST with delete endpoint since vm.service may not support DELETE
+    await this.vmService.post(`/api/secrets/registry/${encodeURIComponent(name)}/delete`, {});
+  }
+
+  /**
+   * Check if AppCo registry secret exists
+   */
+  async appCoSecretExists(): Promise<boolean> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    try {
+      const response = await this.vmService.get('/api/secrets/appco') as { exists: boolean };
+      return response.exists;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Create or update AppCo registry secret
+   */
+  async createAppCoRegistrySecret(username: string, password: string): Promise<SecretInfo> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/secrets/appco', { username, password }) as SecretInfo;
+  }
+
+  /**
+   * Delete AppCo registry secret
+   */
+  async deleteAppCoRegistrySecret(): Promise<void> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    // Use POST with delete endpoint since vm.service may not support DELETE
+    await this.vmService.post('/api/secrets/appco/delete', {});
+  }
 }
+
+// ============================================
+// GitRepo Types
+// ============================================
+
+/** GitRepo status display info */
+export interface GitRepoDisplay {
+  state?: string;
+  message?: string;
+  error?: boolean;
+}
+
+/** GitRepo resource info */
+export interface GitRepoResource {
+  kind: string;
+  name: string;
+  state: string;
+}
+
+/** GitRepo condition */
+export interface GitRepoCondition {
+  type: string;
+  status: string;
+  message?: string;
+}
+
+/** GitRepo status */
+export interface GitRepoStatus {
+  ready: boolean;
+  display?: GitRepoDisplay;
+  desiredReadyClusters: number;
+  readyClusters: number;
+  resources?: GitRepoResource[];
+  conditions?: GitRepoCondition[];
+}
+
+/** GitRepo representation */
+export interface GitRepo {
+  name: string;
+  repo: string;
+  branch?: string;
+  paths?: string[];
+  paused?: boolean;
+  status?: GitRepoStatus;
+}
+
+/** Request to create/update a GitRepo */
+export interface GitRepoRequest {
+  name: string;
+  repo: string;
+  branch?: string;
+  paths?: string[];
+  paused?: boolean;
+}
+
+// ============================================
+// Secret Types
+// ============================================
+
+/** Secret info (without sensitive data) */
+export interface SecretInfo {
+  name: string;
+  namespace: string;
+  type: string;
+  createdAt?: string;
+  labels?: Record<string, string>;
+}
+
+/** Request to create a registry secret */
+export interface RegistrySecretRequest {
+  name: string;
+  registry: string;
+  username: string;
+  password: string;
+}
+
+// ============================================
+// Build Types
+// ============================================
 
 /** Build request for custom extension images */
 export interface BuildRequest {
