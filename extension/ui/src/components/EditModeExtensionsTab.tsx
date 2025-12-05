@@ -38,7 +38,6 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { BackendStatus, backendService, InstalledExtension } from '../services/BackendService';
 import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
 import { useServices } from '../context/ServiceContext';
-import { ddClient } from '../lib/ddClient';
 
 /**
  * Parse rdctl extension ls output.
@@ -162,11 +161,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
   const ownership = status?.ownership;
   const kubernetesReady = initStatus?.kubernetesReady ?? false;
 
-  // Compute isOwner locally by comparing this frontend's extension image with currentOwner
-  // Don't trust backend's isOwner since the backend is shared between all Fleet extensions
-  const ownExtensionImage = (ddClient.extension as { image?: string })?.image;
+  // Use backend's isOwner - each extension runs its own backend with the same image name
+  // as the frontend, so the backend correctly identifies itself via Docker lookup
+  const isOwner = ownership?.isOwner ?? false;
   const currentOwner = ownership?.currentOwner;
-  const isOwner = !!(ownExtensionImage && currentOwner && ownExtensionImage === currentOwner);
 
   // Only show ownership status when it's meaningful:
   // - K8s is ready (required for ownership ConfigMap)
@@ -240,8 +238,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     const isThisExtension = !!installedExt && initStatus?.ownIdentity.extensionName === installedExt.name;
 
     // Check if this is the currently active (owner) extension
-    // Use currentOwner from backend (the actual owner from ConfigMap), not ownExtensionName (this extension's name)
-    const currentOwner = ownership?.currentOwner;
+    // currentOwner is already defined in outer scope from ownership?.currentOwner
     const isActive = !!installedExt && (
       currentOwner === imageName ||
       currentOwner === normalizedImageName ||

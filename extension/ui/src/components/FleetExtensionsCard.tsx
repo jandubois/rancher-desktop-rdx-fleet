@@ -40,7 +40,6 @@ import CircularProgress from '@mui/material/CircularProgress';
 import { BackendStatus, backendService } from '../services/BackendService';
 import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
 import { useServices } from '../context/ServiceContext';
-import { ddClient } from '../lib/ddClient';
 import DownloadIcon from '@mui/icons-material/Download';
 
 export interface FleetExtensionsCardProps {
@@ -111,11 +110,9 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
   const ownership = status?.ownership;
   const kubernetesReady = initStatus?.kubernetesReady ?? false;
 
-  // Compute isOwner locally by comparing this frontend's extension image with currentOwner
-  // Don't trust backend's isOwner since the backend is shared between all Fleet extensions
-  const ownExtensionImage = (ddClient.extension as { image?: string })?.image;
-  const currentOwner = ownership?.currentOwner;
-  const isOwner = !!(ownExtensionImage && currentOwner && ownExtensionImage === currentOwner);
+  // Use backend's isOwner - each extension runs its own backend with the same image name
+  // as the frontend, so the backend correctly identifies itself via Docker lookup
+  const isOwner = ownership?.isOwner ?? false;
 
   // Only show ownership status when it's meaningful:
   // - K8s is ready (required for ownership ConfigMap)
