@@ -84,6 +84,8 @@ interface UnifiedImageInfo {
   title?: string;
   /** For custom extensions, the base image used */
   baseImage?: string;
+  /** io.rancher-desktop.fleet.name label - canonical identifier for ownership */
+  fleetName?: string;
   /** Whether this image is installed as an extension */
   isInstalled: boolean;
   /** Whether this is the currently active (owner) extension */
@@ -246,6 +248,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       type: img.type,
       title: img.title,
       baseImage: img.baseImage,
+      fleetName: img.fleetName,
       isInstalled: !!installedExt,
       isActive: !!isActive,
       isThisExtension: !!isThisExtension,
@@ -352,6 +355,11 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     setOperationError(null);
 
     try {
+      // Require the io.rancher-desktop.fleet.name label for ownership transfer
+      if (!img.fleetName) {
+        throw new Error(`Extension ${img.imageName} is missing the io.rancher-desktop.fleet.name label`);
+      }
+
       // If not installed, install it first (inline to avoid operatingImage being cleared by handleInstall)
       if (!img.isInstalled) {
         console.log(`[ExtensionsTab] Installing ${img.imageName} before activation...`);
@@ -369,12 +377,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
         await refreshInstalledExtensions();
       }
 
-      // Transfer ownership to this extension
-      // Extract just the base name (e.g., "fleet-gitops-extension" from "ghcr.io/rancher/fleet-gitops-extension")
-      // This must match how docker.ts extracts image base names for running container detection
-      const extensionName = img.repository.split('/').pop() || img.repository;
-      console.log(`[ExtensionsTab] Transferring ownership to: ${extensionName}`);
-      await backendService.transferOwnership(extensionName);
+      // Transfer ownership using the io.rancher-desktop.fleet.name label value
+      // This is the canonical identifier that matches how docker.ts checks for running containers
+      console.log(`[ExtensionsTab] Transferring ownership to: ${img.fleetName}`);
+      await backendService.transferOwnership(img.fleetName);
 
       // Refresh to show updated status
       await loadFleetImages();

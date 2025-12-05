@@ -94,26 +94,16 @@ export class DockerService {
 
   /**
    * Check if a container for the given extension name is running.
+   * Uses exact matching only - no heuristics.
+   *
+   * @param extensionName - The extension name (io.rancher-desktop.fleet.name label value)
    */
   async isExtensionRunning(extensionName: string): Promise<boolean> {
     const containers = await this.listContainers();
 
     const found = containers.some(c => {
-      // Check by label (exact match)
+      // Check by label (exact match) - this is the canonical identifier
       if (c.labels['io.rancher-desktop.fleet.name'] === extensionName) {
-        return true;
-      }
-      // Check by image base name (exact match)
-      // Extract base name: "ghcr.io/foo/bar:tag" -> "bar"
-      const imageBaseName = c.image.split('/').pop()?.split(':')[0] || '';
-      if (imageBaseName === extensionName) {
-        return true;
-      }
-      // Check container name for exact segment match
-      // Container names like "desktop-extension-fleet-gitops-extension-backend-1"
-      // should match "fleet-gitops-extension" but NOT "fleet-gitops"
-      const containerSegments = c.name.toLowerCase().split(/[-_]/);
-      if (containerSegments.includes(extensionName.toLowerCase())) {
         return true;
       }
       return false;

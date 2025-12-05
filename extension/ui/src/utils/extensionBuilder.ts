@@ -22,6 +22,7 @@ export interface FleetExtensionImage {
   type: 'base' | 'custom';  // Fleet extension type
   title?: string;       // Human-readable title from OCI label
   baseImage?: string;   // For custom extensions, the base image used
+  fleetName?: string;   // io.rancher-desktop.fleet.name label - canonical identifier for ownership
 }
 
 // Import result from image or ZIP
@@ -184,10 +185,20 @@ export function generateMetadataJson(config: ExtensionConfig): string {
   return JSON.stringify(metadata, null, 2);
 }
 
+// Generate a sanitized extension identifier from the name
+function generateExtensionIdentifier(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    || 'custom-fleet-extension';
+}
+
 // Generate Dockerfile for custom extension
 export function generateDockerfile(config: ExtensionConfig, hasBundledImages = false): string {
   const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops-extension:latest';
   const extensionName = config.name || 'My Fleet Extension';
+  const extensionId = generateExtensionIdentifier(extensionName);
   const hasCustomIcon = isCustomIcon(config.iconState);
   const iconPath = getIconPath(config);
 
@@ -211,6 +222,7 @@ LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
   dockerfile += `
 # Mark this as a custom Fleet extension (enables config extraction)
 LABEL io.rancher-desktop.fleet.type="custom"
+LABEL io.rancher-desktop.fleet.name="${extensionId}"
 LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"
 
 # Override manifest with custom configuration
@@ -484,6 +496,7 @@ export async function buildExtension(
 ): Promise<BuildResult> {
   const baseImage = config.baseImage || 'ghcr.io/rancher-sandbox/fleet-gitops-extension:latest';
   const extensionTitle = config.name || 'My Fleet Extension';
+  const extensionId = generateExtensionIdentifier(extensionTitle);
   const hasCustomIcon = isCustomIcon(config.iconState);
   const isIconDeleted = config.iconState === 'deleted';
 
@@ -567,6 +580,7 @@ FROM \\\${BASE_IMAGE}
 LABEL org.opencontainers.image.title="$EXT_TITLE_DECODED"
 LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
 LABEL io.rancher-desktop.fleet.type="custom"
+LABEL io.rancher-desktop.fleet.name="$EXTENSION_ID"
 LABEL io.rancher-desktop.fleet.base-image="\\\${BASE_IMAGE}"
 COPY manifest.yaml /ui/manifest.yaml
 COPY metadata.json /metadata.json
@@ -606,6 +620,7 @@ echo "Build complete: $IMAGE_NAME"
       '-e', `METADATA_B64=${metadataB64}`,
       '-e', `IMAGE_NAME=${imageName}`,
       '-e', `TITLE_B64=${titleB64}`,
+      '-e', `EXTENSION_ID=${extensionId}`,
       '-e', `ICON_PATH=${iconPath}`,
       '-e', `BASE_IMAGE=${baseImage}`,
       '-e', `HAS_CUSTOM_ICON=${hasCustomIcon}`,
@@ -695,6 +710,7 @@ export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]>
           type: fleetType as 'base' | 'custom',
           title: labels['org.opencontainers.image.title'],
           baseImage: labels['io.rancher-desktop.fleet.base-image'],
+          fleetName: labels['io.rancher-desktop.fleet.name'],
         });
       }
     }
