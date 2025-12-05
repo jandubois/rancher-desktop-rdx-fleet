@@ -555,21 +555,27 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
           ) : (
             <WarningIcon color="warning" />
           )}
-          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, flexGrow: 1 }}>
             {isOwner
               ? 'This extension controls Fleet'
               : `Another extension controls Fleet: ${ownership.currentOwner}`
             }
           </Typography>
+          <Tooltip title="Re-run ownership check">
+            <IconButton
+              size="small"
+              onClick={handleRecheckOwnership}
+              disabled={recheckingOwnership}
+            >
+              {recheckingOwnership ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
         </Box>
       )}
 
       {/* Fleet Extension Images List */}
       {sortedUnifiedImages.length > 0 ? (
         <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-            Fleet Extension Images ({sortedUnifiedImages.length})
-          </Typography>
           {operationError && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1, color: 'error.main' }}>
               <ErrorIcon fontSize="small" />
@@ -696,31 +702,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       ) : null}
 
 
-      {/* Actions */}
-      {connected && initStatus?.kubernetesReady && (
-        <Box sx={{ mt: 2, display: 'flex', gap: 1, justifyContent: 'flex-end' }}>
-          <Button
-            size="small"
-            variant="outlined"
-            onClick={handleRecheckOwnership}
-            disabled={recheckingOwnership}
-            startIcon={recheckingOwnership ? <CircularProgress size={16} /> : <RefreshIcon />}
-          >
-            {recheckingOwnership ? 'Checking...' : 'Recheck Ownership'}
-          </Button>
-        </Box>
-      )}
-
-      {/* Debug info footer */}
-      {status?.identity && (
-        <Box sx={{ mt: 2, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-            Container: {status.identity.containerId.substring(0, 12)}... |
-            Version: {status.identity.version} |
-            K8s: {initStatus?.kubernetesReady ? 'Ready' : 'Not Ready'}
-          </Typography>
-        </Box>
-      )}
     </Box>
   );
 }
