@@ -810,6 +810,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 status={backendStatus ?? null}
                 loading={backendLoading ?? false}
                 onRefresh={onBackendRefresh ?? (() => {})}
+                fleetImages={fleetImages}
+                loadingImages={loadingImages}
+                onRefreshImages={refreshFleetImages}
               />
             </TabPanel>
           </Box>
