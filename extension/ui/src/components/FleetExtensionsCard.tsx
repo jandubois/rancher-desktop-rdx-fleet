@@ -312,17 +312,12 @@ export function FleetExtensionsCard({ status, loading, onRefresh }: FleetExtensi
               ) : (
                 <WarningIcon color="warning" sx={{ mt: 0.25 }} />
               )}
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  {isOwner
-                    ? 'This extension controls Fleet'
-                    : `Another extension controls Fleet: ${ownership.currentOwner}`
-                  }
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {ownership.message}
-                </Typography>
-              </Box>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {isOwner
+                  ? 'This extension controls Fleet'
+                  : `Another extension controls Fleet: ${ownership.currentOwner}`
+                }
+              </Typography>
             </Box>
           )}
 

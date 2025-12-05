@@ -399,7 +399,7 @@ export class OwnershipService {
           isOwner: true,
           currentOwner,
           status: 'reclaimed',
-          message: `Reclaimed ownership after restart (was container ${currentOwnerId})`,
+          message: 'Reclaimed ownership after restart',
         };
       }
 
