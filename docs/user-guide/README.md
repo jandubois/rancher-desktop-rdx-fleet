@@ -149,6 +149,7 @@ In edit mode, you can load a configuration from an existing custom extension:
 
 3. **Reset to Defaults**
    - Click **Reset to Defaults** to restore the base extension configuration
+   - This also removes all configured Git repositories
 
 ### Extracting Configuration from Images
 
