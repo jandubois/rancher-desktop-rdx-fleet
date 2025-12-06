@@ -10,6 +10,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
 import RestoreIcon from '@mui/icons-material/Restore';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import {
   DndContext,
   closestCenter,
@@ -109,6 +110,9 @@ function App() {
   // Reset to defaults confirmation dialog state
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
+  // Clear all repos confirmation dialog state
+  const [confirmClearReposOpen, setConfirmClearReposOpen] = useState(false);
+
   // Edit mode snapshot for undo/cancel functionality
   const [editModeSnapshot, setEditModeSnapshot] = useState<EditModeSnapshot | null>(
     () => cachedInitialState?.editModeSnapshot ?? null
@@ -157,6 +161,7 @@ function App() {
     toggleRepoPath,
     updateGitRepoPaths,
     clearRepoError,
+    clearAllGitRepos,
   } = useGitRepoManagement({
     fleetState,
     onReposLoaded: (repos) => {
@@ -407,6 +412,12 @@ function App() {
   const handleDeleteRepo = useCallback(async (name: string) => {
     await deleteGitRepo(name);
   }, [deleteGitRepo]);
+
+  // Handle clear all repos
+  const handleClearAllRepos = useCallback(async () => {
+    setConfirmClearReposOpen(false);
+    await clearAllGitRepos();
+  }, [clearAllGitRepos]);
 
   // Helper to get/set dynamic card title
   const getDynamicCardTitle = (cardId: string, defaultTitle: string) => {
@@ -911,6 +922,21 @@ function App() {
                 </SortableCard>
               )}
 
+              {/* Show clear all repos button when there are repos configured */}
+              {gitRepos.length > 0 && (
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2, mb: 2 }}>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    startIcon={<DeleteSweepIcon />}
+                    onClick={() => setConfirmClearReposOpen(true)}
+                  >
+                    Clear All Repositories
+                  </Button>
+                </Box>
+              )}
+
               {/* Loading indicator */}
               {loadingRepos && (
                 <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
@@ -941,6 +967,17 @@ function App() {
         confirmColor="warning"
         onConfirm={handleResetToDefaults}
         onCancel={() => setConfirmResetOpen(false)}
+      />
+
+      {/* Clear All Repositories Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmClearReposOpen}
+        title="Clear All Repositories"
+        message="This will remove all configured Git repositories and their deployments. You can then configure a different repository."
+        confirmLabel="Clear All"
+        confirmColor="error"
+        onConfirm={handleClearAllRepos}
+        onCancel={() => setConfirmClearReposOpen(false)}
       />
     </Box>
   );

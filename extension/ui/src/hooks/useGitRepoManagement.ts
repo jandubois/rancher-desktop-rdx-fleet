@@ -42,6 +42,7 @@ interface UseGitRepoManagementResult {
   updateGitRepoPaths: (repo: GitRepo, newPaths: string[]) => Promise<void>;
   toggleRepoPath: (repo: GitRepo, path: string) => void;
   clearRepoError: () => void;
+  clearAllGitRepos: () => Promise<void>;
 }
 
 /** Load repo configs from localStorage */
@@ -252,6 +253,31 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     setRepoError(null);
   }, []);
 
+  // Clear all GitRepos - removes from both localStorage and K8s
+  const clearAllGitRepos = useCallback(async () => {
+    debugLog('clearAllGitRepos called', { repoCount: repoConfigs.length, k8sRepoCount: k8sRepos.length });
+
+    // Delete all K8s resources first
+    const deletePromises = k8sRepos.map(async (repo) => {
+      try {
+        await backendService.deleteGitRepo(repo.name);
+        debugLog('clearAllGitRepos: deleted K8s repo', { name: repo.name });
+      } catch (err) {
+        console.error(`Failed to delete K8s repo ${repo.name}:`, err);
+        // Continue with other deletions even if one fails
+      }
+    });
+
+    await Promise.all(deletePromises);
+
+    // Clear localStorage config
+    setRepoConfigs([]);
+    debugLog('clearAllGitRepos: cleared localStorage');
+
+    // Refresh K8s state
+    await fetchGitRepos();
+  }, [repoConfigs.length, k8sRepos, fetchGitRepos]);
+
   // Auto-refresh when there are repos that aren't ready yet
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shouldRefreshRef = useRef(false);
@@ -288,5 +314,6 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     updateGitRepoPaths,
     toggleRepoPath,
     clearRepoError,
+    clearAllGitRepos,
   };
 }
