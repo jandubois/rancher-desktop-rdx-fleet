@@ -231,7 +231,9 @@ function App() {
     const manifestCardIds = manifestCards
       .filter((c) => isCardTypeRegistered(c.type) || c.type === 'placeholder')
       .map((c) => c.id);
-    const allValidIds = new Set(['fleet-status', ...gitRepoIds, ...manifestCardIds]);
+    // Order matters for Set iteration: manifest cards before gitRepos so new
+    // gitRepos appear after manifest cards (matching uninitialized-repo placeholder position)
+    const allValidIds = new Set(['fleet-status', ...manifestCardIds, ...gitRepoIds]);
 
     // Filter out deleted cards from user's preferred order
     const filtered = cardOrder.filter((id) => allValidIds.has(id));
