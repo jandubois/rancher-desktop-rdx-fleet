@@ -17,6 +17,9 @@ RUN npm run build
 # Final image - uses Node.js to run the backend service
 FROM node:22-alpine
 
+# Install git for backend path discovery (shallow clones)
+RUN apk add --no-cache git
+
 # Standard OCI labels
 LABEL org.opencontainers.image.title="Fleet GitOps"
 LABEL org.opencontainers.image.description="GitOps-based developer environment provisioning using Fleet"
