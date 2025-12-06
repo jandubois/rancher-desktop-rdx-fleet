@@ -1,8 +1,12 @@
 // Utility exports
 export { getErrorMessage } from './errors';
-export { parseGitHubUrl, fetchFleetYamlDeps, fetchGitHubPaths, computeBundleName, buildBundleInfo } from './github';
-export type { PathInfo } from './github';
 export { KUBE_CONTEXT, FLEET_NAMESPACE } from './constants';
+
+// Re-export bundle utilities from GitHubService (used by dependency resolver)
+// Note: The full GitHubService is being deprecated in favor of backend path discovery.
+// These utility functions remain useful for the frontend dependency resolution.
+export { computeBundleName, buildBundleInfo, parseGitHubUrl } from '../services/GitHubService';
+export type { PathInfo } from '../services/GitHubService';
 export {
   generateManifestYaml,
   generateMetadataJson,
