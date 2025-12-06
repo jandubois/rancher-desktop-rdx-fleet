@@ -14,35 +14,77 @@ This document tracks the current development plan and priorities. **Read this fi
 
 ---
 
-## Priority 1: Authentication Cards (Mostly Complete)
+## Architecture Overview
 
-Essential for private Git repositories and enterprise use.
+### Client-Server Model
+
+The extension uses a **client-server architecture**:
+
+- **Backend** (Node.js/Express): Runs in the Rancher Desktop VM, manages all Kubernetes resources (Fleet, GitRepos, Secrets) using `@kubernetes/client-node`. The backend is the single source of truth for cluster state.
+
+- **Frontend** (React): User-facing UI that communicates with the backend via the Rancher Desktop extension SDK. Manages UI state only (card layout, edit mode, etc.).
+
+### Path Discovery Architecture
+
+Path discovery (finding `fleet.yaml` files in Git repositories) uses a **backend shallow clone approach**:
+
+- **Backend clones repos**: Uses `git clone --depth 1` to perform shallow clones
+- **Local file analysis**: Scans cloned repos for `fleet.yaml`/`fleet.yml` files
+- **Provider agnostic**: Works with GitHub, GitLab, Bitbucket, or any Git server
+- **Private repo support**: Uses credentials from Kubernetes Secrets
+
+This approach eliminates GitHub API rate limits and enables support for any Git hosting provider.
+
+### Data Storage
+
+| Data Type | Storage Location | Notes |
+|-----------|------------------|-------|
+| GitRepo configs | Kubernetes CRDs | `fleet.cattle.io/v1alpha1` in `fleet-local` namespace |
+| Git credentials | Docker credential helpers | Via `docker-credential-*` commands |
+| UI state | Browser localStorage | Card order, manifest, edit mode state |
+
+---
+
+## Priority 1: Backend Path Discovery (In Progress)
+
+Move path discovery from frontend GitHub API calls to backend shallow clones.
 
 ### Completed
 
-1. **✓ `auth-github` card** (`extension/ui/src/cards/AuthGitHubCard.tsx`)
-   - GitHub Personal Access Token entry field
-   - gh CLI integration for token retrieval
-   - Rate limit display and status indicators
-   - Secure credential storage via Docker credential helpers
-
-2. **✓ `auth-appco` card** (`extension/ui/src/cards/AuthAppCoCard.tsx`)
-   - SUSE Application Collection authentication
-   - Username/token authentication
-   - Secure credential storage via Docker credential helpers
+1. **Frontend GitHubService** exists with working path discovery
+   - `extension/ui/src/services/GitHubService.ts`
+   - Uses GitHub API for tree listing
+   - Handles rate limits and authentication
 
 ### Remaining
 
-3. **Implement `auth-git` card** (`extension/ui/src/cards/AuthGitCard.tsx`)
-   - Username/token authentication option
-   - SSH key authentication option
-   - Server URL field for self-hosted Git servers
-   - Store credentials in Kubernetes Secret
+1. **Create backend Git service** (`extension/backend/src/services/git.ts`)
+   - `shallowClone(repoUrl, branch, credentials?)` - Clone to temp directory
+   - `discoverPaths(cloneDir)` - Find fleet.yaml files recursively
+   - `parseFleetYaml(filePath)` - Extract dependsOn and other metadata
+   - `cleanup(cloneDir)` - Remove temp directory
 
-### Future Enhancements
+2. **Add API endpoints** (`extension/backend/src/routes/git.ts`)
+   - `POST /api/git/discover` - Discover paths in a repo
+     - Request: `{ repo: string, branch?: string, credentials?: { username, password } }`
+     - Response: `{ paths: PathInfo[], branch: string }`
+   - `GET /api/git/discover/status` - Check discovery status (for long-running operations)
 
-- Card dependency system (block GitRepo cards until auth configured)
-- Kubernetes Secret integration for Fleet credential references
+3. **Update frontend to use backend**
+   - Modify `usePathDiscovery` hook to call backend API
+   - Remove or deprecate `GitHubService.fetchGitHubPaths()`
+   - Keep `computeBundleName` and `buildBundleInfo` utilities
+
+4. **Handle credentials**
+   - Use credentials from Secrets service for authenticated clones
+   - Support SSH keys and HTTPS tokens
+
+### Benefits
+
+- No GitHub API rate limits (60/hour unauthenticated, 5000/hour authenticated)
+- Works with any Git provider (GitLab, Bitbucket, self-hosted)
+- Better security (tokens stay on backend)
+- Can cache clones for faster subsequent discoveries
 
 ---
 
@@ -50,74 +92,22 @@ Essential for private Git repositories and enterprise use.
 
 Smart path handling to prevent user errors. See **[bundle-dependencies.md](reference/bundle-dependencies.md)** for full technical details.
 
-### Background: Bundle Naming
+### Completed
 
-Fleet creates bundle names from: `<GitRepo-name>-<path-with-hyphens>`
+1. **Bundle name computation** - `computeBundleName()` in `GitHubService.ts`
+2. **Bundle info building** - `buildBundleInfo()` associates paths with GitRepo names
+3. **Dependency parsing** - `fetchFleetYamlDeps()` extracts `dependsOn` from fleet.yaml
+4. **Dependency resolver hook** - `useDependencyResolver.ts` with bundle registry
 
-**Critical**: The bundle name depends on `GitRepo.metadata.name`, NOT the Git URL. This means:
-- We must track GitRepo names to compute bundle names
-- Dependencies reference bundle names, not paths
-- We need a registry mapping bundle names back to GitRepo/path pairs
+### Remaining
 
-### Phase 1: Bundle Registry
+1. **UI Integration** - Update path selection UI with dependency awareness
+   - Block paths with external dependencies
+   - Show dependencies on selection
+   - Auto-select dependencies
+   - Prevent deselection of required dependencies
 
-Build a global registry of bundle names from all configured GitRepos.
-
-1. **Compute bundle names** for all discovered paths
-   - Formula: `gitRepoName + '-' + path.replace(/\//g, '-')`
-   - Store in `Map<bundleName, { gitRepoName, path, dependsOn }>`
-
-2. **Track GitRepo names** in path discovery
-   - Currently we only track paths; need to associate with GitRepo name
-   - Update `PathInfo` type to include source GitRepo name
-
-3. **Parse `dependsOn`** from fleet.yaml (existing code in `github.ts`)
-
-### Phase 2: Dependency Resolution
-
-Categorize and resolve dependencies before allowing selection.
-
-1. **Categorize each dependency**:
-   - **Same-repo**: In same GitRepo → auto-select
-   - **Cross-repo**: In different configured GitRepo → warn, require manual selection
-   - **External**: Not in any GitRepo → block selection
-
-2. **Resolve transitive dependencies**
-   - If A depends on B, and B depends on C, selecting A must also select B and C
-   - Implement cycle detection to handle circular dependencies
-
-3. **Validation function**:
-   ```typescript
-   function canSelectPath(path, gitRepo, registry): {
-     canSelect: boolean;
-     blockedBy?: string[];        // External deps that block selection
-     willAutoSelect?: string[];   // Paths that will be auto-selected
-   }
-   ```
-
-### Phase 3: UI Integration
-
-Update path selection UI with dependency awareness.
-
-1. **Block paths with external dependencies**
-   - Disabled checkbox, grayed out
-   - Tooltip: "Requires external bundle: X (not in any configured repository)"
-
-2. **Show dependencies on selection**
-   - When user checks a path, show confirmation if dependencies exist:
-     "Will also enable: path1, path2, path3"
-   - List includes transitive dependencies
-
-3. **Auto-select dependencies**
-   - When user confirms, check all dependency paths automatically
-   - Works across GitRepos (cross-repo dependencies)
-
-4. **Prevent deselection of required dependencies**
-   - If path A depends on path B, user cannot uncheck B while A is checked
-   - Show indicator: "Required by: A" next to protected paths
-   - Tooltip explains why checkbox is disabled
-
-5. **Visual indicators**:
+2. **Visual indicators**:
    | State | Display |
    |-------|---------|
    | Normal | Standard checkbox |
@@ -125,52 +115,55 @@ Update path selection UI with dependency awareness.
    | Auto-selected | Checked + "required by: X" label |
    | Blocked | Disabled + red warning icon |
 
-### Phase 4: Direct Selection State (Future TODO)
+---
 
-**Deferred**: Implement three-state selection for automatic cleanup.
+## Priority 3: Authentication Cards
 
-| State | Meaning |
-|-------|---------|
-| Unselected | Not deployed |
-| Directly Selected | User explicitly chose this |
-| Indirectly Selected | Auto-selected as dependency |
+Essential for private Git repositories and enterprise use.
 
-When all dependents of an indirectly-selected path are removed, that path can be automatically deselected. Users can "pin" an indirect selection to make it direct.
+### Completed
 
-**Implementation notes for future**:
-- Track `selectionState: 'direct' | 'indirect'` per path
-- On deselection, check if any remaining selected paths depend on this one
-- If not, and state is 'indirect', auto-deselect
-- Add UI affordance to convert indirect → direct (pin icon?)
+1. **`auth-github` card** (`extension/ui/src/cards/AuthGitHubCard.tsx`)
+   - GitHub Personal Access Token entry field
+   - gh CLI integration for token retrieval
+   - Rate limit display and status indicators
+   - Secure credential storage via Docker credential helpers
 
-### Key Files to Modify
+2. **`auth-appco` card** (`extension/ui/src/cards/AuthAppCoCard.tsx`)
+   - SUSE Application Collection authentication
+   - Username/token authentication
+   - Secure credential storage via Docker credential helpers
 
-| File | Changes |
-|------|---------|
-| `extension/ui/src/types.ts` | Add `BundleInfo`, update `PathInfo` |
-| `extension/ui/src/utils/github.ts` | Bundle name computation |
-| `extension/ui/src/hooks/usePathDiscovery.ts` | Build bundle registry |
-| `extension/ui/src/hooks/useDependencyResolver.ts` | **New**: Dependency resolution logic |
-| `extension/ui/src/App.tsx` | Selection UI with dependency handling |
+### Remaining
+
+1. **Implement `auth-git` card** (`extension/ui/src/cards/AuthGitCard.tsx`)
+   - Username/token authentication option
+   - SSH key authentication option
+   - Server URL field for self-hosted Git servers
+   - Store credentials in Kubernetes Secret
 
 ---
 
-## Priority 3: Complete Card System
+## Priority 4: Testing
 
-### Remaining Card Types
+### Completed
 
-- `auth-git` card - Generic Git credentials (see Priority 1)
+1. **Frontend tests** - Comprehensive coverage
+   - Hook tests: `usePathDiscovery`, `useGitRepoManagement`, `useDependencyResolver`, etc.
+   - Service tests: `GitHubService`, `CredentialService`
+   - Component tests: Cards, dialogs, drag-and-drop
+   - E2E tests: Add repo, auth flows, edit mode
 
-### Card Behaviors (Future)
+### Remaining
 
-- `duplicatable` setting with "Add Another" button
-- Field-level `locked` and `editable` settings
-- `allowed` path whitelist for gitrepo cards
-- `required` setting for auth cards
+1. **Backend unit tests** - Currently missing
+   - `gitrepos.ts` - Test CRUD operations with mocked K8s client
+   - `fleet.ts` - Test installation flow with mocked K8s client
+   - `git.ts` (new) - Test shallow clone and path discovery
 
 ---
 
-## Priority 4: Edit Mode Enhancements
+## Priority 5: Edit Mode Enhancements
 
 - Global Config card (app name, description, colors, logo)
 - Card settings panel for type-specific configuration
@@ -179,7 +172,7 @@ When all dependents of an indirectly-selected path are removed, that path can be
 
 ---
 
-## Priority 5: Extension Builder (Enterprise)
+## Priority 6: Extension Builder (Enterprise)
 
 - Generate Dockerfile from current configuration
 - Generate manifest.yaml from current state
@@ -188,13 +181,13 @@ When all dependents of an indirectly-selected path are removed, that path can be
 
 ---
 
-## Priority 6: Fleet Auto-Install Robustness
+## Priority 7: Fleet Auto-Install Robustness
 
 Backend improvements for handling cluster lifecycle events.
 
 ### Completed
 
-1. **✓ Auto-install Fleet on backend startup**
+1. **Auto-install Fleet on backend startup**
    - Uses HelmChart CRDs (k3s Helm Controller)
    - No kubectl/helm CLI needed - uses `@kubernetes/client-node`
    - Kubeconfig loaded from VM mount (`/etc/rancher/k3s/k3s.yaml`)
@@ -217,56 +210,49 @@ Backend improvements for handling cluster lifecycle events.
    - Reinitialize Kubernetes clients with new credentials
    - Detect certificate/token expiry
 
-### Key Files
-
-| File | Purpose |
-|------|---------|
-| `extension/backend/src/services/fleet.ts` | Fleet installation and status |
-| `extension/backend/src/index.ts` | Auto-install startup logic |
-| `extension/compose.yaml` | Kubeconfig mount configuration |
-
 ---
 
 ## Key Files Reference
 
-### Core UI
+### Backend
+
 | Purpose | File |
 |---------|------|
-| Main UI component | `extension/ui/src/App.tsx` (~790 lines) |
+| Express app & init | `extension/backend/src/index.ts` |
+| GitRepo CRUD service | `extension/backend/src/services/gitrepos.ts` |
+| Fleet installation | `extension/backend/src/services/fleet.ts` |
+| Git discovery (planned) | `extension/backend/src/services/git.ts` |
+
+### Frontend - Core
+
+| Purpose | File |
+|---------|------|
+| Main UI component | `extension/ui/src/App.tsx` |
 | Shared types | `extension/ui/src/types.ts` |
 
-### Hooks (Business Logic)
+### Frontend - Hooks (Business Logic)
+
 | Purpose | File |
 |---------|------|
 | Fleet status & install | `extension/ui/src/hooks/useFleetStatus.ts` |
 | GitRepo CRUD & polling | `extension/ui/src/hooks/useGitRepoManagement.ts` |
 | Path discovery & caching | `extension/ui/src/hooks/usePathDiscovery.ts` |
+| Dependency resolution | `extension/ui/src/hooks/useDependencyResolver.ts` |
 
-### Components
+### Frontend - Services
+
 | Purpose | File |
 |---------|------|
-| Drag-and-drop wrapper | `extension/ui/src/components/SortableCard.tsx` |
-| Add repo dialog | `extension/ui/src/components/AddRepoDialog.tsx` |
+| Backend API client | `extension/ui/src/services/BackendService.ts` |
+| GitHub API (to be deprecated) | `extension/ui/src/services/GitHubService.ts` |
+| Docker credentials | `extension/ui/src/services/CredentialService.ts` |
 
-### Cards
+### Frontend - Cards
+
 | Purpose | File |
 |---------|------|
 | Card registry | `extension/ui/src/cards/registry.ts` |
 | Card wrapper | `extension/ui/src/cards/CardWrapper.tsx` |
-| Markdown card | `extension/ui/src/cards/MarkdownCard.tsx` |
-
-### Manifest
-| Purpose | File |
-|---------|------|
-| Manifest types | `extension/ui/src/manifest/types.ts` |
-| Manifest loader | `extension/ui/src/manifest/loader.ts` |
-
-### Utilities
-| Purpose | File |
-|---------|------|
-| Error handling | `extension/ui/src/utils/errors.ts` |
-| GitHub API | `extension/ui/src/utils/github.ts` |
-| Constants | `extension/ui/src/utils/constants.ts` |
 
 ---
 
@@ -276,8 +262,8 @@ Backend improvements for handling cluster lifecycle events.
 |-------|----------|
 | Kubernetes context | Always `rancher-desktop` |
 | Fleet namespace | `fleet-local` |
-| Credential storage | Kubernetes Secrets (not extension storage) |
-| Path discovery | GitHub API (not Fleet bundles) |
+| Credential storage | Docker credential helpers (via backend) |
+| Path discovery | Backend shallow clone (provider agnostic) |
 | Manifest parsing | Permissive (ignore unknown fields with warnings) |
 
 ---
