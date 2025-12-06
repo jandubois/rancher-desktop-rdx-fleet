@@ -193,7 +193,9 @@ class GitRepoService {
       gitRepoSpec.branch = branch;
     }
 
-    if (paths && paths.length > 0) {
+    // Always include paths field - empty array means "deploy nothing"
+    // Omitting paths entirely causes Fleet to deploy from root (all bundles)
+    if (paths !== undefined) {
       gitRepoSpec.paths = paths;
     }
 

@@ -82,6 +82,18 @@ gitReposRouter.post('/', async (req, res) => {
 
     const { name, repo, branch, paths, paused } = req.body;
 
+    // Log the received request for debugging
+    console.log('[GitRepos] POST /api/gitrepos received:', JSON.stringify({
+      name,
+      repo,
+      branch,
+      paths,
+      paused,
+      pathsType: typeof paths,
+      pathsIsArray: Array.isArray(paths),
+      rawBody: req.body,
+    }, null, 2));
+
     if (!name || typeof name !== 'string') {
       return res.status(400).json({ error: 'name is required and must be a string' });
     }
