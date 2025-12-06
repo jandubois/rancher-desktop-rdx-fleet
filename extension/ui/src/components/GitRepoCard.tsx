@@ -15,6 +15,7 @@ import Chip from '@mui/material/Chip';
 import FormGroup from '@mui/material/FormGroup';
 import Divider from '@mui/material/Divider';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 
 import { GitRepo, BundleInfo, DependencyResolution } from '../types';
@@ -63,6 +64,8 @@ export interface GitRepoCardProps {
   onTitleChange: (title: string) => void;
   /** Callback to add a new repo */
   onAddRepo: () => void;
+  /** Callback to edit this repo */
+  onEditRepo: (repo: GitRepo) => void;
   /** Callback to delete this repo */
   onDeleteRepo: (name: string) => void;
   /** Callback to toggle a path */
@@ -100,6 +103,7 @@ export function GitRepoCard({
   currentlySelectedPaths,
   onTitleChange,
   onAddRepo,
+  onEditRepo,
   onDeleteRepo,
   onTogglePath,
   onShowDependencyDialog,
@@ -142,6 +146,14 @@ export function GitRepoCard({
             disabled={!fleetRunning}
           >
             <AddIcon />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => onEditRepo(repo)}
+            title="Edit repository URL"
+            disabled={isUpdating}
+          >
+            <EditIcon />
           </IconButton>
           {canDelete && (
             <IconButton
