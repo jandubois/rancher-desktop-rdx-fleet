@@ -496,13 +496,14 @@ function App() {
     setEditMode(false);
   }, [editModeSnapshot]);
 
-  // Handle reset to defaults - restore default manifest, icon, and icon height
-  const handleResetToDefaults = useCallback(() => {
+  // Handle reset to defaults - restore default manifest, icon, icon height, and clear all repos
+  const handleResetToDefaults = useCallback(async () => {
     setConfirmResetOpen(false);
     handleConfigLoaded(DEFAULT_MANIFEST);
     setIconState(null);
     setIconHeight(DEFAULT_ICON_HEIGHT);
-  }, [handleConfigLoaded]);
+    await clearAllGitRepos();
+  }, [handleConfigLoaded, clearAllGitRepos]);
 
   // Insert a placeholder card after a given card ID
   const insertCardAfter = (afterCardId: string) => {
@@ -962,7 +963,7 @@ function App() {
       <ConfirmDialog
         open={confirmResetOpen}
         title="Reset to Defaults"
-        message="This will reset all configuration to the default values. Any unsaved changes will be lost."
+        message="This will reset all configuration to the default values and remove all configured Git repositories. Any unsaved changes will be lost."
         confirmLabel="Reset"
         confirmColor="warning"
         onConfirm={handleResetToDefaults}
