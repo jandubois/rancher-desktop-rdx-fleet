@@ -1,14 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GitHubService, PathInfo } from '../services';
-import { useGitHubService } from '../context/ServiceContext';
+import { backendService } from '../services';
+import { PathInfo } from '../services/BackendService';
 import { getErrorMessage } from '../utils';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- kept for API compatibility
 interface UsePathDiscoveryOptions {
-  /**
-   * Optional GitHubService for dependency injection (primarily for testing).
-   * If not provided, uses the service from ServiceContext.
-   */
-  gitHubService?: GitHubService;
+  // Options are no longer used. Path discovery is handled by the backend.
 }
 
 interface UsePathDiscoveryResult {
@@ -23,20 +20,15 @@ interface UsePathDiscoveryResult {
 /**
  * Hook for discovering Fleet bundle paths in Git repositories.
  *
- * Uses GitHubService from ServiceContext by default, which ensures:
- * - Auth token is shared across the application
- * - Rate limit callbacks work properly
+ * Uses backend shallow clone approach which:
+ * - Works with any Git provider (GitHub, GitLab, Bitbucket, etc.)
+ * - Has no API rate limits
+ * - Handles private repos with credentials
  *
- * Can also inject a service for testing:
- * ```ts
- * const mockService = new GitHubService(mockHttpClient);
- * usePathDiscovery({ gitHubService: mockService });
- * ```
+ * The options parameter is kept for API compatibility but is no longer used.
  */
-export function usePathDiscovery(options: UsePathDiscoveryOptions = {}): UsePathDiscoveryResult {
-  // Use service from context by default, allow override for testing
-  const contextService = useGitHubService();
-  const gitHubService = options.gitHubService ?? contextService;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for API compatibility
+export function usePathDiscovery(_options: UsePathDiscoveryOptions = {}): UsePathDiscoveryResult {
 
   // Cache of available paths per repo URL
   const [repoPathsCache, setRepoPathsCache] = useState<Record<string, PathInfo[]>>({});
@@ -91,20 +83,23 @@ export function usePathDiscovery(options: UsePathDiscoveryOptions = {}): UsePath
     });
 
     try {
-      // Wait for auth initialization to complete before making GitHub API calls
-      // This ensures we use the auth token if available, avoiding rate limit issues
-      await gitHubService.waitForAuthReady();
+      // Use backend shallow clone approach (provider-agnostic, no rate limits)
+      const result = await backendService.discoverPaths({
+        repo: repoUrl,
+        branch: branch || undefined,
+      });
 
-      const paths = await gitHubService.fetchGitHubPaths(repoUrl, branch);
       // Update both ref and state immediately
-      repoPathsCacheRef.current[repoUrl] = paths;
-      setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: paths }));
+      repoPathsCacheRef.current[repoUrl] = result.paths;
+      setRepoPathsCache((prev) => ({ ...prev, [repoUrl]: result.paths }));
       // Clear start time on success
       setDiscoveryStartTimes((prev) => {
         const next = { ...prev };
         delete next[repoUrl];
         return next;
       });
+
+      console.log(`[PathDiscovery] Discovered ${result.paths.length} paths in ${repoUrl} (clone: ${result.cloneTimeMs}ms, scan: ${result.scanTimeMs}ms)`);
     } catch (err) {
       console.error(`Failed to discover paths for ${repoUrl}:`, err);
       const errorMsg = getErrorMessage(err);
@@ -113,7 +108,7 @@ export function usePathDiscovery(options: UsePathDiscoveryOptions = {}): UsePath
     } finally {
       loadingRepoPathsRef.current.delete(repoUrl);
     }
-  }, [gitHubService]);
+  }, []);
 
   return {
     repoPathsCache,

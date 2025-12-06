@@ -45,37 +45,35 @@ This approach eliminates GitHub API rate limits and enables support for any Git 
 
 ---
 
-## Priority 1: Backend Path Discovery (In Progress)
+## Priority 1: Backend Path Discovery (Complete)
 
 Move path discovery from frontend GitHub API calls to backend shallow clones.
 
 ### Completed
 
-1. **Frontend GitHubService** exists with working path discovery
-   - `extension/ui/src/services/GitHubService.ts`
-   - Uses GitHub API for tree listing
-   - Handles rate limits and authentication
+1. **Backend Git service** (`extension/backend/src/services/git.ts`)
+   - `shallowClone(repoUrl, branch, credentials?)` - Clone to temp directory
+   - `discoverPaths(request)` - Find fleet.yaml files recursively
+   - `parseFleetYamlDeps(filePath)` - Extract dependsOn from fleet.yaml
+   - `cleanup(cloneDir)` - Remove temp directory
+
+2. **API endpoints** (`extension/backend/src/routes/git.ts`)
+   - `POST /api/git/discover` - Discover paths in a repo
+     - Request: `{ repo: string, branch?: string, credentials?: { username, password } }`
+     - Response: `{ paths: PathInfo[], branch: string, cloneTimeMs: number, scanTimeMs: number }`
+   - `GET /api/git/debug/logs` - Get service debug logs
+
+3. **Frontend integration**
+   - `usePathDiscovery` hook uses backend API via `backendService.discoverPaths()`
+   - `GitHubService.fetchGitHubPaths()` still exists for backward compatibility
+   - `computeBundleName` and `buildBundleInfo` utilities retained in GitHubService
+
+4. **Container requirements**
+   - Git binary added to Docker image (`apk add git`)
 
 ### Remaining
 
-1. **Create backend Git service** (`extension/backend/src/services/git.ts`)
-   - `shallowClone(repoUrl, branch, credentials?)` - Clone to temp directory
-   - `discoverPaths(cloneDir)` - Find fleet.yaml files recursively
-   - `parseFleetYaml(filePath)` - Extract dependsOn and other metadata
-   - `cleanup(cloneDir)` - Remove temp directory
-
-2. **Add API endpoints** (`extension/backend/src/routes/git.ts`)
-   - `POST /api/git/discover` - Discover paths in a repo
-     - Request: `{ repo: string, branch?: string, credentials?: { username, password } }`
-     - Response: `{ paths: PathInfo[], branch: string }`
-   - `GET /api/git/discover/status` - Check discovery status (for long-running operations)
-
-3. **Update frontend to use backend**
-   - Modify `usePathDiscovery` hook to call backend API
-   - Remove or deprecate `GitHubService.fetchGitHubPaths()`
-   - Keep `computeBundleName` and `buildBundleInfo` utilities
-
-4. **Handle credentials**
+1. **Handle credentials for private repos**
    - Use credentials from Secrets service for authenticated clones
    - Support SSH keys and HTTPS tokens
 
@@ -221,7 +219,8 @@ Backend improvements for handling cluster lifecycle events.
 | Express app & init | `extension/backend/src/index.ts` |
 | GitRepo CRUD service | `extension/backend/src/services/gitrepos.ts` |
 | Fleet installation | `extension/backend/src/services/fleet.ts` |
-| Git discovery (planned) | `extension/backend/src/services/git.ts` |
+| Git path discovery | `extension/backend/src/services/git.ts` |
+| Git discovery routes | `extension/backend/src/routes/git.ts` |
 
 ### Frontend - Core
 

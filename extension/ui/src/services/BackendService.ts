@@ -484,6 +484,24 @@ export class BackendService {
     // Use POST with delete endpoint since vm.service may not support DELETE
     await this.vmService.post('/api/secrets/appco/delete', {});
   }
+
+  // ============================================
+  // Git Path Discovery (via backend shallow clone)
+  // ============================================
+
+  /**
+   * Discover Fleet bundle paths in a Git repository.
+   * Uses backend shallow clone approach (provider-agnostic, no API rate limits).
+   *
+   * @param request - Discovery request with repo URL and optional credentials
+   * @returns Discovery result with paths and timing info
+   */
+  async discoverPaths(request: DiscoverPathsRequest): Promise<DiscoverPathsResult> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/git/discover', request) as DiscoverPathsResult;
+  }
 }
 
 // ============================================
@@ -617,6 +635,38 @@ export interface FleetImageWithIcon {
 /** Icons response from GET /api/icons */
 export interface FleetIconsResponse {
   images: FleetImageWithIcon[];
+}
+
+// ============================================
+// Git Path Discovery Types
+// ============================================
+
+/** Path info with dependency data */
+export interface PathInfo {
+  path: string;
+  dependsOn?: string[];
+}
+
+/** Git credentials for authenticated clones */
+export interface GitCredentials {
+  username: string;
+  password: string;
+}
+
+/** Discovery request */
+export interface DiscoverPathsRequest {
+  repo: string;
+  branch?: string;
+  credentials?: GitCredentials;
+  secretName?: string;
+}
+
+/** Discovery result */
+export interface DiscoverPathsResult {
+  paths: PathInfo[];
+  branch: string;
+  cloneTimeMs: number;
+  scanTimeMs: number;
 }
 
 /** Default backend service instance */
