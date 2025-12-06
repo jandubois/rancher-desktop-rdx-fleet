@@ -30,8 +30,6 @@ export interface GitRepoCardProps {
   repo: GitRepo;
   /** Index of this repo in the list */
   index: number;
-  /** Total number of repos (used to determine if delete is allowed) */
-  totalCount: number;
   /** Maximum number of visible paths before scrolling */
   maxVisiblePaths?: number;
   /** Whether edit mode is active */
@@ -86,7 +84,6 @@ export interface GitRepoCardProps {
  */
 export function GitRepoCard({
   repo,
-  totalCount,
   maxVisiblePaths = 6,
   editMode,
   title,
@@ -111,7 +108,8 @@ export function GitRepoCard({
   onDiscoverPaths,
 }: GitRepoCardProps) {
   const enabledPaths = repo.paths || [];
-  const canDelete = totalCount > 1;
+  // Always allow deletion - when last repo is deleted, uninitialized card appears
+  const canDelete = true;
   const isTimedOut = discoveryStartTime && (currentTime - discoveryStartTime) > 30000;
 
   return (

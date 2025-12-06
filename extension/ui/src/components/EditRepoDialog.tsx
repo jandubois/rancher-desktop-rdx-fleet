@@ -11,14 +11,15 @@ import Typography from '@mui/material/Typography';
 
 interface EditRepoDialogProps {
   open: boolean;
-  repoName: string;
+  currentName: string;
   currentUrl: string;
   currentBranch?: string;
   onClose: () => void;
-  onSave: (name: string, url: string, branch?: string) => Promise<void>;
+  onSave: (oldName: string, newName: string, url: string, branch?: string) => Promise<void>;
 }
 
-export function EditRepoDialog({ open, repoName, currentUrl, currentBranch, onClose, onSave }: EditRepoDialogProps) {
+export function EditRepoDialog({ open, currentName, currentUrl, currentBranch, onClose, onSave }: EditRepoDialogProps) {
+  const [name, setName] = useState(currentName);
   const [url, setUrl] = useState(currentUrl);
   const [branch, setBranch] = useState(currentBranch || '');
   const [saving, setSaving] = useState(false);
@@ -27,11 +28,12 @@ export function EditRepoDialog({ open, repoName, currentUrl, currentBranch, onCl
   // Reset form when dialog opens with new repo
   useEffect(() => {
     if (open) {
+      setName(currentName);
       setUrl(currentUrl);
       setBranch(currentBranch || '');
       setError(null);
     }
-  }, [open, currentUrl, currentBranch]);
+  }, [open, currentName, currentUrl, currentBranch]);
 
   const handleClose = useCallback(() => {
     setError(null);
@@ -39,22 +41,22 @@ export function EditRepoDialog({ open, repoName, currentUrl, currentBranch, onCl
   }, [onClose]);
 
   const handleSave = useCallback(async () => {
-    if (!url) return;
+    if (!name || !url) return;
 
     setSaving(true);
     setError(null);
 
     try {
-      await onSave(repoName, url, branch || undefined);
+      await onSave(currentName, name, url, branch || undefined);
       handleClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setSaving(false);
     }
-  }, [repoName, url, branch, onSave, handleClose]);
+  }, [currentName, name, url, branch, onSave, handleClose]);
 
-  const hasChanges = url !== currentUrl || branch !== (currentBranch || '');
+  const hasChanges = name !== currentName || url !== currentUrl || branch !== (currentBranch || '');
 
   return (
     <Dialog
@@ -63,7 +65,7 @@ export function EditRepoDialog({ open, repoName, currentUrl, currentBranch, onCl
       maxWidth="sm"
       fullWidth
     >
-      <DialogTitle>Edit Repository: {repoName}</DialogTitle>
+      <DialogTitle>Edit Repository</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2, whiteSpace: 'pre-wrap', fontFamily: 'monospace' }} onClose={() => setError(null)}>
@@ -71,6 +73,15 @@ export function EditRepoDialog({ open, repoName, currentUrl, currentBranch, onCl
           </Alert>
         )}
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+          <TextField
+            label="Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="my-app"
+            helperText="Unique name for this GitRepo resource"
+            required
+            fullWidth
+          />
           <TextField
             label="Repository URL"
             value={url}
@@ -89,7 +100,7 @@ export function EditRepoDialog({ open, repoName, currentUrl, currentBranch, onCl
             fullWidth
           />
           <Typography variant="body2" color="text.secondary">
-            Changing the repository will clear all selected paths. You will need to
+            Changing the repository URL will clear all selected paths. You will need to
             rediscover and select paths from the new repository.
           </Typography>
         </Box>
@@ -101,7 +112,7 @@ export function EditRepoDialog({ open, repoName, currentUrl, currentBranch, onCl
         <Button
           onClick={handleSave}
           variant="contained"
-          disabled={!url || !hasChanges || saving}
+          disabled={!name || !url || !hasChanges || saving}
         >
           {saving ? 'Saving...' : 'Save'}
         </Button>
