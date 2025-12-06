@@ -40,8 +40,10 @@ interface UseGitRepoManagementResult {
   addGitRepo: (name: string, repoUrl: string, branch?: string) => Promise<AddGitRepoResult>;
   deleteGitRepo: (name: string) => Promise<void>;
   updateGitRepoPaths: (repo: GitRepo, newPaths: string[]) => Promise<void>;
+  updateGitRepoConfig: (oldName: string, newName: string, newUrl: string, newBranch?: string) => Promise<void>;
   toggleRepoPath: (repo: GitRepo, path: string) => void;
   clearRepoError: () => void;
+  clearAllGitRepos: () => Promise<void>;
 }
 
 /** Load repo configs from localStorage */
@@ -248,9 +250,66 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     }
   }, [k8sRepos, fetchGitRepos]);
 
+  // Update a GitRepo's name, URL and branch - clears paths and deletes K8s resource
+  const updateGitRepoConfig = useCallback(async (oldName: string, newName: string, newUrl: string, newBranch?: string) => {
+    debugLog('updateGitRepoConfig called', { oldName, newName, newUrl, newBranch });
+
+    // Check if new name conflicts with existing repo (if name is changing)
+    if (oldName !== newName && repoConfigs.some((r) => r.name === newName)) {
+      setRepoError(`A repository named "${newName}" already exists. Please choose a different name.`);
+      throw new Error(`A repository named "${newName}" already exists.`);
+    }
+
+    // Update local config with new name/URL/branch and clear paths
+    setRepoConfigs((prev: RepoConfig[]) =>
+      prev.map((r: RepoConfig) =>
+        r.name === oldName ? { ...r, name: newName, repo: newUrl, branch: newBranch, paths: [] } : r
+      )
+    );
+
+    // Delete K8s resource if it exists (since paths are being cleared)
+    const k8sRepoExists = k8sRepos.some((r: GitRepo) => r.name === oldName);
+    if (k8sRepoExists) {
+      try {
+        await backendService.deleteGitRepo(oldName);
+        debugLog('updateGitRepoConfig: deleted K8s repo', { name: oldName });
+      } catch (err) {
+        console.error('Failed to delete GitRepo from K8s:', err);
+        // Continue anyway - the local config is updated
+      }
+    }
+
+    await fetchGitRepos();
+  }, [repoConfigs, k8sRepos, fetchGitRepos]);
+
   const clearRepoError = useCallback(() => {
     setRepoError(null);
   }, []);
+
+  // Clear all GitRepos - removes from both localStorage and K8s
+  const clearAllGitRepos = useCallback(async () => {
+    debugLog('clearAllGitRepos called', { repoCount: repoConfigs.length, k8sRepoCount: k8sRepos.length });
+
+    // Delete all K8s resources first
+    const deletePromises = k8sRepos.map(async (repo) => {
+      try {
+        await backendService.deleteGitRepo(repo.name);
+        debugLog('clearAllGitRepos: deleted K8s repo', { name: repo.name });
+      } catch (err) {
+        console.error(`Failed to delete K8s repo ${repo.name}:`, err);
+        // Continue with other deletions even if one fails
+      }
+    });
+
+    await Promise.all(deletePromises);
+
+    // Clear localStorage config
+    setRepoConfigs([]);
+    debugLog('clearAllGitRepos: cleared localStorage');
+
+    // Refresh K8s state
+    await fetchGitRepos();
+  }, [repoConfigs.length, k8sRepos, fetchGitRepos]);
 
   // Auto-refresh when there are repos that aren't ready yet
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -286,7 +345,9 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     addGitRepo,
     deleteGitRepo,
     updateGitRepoPaths,
+    updateGitRepoConfig,
     toggleRepoPath,
     clearRepoError,
+    clearAllGitRepos,
   };
 }

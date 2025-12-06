@@ -28,6 +28,7 @@ import {
 
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, GitRepoCardSettings, CardType } from './manifest';
+import { GitRepo } from './types';
 import { loadExtensionState, saveExtensionState, PersistedExtensionState, EditModeSnapshot, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
 
 // Get initial state from localStorage (synchronous for lazy useState)
@@ -44,6 +45,7 @@ import { CardWrapper, getCardComponent, getAddCardMenuItems, getDefaultSettingsF
 import {
   SortableCard,
   AddRepoDialog,
+  EditRepoDialog,
   EditableTitle,
   EditModePanel,
   EditableHeaderIcon,
@@ -122,6 +124,10 @@ function App() {
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
 
+  // Edit repo dialog state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRepo, setEditingRepo] = useState<GitRepo | null>(null);
+
   // Path discovery with injected service
   const {
     repoPathsCache,
@@ -156,7 +162,9 @@ function App() {
     deleteGitRepo,
     toggleRepoPath,
     updateGitRepoPaths,
+    updateGitRepoConfig,
     clearRepoError,
+    clearAllGitRepos,
   } = useGitRepoManagement({
     fleetState,
     onReposLoaded: (repos) => {
@@ -408,6 +416,21 @@ function App() {
     await deleteGitRepo(name);
   }, [deleteGitRepo]);
 
+  // Handle edit repo
+  const handleEditRepo = useCallback((repo: GitRepo) => {
+    setEditingRepo(repo);
+    setEditDialogOpen(true);
+    // Clear the path discovery cache for this repo so it rediscovers after edit
+    clearDiscoveryCache(repo.repo);
+  }, [clearDiscoveryCache]);
+
+  // Handle save edit repo
+  const handleSaveEditRepo = useCallback(async (oldName: string, newName: string, url: string, branch?: string) => {
+    await updateGitRepoConfig(oldName, newName, url, branch);
+    setEditDialogOpen(false);
+    setEditingRepo(null);
+  }, [updateGitRepoConfig]);
+
   // Helper to get/set dynamic card title
   const getDynamicCardTitle = (cardId: string, defaultTitle: string) => {
     return dynamicCardTitles[cardId] ?? defaultTitle;
@@ -485,13 +508,14 @@ function App() {
     setEditMode(false);
   }, [editModeSnapshot]);
 
-  // Handle reset to defaults - restore default manifest, icon, and icon height
-  const handleResetToDefaults = useCallback(() => {
+  // Handle reset to defaults - restore default manifest, icon, icon height, and clear all repos
+  const handleResetToDefaults = useCallback(async () => {
     setConfirmResetOpen(false);
     handleConfigLoaded(DEFAULT_MANIFEST);
     setIconState(null);
     setIconHeight(DEFAULT_ICON_HEIGHT);
-  }, [handleConfigLoaded]);
+    await clearAllGitRepos();
+  }, [handleConfigLoaded, clearAllGitRepos]);
 
   // Insert a placeholder card after a given card ID
   const insertCardAfter = (afterCardId: string) => {
@@ -740,7 +764,6 @@ function App() {
             <GitRepoCard
               repo={repo}
               index={repoIndex}
-              totalCount={gitRepos.length}
               maxVisiblePaths={maxVisiblePaths}
               editMode={editMode}
               title={getDynamicCardTitle(cardId, repo.name)}
@@ -757,6 +780,7 @@ function App() {
               currentlySelectedPaths={currentlySelectedPaths}
               onTitleChange={handleDynamicTitleChange(cardId)}
               onAddRepo={openAddRepoDialog}
+              onEditRepo={handleEditRepo}
               onDeleteRepo={handleDeleteRepo}
               onTogglePath={toggleRepoPath}
               onShowDependencyDialog={handleShowDependencyDialog}
@@ -925,6 +949,21 @@ function App() {
       {/* Add Repository Dialog */}
       <AddRepoDialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} onAdd={handleAddRepo} />
 
+      {/* Edit Repository Dialog */}
+      {editingRepo && (
+        <EditRepoDialog
+          open={editDialogOpen}
+          currentName={editingRepo.name}
+          currentUrl={editingRepo.repo}
+          currentBranch={editingRepo.branch}
+          onClose={() => {
+            setEditDialogOpen(false);
+            setEditingRepo(null);
+          }}
+          onSave={handleSaveEditRepo}
+        />
+      )}
+
       {/* Dependency Confirmation Dialog */}
       <DependencyConfirmationDialog
         state={dependencyDialog}
@@ -936,12 +975,13 @@ function App() {
       <ConfirmDialog
         open={confirmResetOpen}
         title="Reset to Defaults"
-        message="This will reset all configuration to the default values. Any unsaved changes will be lost."
+        message="This will reset all configuration to the default values and remove all configured Git repositories. Any unsaved changes will be lost."
         confirmLabel="Reset"
         confirmColor="warning"
         onConfirm={handleResetToDefaults}
         onCancel={() => setConfirmResetOpen(false)}
       />
+
     </Box>
   );
 }

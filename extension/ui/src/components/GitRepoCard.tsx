@@ -15,6 +15,7 @@ import Chip from '@mui/material/Chip';
 import FormGroup from '@mui/material/FormGroup';
 import Divider from '@mui/material/Divider';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
 
 import { GitRepo, BundleInfo, DependencyResolution } from '../types';
@@ -29,8 +30,6 @@ export interface GitRepoCardProps {
   repo: GitRepo;
   /** Index of this repo in the list */
   index: number;
-  /** Total number of repos (used to determine if delete is allowed) */
-  totalCount: number;
   /** Maximum number of visible paths before scrolling */
   maxVisiblePaths?: number;
   /** Whether edit mode is active */
@@ -63,6 +62,8 @@ export interface GitRepoCardProps {
   onTitleChange: (title: string) => void;
   /** Callback to add a new repo */
   onAddRepo: () => void;
+  /** Callback to edit this repo */
+  onEditRepo: (repo: GitRepo) => void;
   /** Callback to delete this repo */
   onDeleteRepo: (name: string) => void;
   /** Callback to toggle a path */
@@ -83,7 +84,6 @@ export interface GitRepoCardProps {
  */
 export function GitRepoCard({
   repo,
-  totalCount,
   maxVisiblePaths = 6,
   editMode,
   title,
@@ -100,6 +100,7 @@ export function GitRepoCard({
   currentlySelectedPaths,
   onTitleChange,
   onAddRepo,
+  onEditRepo,
   onDeleteRepo,
   onTogglePath,
   onShowDependencyDialog,
@@ -107,7 +108,8 @@ export function GitRepoCard({
   onDiscoverPaths,
 }: GitRepoCardProps) {
   const enabledPaths = repo.paths || [];
-  const canDelete = totalCount > 1;
+  // Always allow deletion - when last repo is deleted, uninitialized card appears
+  const canDelete = true;
   const isTimedOut = discoveryStartTime && (currentTime - discoveryStartTime) > 30000;
 
   return (
@@ -142,6 +144,14 @@ export function GitRepoCard({
             disabled={!fleetRunning}
           >
             <AddIcon />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => onEditRepo(repo)}
+            title="Edit repository URL"
+            disabled={isUpdating}
+          >
+            <EditIcon />
           </IconButton>
           {canDelete && (
             <IconButton

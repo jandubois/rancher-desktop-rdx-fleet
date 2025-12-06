@@ -581,4 +581,133 @@ describe('useGitRepoManagement', () => {
 
     expect(backendService.deleteGitRepo).toHaveBeenCalledWith('my-repo');
   });
+
+  describe('clearAllGitRepos', () => {
+    it('clears all repos from localStorage and K8s', async () => {
+      // Set up multiple repos
+      const multiRepoConfigs = [
+        { name: 'repo1', repo: 'https://github.com/owner/repo1', paths: ['app1'] },
+        { name: 'repo2', repo: 'https://github.com/owner/repo2', paths: ['app2'] },
+      ];
+      const multiK8sRepos: GitRepo[] = [
+        { name: 'repo1', repo: 'https://github.com/owner/repo1', paths: ['app1'], status: { ready: true, desiredReadyClusters: 1, readyClusters: 1 } },
+        { name: 'repo2', repo: 'https://github.com/owner/repo2', paths: ['app2'], status: { ready: true, desiredReadyClusters: 1, readyClusters: 1 } },
+      ];
+
+      setLocalStorageConfigs(multiRepoConfigs);
+      vi.mocked(backendService.listGitRepos)
+        .mockResolvedValueOnce(multiK8sRepos)
+        .mockResolvedValueOnce([]); // After clearing
+      vi.mocked(backendService.deleteGitRepo).mockResolvedValue(undefined);
+
+      const { result } = renderHook(() =>
+        useGitRepoManagement({ fleetState: defaultFleetState })
+      );
+
+      await act(async () => {
+        await result.current.fetchGitRepos();
+      });
+
+      expect(result.current.gitRepos).toHaveLength(2);
+
+      await act(async () => {
+        await result.current.clearAllGitRepos();
+      });
+
+      // Should delete both K8s resources
+      expect(backendService.deleteGitRepo).toHaveBeenCalledWith('repo1');
+      expect(backendService.deleteGitRepo).toHaveBeenCalledWith('repo2');
+      // Should clear all repos
+      expect(result.current.gitRepos).toHaveLength(0);
+    });
+
+    it('clears localStorage even when no K8s repos exist', async () => {
+      // Repos in localStorage but not in K8s (paths not selected yet)
+      const localOnlyConfigs = [
+        { name: 'repo1', repo: 'https://github.com/owner/repo1', paths: [] },
+        { name: 'repo2', repo: 'https://github.com/owner/repo2', paths: [] },
+      ];
+
+      setLocalStorageConfigs(localOnlyConfigs);
+      vi.mocked(backendService.listGitRepos).mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useGitRepoManagement({ fleetState: defaultFleetState })
+      );
+
+      await act(async () => {
+        await result.current.fetchGitRepos();
+      });
+
+      expect(result.current.gitRepos).toHaveLength(2);
+
+      await act(async () => {
+        await result.current.clearAllGitRepos();
+      });
+
+      // Should not call deleteGitRepo (no K8s repos)
+      expect(backendService.deleteGitRepo).not.toHaveBeenCalled();
+      // Should clear all repos from localStorage
+      expect(result.current.gitRepos).toHaveLength(0);
+    });
+
+    it('continues clearing even if one K8s delete fails', async () => {
+      const multiRepoConfigs = [
+        { name: 'repo1', repo: 'https://github.com/owner/repo1', paths: ['app1'] },
+        { name: 'repo2', repo: 'https://github.com/owner/repo2', paths: ['app2'] },
+      ];
+      const multiK8sRepos: GitRepo[] = [
+        { name: 'repo1', repo: 'https://github.com/owner/repo1', paths: ['app1'], status: { ready: true, desiredReadyClusters: 1, readyClusters: 1 } },
+        { name: 'repo2', repo: 'https://github.com/owner/repo2', paths: ['app2'], status: { ready: true, desiredReadyClusters: 1, readyClusters: 1 } },
+      ];
+
+      setLocalStorageConfigs(multiRepoConfigs);
+      vi.mocked(backendService.listGitRepos)
+        .mockResolvedValueOnce(multiK8sRepos)
+        .mockResolvedValueOnce([]); // After clearing
+      // First delete fails, second succeeds
+      vi.mocked(backendService.deleteGitRepo)
+        .mockRejectedValueOnce(new Error('Delete failed'))
+        .mockResolvedValueOnce(undefined);
+
+      const { result } = renderHook(() =>
+        useGitRepoManagement({ fleetState: defaultFleetState })
+      );
+
+      await act(async () => {
+        await result.current.fetchGitRepos();
+      });
+
+      await act(async () => {
+        await result.current.clearAllGitRepos();
+      });
+
+      // Should attempt to delete both K8s resources even if one fails
+      expect(backendService.deleteGitRepo).toHaveBeenCalledTimes(2);
+      // localStorage should still be cleared
+      expect(result.current.gitRepos).toHaveLength(0);
+    });
+
+    it('works correctly with empty repo list', async () => {
+      vi.mocked(backendService.listGitRepos).mockResolvedValue([]);
+
+      const { result } = renderHook(() =>
+        useGitRepoManagement({ fleetState: defaultFleetState })
+      );
+
+      await act(async () => {
+        await result.current.fetchGitRepos();
+      });
+
+      expect(result.current.gitRepos).toHaveLength(0);
+
+      await act(async () => {
+        await result.current.clearAllGitRepos();
+      });
+
+      // Should not fail with empty list
+      expect(backendService.deleteGitRepo).not.toHaveBeenCalled();
+      expect(result.current.gitRepos).toHaveLength(0);
+    });
+  });
 });
