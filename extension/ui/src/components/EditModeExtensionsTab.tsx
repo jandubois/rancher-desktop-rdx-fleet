@@ -31,7 +31,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CircularProgress from '@mui/material/CircularProgress';
 
 import { BackendStatus, backendService, InstalledExtension } from '../services/BackendService';
-import { listFleetExtensionImages, FleetExtensionImage } from '../utils/extensionBuilder';
+import { FleetExtensionImage } from '../utils/extensionBuilder';
 import { ExtensionImageIcon } from './ExtensionImageIcon';
 import { useServices } from '../context/ServiceContext';
 import { RdctlExtensionsApiResponse } from '../hooks/useBackendInit';
@@ -71,15 +71,19 @@ export interface EditModeExtensionsTabProps {
   loading: boolean;
   /** Callback to refresh status */
   onRefresh: () => void;
+  /** Fleet extension images (shared with parent) */
+  fleetImages: FleetExtensionImage[];
+  /** Whether images are loading */
+  loadingImages: boolean;
+  /** Callback to refresh fleet images */
+  onRefreshImages: () => void;
 }
 
 /** Operation type for tracking which button is spinning */
 type OperationType = 'uninstall' | 'activate' | 'delete';
 
-export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeExtensionsTabProps) {
+export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages, loadingImages, onRefreshImages }: EditModeExtensionsTabProps) {
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
-  const [fleetImages, setFleetImages] = useState<FleetExtensionImage[]>([]);
-  const [loadingImages, setLoadingImages] = useState(false);
   const [operatingImage, setOperatingImage] = useState<{ image: string; op: OperationType } | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
 
@@ -109,24 +113,6 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
     () => initStatus?.installedExtensions ?? [],
     [initStatus?.installedExtensions]
   );
-
-  // Load Fleet extension images from Docker
-  const loadFleetImages = useCallback(async () => {
-    setLoadingImages(true);
-    try {
-      const images = await listFleetExtensionImages();
-      setFleetImages(images);
-    } catch (err) {
-      console.error('Failed to load Fleet images:', err);
-    } finally {
-      setLoadingImages(false);
-    }
-  }, []);
-
-  // Load images on mount and when status changes
-  useEffect(() => {
-    loadFleetImages();
-  }, [loadFleetImages, status]);
 
   // Refresh installed extensions list by re-running rdctl api and updating backend
   const refreshInstalledExtensions = useCallback(async () => {
@@ -283,7 +269,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       }
 
       // Refresh extension list and UI after successful uninstall
-      await loadFleetImages();
+      await onRefreshImages();
       await refreshInstalledExtensions();
       onRefresh();
     } catch (error) {
@@ -322,7 +308,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       await backendService.transferOwnership(img.imageName);
 
       // Refresh to show updated status
-      await loadFleetImages();
+      await onRefreshImages();
       onRefresh();
     } catch (error) {
       console.error('Failed to activate extension:', error);
@@ -382,7 +368,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       }
 
       // Refresh extension list and UI after successful delete
-      await loadFleetImages();
+      await onRefreshImages();
       await refreshInstalledExtensions();
       onRefresh();
     } catch (error) {
@@ -403,7 +389,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh }: EditModeEx
       setRecheckingOwnership(false);
     }
     onRefresh();
-    loadFleetImages();
+    onRefreshImages();
   };
 
   return (
