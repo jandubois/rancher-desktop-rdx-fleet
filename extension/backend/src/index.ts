@@ -11,6 +11,7 @@ import { buildRouter } from './routes/build.js';
 import { gitReposRouter } from './routes/gitrepos.js';
 import { secretsRouter } from './routes/secrets.js';
 import { iconsRouter } from './routes/icons.js';
+import { gitRouter } from './routes/git.js';
 import { fleetService } from './services/fleet.js';
 import { ownershipService } from './services/ownership.js';
 import { gitRepoService } from './services/gitrepos.js';
@@ -90,6 +91,7 @@ app.use('/api/build', buildRouter);
 app.use('/api/gitrepos', gitReposRouter);
 app.use('/api/secrets', secretsRouter);
 app.use('/api/icons', iconsRouter);
+app.use('/api/git', gitRouter);
 
 // Root endpoint
 app.get('/', (req, res) => {

@@ -9,7 +9,8 @@ export { BackendService, backendService } from './BackendService';
 export type { CommandExecutor, ExecResult } from './CommandExecutor';
 export type { AddGitRepoResult, FleetStatusCheckResult } from './KubernetesService';
 export type { HttpClient, HttpResponse } from './HttpClient';
-export type { PathInfo, ParsedGitHubUrl, GitHubRateLimit, GitHubUser } from './GitHubService';
+export type { PathInfo as GitHubPathInfo, ParsedGitHubUrl, GitHubRateLimit, GitHubUser } from './GitHubService';
+export type { PathInfo, DiscoverPathsRequest, DiscoverPathsResult, GitCredentials } from './BackendService';
 export type {
   GhAuthStatus,
   CredHelperStatus,
