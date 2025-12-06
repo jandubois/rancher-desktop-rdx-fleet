@@ -3,11 +3,9 @@ import { backendService } from '../services';
 import { PathInfo } from '../services/BackendService';
 import { getErrorMessage } from '../utils';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- kept for API compatibility
 interface UsePathDiscoveryOptions {
-  /**
-   * Options are kept for API compatibility but no longer used.
-   * Path discovery is now handled entirely by the backend.
-   */
+  // Options are no longer used. Path discovery is handled by the backend.
 }
 
 interface UsePathDiscoveryResult {
@@ -29,6 +27,7 @@ interface UsePathDiscoveryResult {
  *
  * The options parameter is kept for API compatibility but is no longer used.
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for API compatibility
 export function usePathDiscovery(_options: UsePathDiscoveryOptions = {}): UsePathDiscoveryResult {
 
   // Cache of available paths per repo URL
