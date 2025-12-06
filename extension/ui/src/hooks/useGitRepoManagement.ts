@@ -3,6 +3,24 @@ import { backendService } from '../services/BackendService';
 import { getErrorMessage } from '../utils';
 import { GitRepo, FleetState } from '../types';
 
+const STORAGE_KEY = 'fleet-gitrepo-configs';
+
+// Debug logging helper
+function debugLog(message: string, data?: unknown): void {
+  console.log(`[GitRepoMgmt] ${message}`, data);
+  backendService.debugLog('GitRepoMgmt', message, data).catch(() => {
+    // Ignore logging errors
+  });
+}
+
+/** Repo configuration stored in localStorage (independent of Kubernetes) */
+interface RepoConfig {
+  name: string;
+  repo: string;
+  branch?: string;
+  paths: string[];
+}
+
 interface UseGitRepoManagementOptions {
   fleetState: FleetState;
   onReposLoaded?: (repos: GitRepo[]) => void;
@@ -26,15 +44,44 @@ interface UseGitRepoManagementResult {
   clearRepoError: () => void;
 }
 
+/** Load repo configs from localStorage */
+function loadRepoConfigs(): RepoConfig[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    debugLog('loadRepoConfigs: loading from localStorage', { hasData: !!stored, rawData: stored });
+    if (stored) {
+      const configs = JSON.parse(stored);
+      debugLog('loadRepoConfigs: parsed configs', configs);
+      return configs;
+    }
+  } catch (err) {
+    console.error('Failed to load repo configs from localStorage:', err);
+  }
+  debugLog('loadRepoConfigs: no configs found, returning empty array');
+  return [];
+}
+
+/** Save repo configs to localStorage */
+function saveRepoConfigs(configs: RepoConfig[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(configs));
+  } catch (err) {
+    console.error('Failed to save repo configs to localStorage:', err);
+  }
+}
+
 /**
  * Hook for managing GitRepo resources via the backend service.
  *
- * All Kubernetes operations are delegated to the backend, which uses
- * the Kubernetes client library directly instead of kubectl CLI.
+ * Repo configurations are stored in localStorage. Kubernetes GitRepo resources
+ * are only created when paths are selected (paths.length > 0). When all paths
+ * are deselected, the Kubernetes resource is deleted but the config remains
+ * in localStorage so users can re-select paths without re-adding the repo.
  */
 export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseGitRepoManagementResult {
   const { fleetState, onReposLoaded } = options;
-  const [gitRepos, setGitRepos] = useState<GitRepo[]>([]);
+  const [repoConfigs, setRepoConfigs] = useState<RepoConfig[]>(() => loadRepoConfigs());
+  const [k8sRepos, setK8sRepos] = useState<GitRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [repoError, setRepoError] = useState<string | null>(null);
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
@@ -45,6 +92,25 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     onReposLoadedRef.current = onReposLoaded;
   }, [onReposLoaded]);
 
+  // Persist repo configs to localStorage whenever they change
+  useEffect(() => {
+    saveRepoConfigs(repoConfigs);
+  }, [repoConfigs]);
+
+  // Merge localStorage configs with Kubernetes state for display
+  // localStorage is the source of truth for repo list; K8s provides status
+  const gitRepos: GitRepo[] = repoConfigs.map((config) => {
+    const k8sRepo = k8sRepos.find((r) => r.name === config.name);
+    return {
+      name: config.name,
+      repo: config.repo,
+      branch: config.branch,
+      paths: config.paths,
+      paused: k8sRepo?.paused,
+      status: k8sRepo?.status,
+    };
+  });
+
   const fetchGitRepos = useCallback(async () => {
     setLoadingRepos(true);
     setRepoError(null);
@@ -52,11 +118,10 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
       const repos = await backendService.listGitRepos();
 
       // Only update state if data actually changed (prevents scroll reset)
-      setGitRepos((prevRepos) => {
+      setK8sRepos((prevRepos) => {
         const prevJson = JSON.stringify(prevRepos);
         const newJson = JSON.stringify(repos);
         if (prevJson !== newJson) {
-          onReposLoadedRef.current?.(repos);
           return repos;
         }
         return prevRepos;
@@ -65,7 +130,7 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
       const errMsg = getErrorMessage(err);
       // Backend returns empty array for no repos, not an error
       if (errMsg.includes('No resources found') || errMsg.includes('503')) {
-        setGitRepos([]);
+        setK8sRepos([]);
       } else {
         console.error('Failed to fetch GitRepos:', err);
         setRepoError(errMsg);
@@ -75,36 +140,60 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     }
   }, []);
 
-  // Update GitRepo paths
+  // Notify when gitRepos changes
+  useEffect(() => {
+    onReposLoadedRef.current?.(gitRepos);
+  }, [gitRepos]);
+
+  // Update GitRepo paths - creates/deletes K8s resource as needed
   const updateGitRepoPaths = useCallback(async (repo: GitRepo, newPaths: string[]) => {
+    debugLog('updateGitRepoPaths called', { repoName: repo.name, newPaths, currentPaths: repo.paths });
     setUpdatingRepo(repo.name);
 
-    // Optimistic update - update local state immediately to prevent scroll jump
-    setGitRepos((prev) =>
+    // Update local config immediately (optimistic update)
+    setRepoConfigs((prev) =>
       prev.map((r) =>
         r.name === repo.name ? { ...r, paths: newPaths } : r
       )
     );
 
     try {
-      await backendService.applyGitRepo({
-        name: repo.name,
-        repo: repo.repo,
-        branch: repo.branch,
-        paths: newPaths,
-        paused: repo.paused,
-      });
-      // Don't call fetchGitRepos() - optimistic update is sufficient
-      // The periodic refresh will sync any server-side changes
+      const k8sRepoExists = k8sRepos.some((r) => r.name === repo.name);
+      debugLog('updateGitRepoPaths k8s check', { k8sRepoExists, newPathsLength: newPaths.length });
+
+      if (newPaths.length > 0) {
+        // Paths selected - create or update K8s resource
+        debugLog('updateGitRepoPaths: calling applyGitRepo', { name: repo.name, paths: newPaths });
+        await backendService.applyGitRepo({
+          name: repo.name,
+          repo: repo.repo,
+          branch: repo.branch,
+          paths: newPaths,
+          paused: repo.paused,
+        });
+      } else if (k8sRepoExists) {
+        // No paths selected and K8s resource exists - delete it
+        debugLog('updateGitRepoPaths: calling deleteGitRepo', { name: repo.name });
+        await backendService.deleteGitRepo(repo.name);
+      } else {
+        debugLog('updateGitRepoPaths: no action needed (no paths, no k8s resource)');
+      }
+
+      await fetchGitRepos();
     } catch (err) {
       console.error('Failed to update GitRepo:', err);
       setRepoError(getErrorMessage(err));
       // Revert optimistic update on error
+      setRepoConfigs((prev) =>
+        prev.map((r) =>
+          r.name === repo.name ? { ...r, paths: repo.paths || [] } : r
+        )
+      );
       await fetchGitRepos();
     } finally {
       setUpdatingRepo(null);
     }
-  }, [fetchGitRepos]);
+  }, [k8sRepos, fetchGitRepos]);
 
   // Toggle a path for an existing repo
   const toggleRepoPath = useCallback((repo: GitRepo, path: string) => {
@@ -115,43 +204,49 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     updateGitRepoPaths(repo, newPaths);
   }, [updateGitRepoPaths]);
 
-  // Add a new GitRepo
+  // Add a new GitRepo - stores config locally without creating K8s resource
   const addGitRepo = useCallback(async (name: string, repoUrl: string, branch?: string): Promise<AddGitRepoResult> => {
+    debugLog('addGitRepo called', { name, repoUrl, branch });
+
     if (!name || !repoUrl) return { success: false, error: 'Name and URL are required' };
 
-    // Check if a repo with this name already exists
-    if (gitRepos.some((r) => r.name === name)) {
+    // Check if a repo with this name already exists in local config
+    if (repoConfigs.some((r) => r.name === name)) {
       const error = `A repository named "${name}" already exists. Please choose a different name.`;
       setRepoError(error);
       return { success: false, error };
     }
 
-    try {
-      await backendService.applyGitRepo({
-        name,
-        repo: repoUrl,
-        branch,
-      });
-      await fetchGitRepos();
-      return { success: true };
-    } catch (err) {
-      console.error('Failed to add GitRepo:', err);
-      const error = getErrorMessage(err);
-      setRepoError(error);
-      return { success: false, error };
-    }
-  }, [gitRepos, fetchGitRepos]);
+    // Add to local config only - no K8s resource created until paths are selected
+    const newConfig: RepoConfig = {
+      name,
+      repo: repoUrl,
+      branch,
+      paths: [],
+    };
 
-  // Delete a GitRepo
+    debugLog('addGitRepo: storing in localStorage only (no K8s resource)', newConfig);
+    setRepoConfigs((prev: RepoConfig[]) => [...prev, newConfig]);
+    return { success: true };
+  }, [repoConfigs]);
+
+  // Delete a GitRepo - removes from both localStorage and K8s
   const deleteGitRepo = useCallback(async (name: string) => {
-    try {
-      await backendService.deleteGitRepo(name);
-      await fetchGitRepos();
-    } catch (err) {
-      console.error('Failed to delete GitRepo:', err);
-      setRepoError(getErrorMessage(err));
+    // Remove from local config
+    setRepoConfigs((prev: RepoConfig[]) => prev.filter((r: RepoConfig) => r.name !== name));
+
+    // Delete K8s resource if it exists
+    const k8sRepoExists = k8sRepos.some((r: GitRepo) => r.name === name);
+    if (k8sRepoExists) {
+      try {
+        await backendService.deleteGitRepo(name);
+        await fetchGitRepos();
+      } catch (err) {
+        console.error('Failed to delete GitRepo from K8s:', err);
+        setRepoError(getErrorMessage(err));
+      }
     }
-  }, [fetchGitRepos]);
+  }, [k8sRepos, fetchGitRepos]);
 
   const clearRepoError = useCallback(() => {
     setRepoError(null);
@@ -163,9 +258,9 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
 
   // Update the ref when conditions change
   useEffect(() => {
-    const hasUnreadyRepos = gitRepos.some((repo) => !repo.status?.ready);
+    const hasUnreadyRepos = k8sRepos.some((repo: GitRepo) => !repo.status?.ready);
     shouldRefreshRef.current = hasUnreadyRepos && fleetState.status === 'running';
-  }, [gitRepos, fleetState.status]);
+  }, [k8sRepos, fleetState.status]);
 
   // Set up polling interval once
   useEffect(() => {

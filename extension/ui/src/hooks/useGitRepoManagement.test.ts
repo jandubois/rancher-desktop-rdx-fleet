@@ -10,13 +10,33 @@ vi.mock('../services/BackendService', () => ({
     listGitRepos: vi.fn(),
     applyGitRepo: vi.fn(),
     deleteGitRepo: vi.fn(),
+    debugLog: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
-// Suppress console.error in tests
-vi.spyOn(console, 'error').mockImplementation(() => {});
+// Mock localStorage
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: vi.fn((key: string) => store[key] || null),
+    setItem: vi.fn((key: string, value: string) => { store[key] = value; }),
+    removeItem: vi.fn((key: string) => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; }),
+  };
+})();
+Object.defineProperty(window, 'localStorage', { value: localStorageMock });
 
-// Sample GitRepo data for tests
+// Suppress console.error and console.log in tests
+vi.spyOn(console, 'error').mockImplementation(() => {});
+vi.spyOn(console, 'log').mockImplementation(() => {});
+
+// Helper to pre-populate localStorage with repo configs
+const STORAGE_KEY = 'fleet-gitrepo-configs';
+function setLocalStorageConfigs(configs: Array<{ name: string; repo: string; branch?: string; paths: string[] }>): void {
+  localStorageMock.setItem(STORAGE_KEY, JSON.stringify(configs));
+}
+
+// Sample GitRepo data for tests (K8s responses)
 const sampleGitRepos: GitRepo[] = [
   {
     name: 'my-repo',
@@ -34,17 +54,29 @@ const sampleGitRepos: GitRepo[] = [
   },
 ];
 
+// Sample localStorage configs (matching the K8s repos above)
+const sampleRepoConfigs = [
+  {
+    name: 'my-repo',
+    repo: 'https://github.com/owner/repo',
+    branch: 'main',
+    paths: ['app1'],
+  },
+];
+
 describe('useGitRepoManagement', () => {
   const defaultFleetState: FleetState = { status: 'running', version: '0.10.0' };
 
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    localStorageMock.clear();
   });
 
   afterEach(() => {
     vi.clearAllMocks();
     vi.useRealTimers();
+    localStorageMock.clear();
   });
 
   it('initializes with empty repos and no error', () => {
@@ -59,7 +91,9 @@ describe('useGitRepoManagement', () => {
     expect(result.current.loadingRepos).toBe(false);
   });
 
-  it('fetches GitRepos via backend service', async () => {
+  it('fetches GitRepos via backend service and merges with localStorage', async () => {
+    // Pre-populate localStorage with repo config
+    setLocalStorageConfigs(sampleRepoConfigs);
     vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
@@ -76,6 +110,7 @@ describe('useGitRepoManagement', () => {
   });
 
   it('parses GitRepo status correctly', async () => {
+    setLocalStorageConfigs(sampleRepoConfigs);
     vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
@@ -95,7 +130,8 @@ describe('useGitRepoManagement', () => {
     expect(repo.status?.conditions).toHaveLength(1);
   });
 
-  it('only updates state when data changes', async () => {
+  it('only updates k8s state when data changes', async () => {
+    setLocalStorageConfigs(sampleRepoConfigs);
     const onReposLoaded = vi.fn();
     vi.mocked(backendService.listGitRepos).mockResolvedValue(sampleGitRepos);
 
@@ -108,27 +144,29 @@ describe('useGitRepoManagement', () => {
       await result.current.fetchGitRepos();
     });
 
-    expect(onReposLoaded).toHaveBeenCalledTimes(1);
+    // onReposLoaded is called on init and on fetch
+    const initialCallCount = onReposLoaded.mock.calls.length;
 
     // Second fetch with same data
     await act(async () => {
       await result.current.fetchGitRepos();
     });
 
-    // onReposLoaded should not be called again since data is the same
-    expect(onReposLoaded).toHaveBeenCalledTimes(1);
+    // K8s data didn't change, so no new notification
+    expect(onReposLoaded.mock.calls.length).toBe(initialCallCount);
   });
 
-  it('calls onReposLoaded callback when repos change', async () => {
+  it('calls onReposLoaded callback when repos are configured', async () => {
     const onReposLoaded = vi.fn();
-    vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
+    vi.mocked(backendService.listGitRepos).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
       useGitRepoManagement({ fleetState: defaultFleetState, onReposLoaded })
     );
 
+    // Add a repo (which populates localStorage)
     await act(async () => {
-      await result.current.fetchGitRepos();
+      await result.current.addGitRepo('my-repo', 'https://github.com/owner/repo', 'main');
     });
 
     expect(onReposLoaded).toHaveBeenCalledWith(expect.arrayContaining([
@@ -136,12 +174,8 @@ describe('useGitRepoManagement', () => {
     ]));
   });
 
-  it('addGitRepo creates resource via backend service', async () => {
-    vi.mocked(backendService.listGitRepos)
-      .mockResolvedValueOnce([]) // Initial fetch returns empty
-      .mockResolvedValueOnce(sampleGitRepos); // Refresh after add
-
-    vi.mocked(backendService.applyGitRepo).mockResolvedValueOnce(sampleGitRepos[0]);
+  it('addGitRepo stores config in localStorage without calling backend', async () => {
+    vi.mocked(backendService.listGitRepos).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
       useGitRepoManagement({ fleetState: defaultFleetState })
@@ -157,24 +191,27 @@ describe('useGitRepoManagement', () => {
     });
 
     expect(addResult!.success).toBe(true);
-    expect(backendService.applyGitRepo).toHaveBeenCalledWith({
-      name: 'my-repo',
-      repo: 'https://github.com/owner/repo',
-      branch: 'main',
-    });
+    // Should NOT call backend when adding - only stores in localStorage
+    expect(backendService.applyGitRepo).not.toHaveBeenCalled();
+    // Should have repo in local state with empty paths
+    expect(result.current.gitRepos).toHaveLength(1);
+    expect(result.current.gitRepos[0].name).toBe('my-repo');
+    expect(result.current.gitRepos[0].paths).toEqual([]);
   });
 
   it('addGitRepo rejects duplicate names', async () => {
-    vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
+    vi.mocked(backendService.listGitRepos).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
       useGitRepoManagement({ fleetState: defaultFleetState })
     );
 
+    // Add first repo
     await act(async () => {
-      await result.current.fetchGitRepos();
+      await result.current.addGitRepo('my-repo', 'https://github.com/owner/repo', 'main');
     });
 
+    // Try to add duplicate
     let addResult: { success: boolean; error?: string };
     await act(async () => {
       addResult = await result.current.addGitRepo('my-repo', 'https://github.com/owner/other', 'main');
@@ -183,28 +220,6 @@ describe('useGitRepoManagement', () => {
     expect(addResult!.success).toBe(false);
     expect(addResult!.error).toContain('already exists');
     expect(result.current.repoError).toContain('already exists');
-  });
-
-  it('addGitRepo returns error result on service failure', async () => {
-    vi.mocked(backendService.listGitRepos).mockResolvedValueOnce([]);
-    vi.mocked(backendService.applyGitRepo).mockRejectedValueOnce(new Error('Backend apply failed'));
-
-    const { result } = renderHook(() =>
-      useGitRepoManagement({ fleetState: defaultFleetState })
-    );
-
-    await act(async () => {
-      await result.current.fetchGitRepos();
-    });
-
-    let addResult: { success: boolean; error?: string };
-    await act(async () => {
-      addResult = await result.current.addGitRepo('new-repo', 'https://github.com/owner/repo');
-    });
-
-    expect(addResult!.success).toBe(false);
-    expect(addResult!.error).toBe('Backend apply failed');
-    expect(result.current.repoError).toBe('Backend apply failed');
   });
 
   it('addGitRepo returns error result when name is empty', async () => {
@@ -222,6 +237,7 @@ describe('useGitRepoManagement', () => {
   });
 
   it('deleteGitRepo removes resource via backend service', async () => {
+    setLocalStorageConfigs(sampleRepoConfigs);
     vi.mocked(backendService.listGitRepos)
       .mockResolvedValueOnce(sampleGitRepos)
       .mockResolvedValueOnce([]); // Refresh after delete
@@ -245,7 +261,8 @@ describe('useGitRepoManagement', () => {
   });
 
   it('updateGitRepoPaths updates optimistically', async () => {
-    vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
+    setLocalStorageConfigs(sampleRepoConfigs);
+    vi.mocked(backendService.listGitRepos).mockResolvedValue(sampleGitRepos);
 
     const { result } = renderHook(() =>
       useGitRepoManagement({ fleetState: defaultFleetState })
@@ -283,9 +300,8 @@ describe('useGitRepoManagement', () => {
   });
 
   it('updateGitRepoPaths sets error on failure', async () => {
-    vi.mocked(backendService.listGitRepos)
-      .mockResolvedValueOnce(sampleGitRepos)
-      .mockResolvedValueOnce(sampleGitRepos); // Revert fetch
+    setLocalStorageConfigs(sampleRepoConfigs);
+    vi.mocked(backendService.listGitRepos).mockResolvedValue(sampleGitRepos);
 
     vi.mocked(backendService.applyGitRepo).mockRejectedValueOnce(new Error('Apply failed'));
 
@@ -309,7 +325,8 @@ describe('useGitRepoManagement', () => {
   });
 
   it('toggleRepoPath adds path when missing', async () => {
-    vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
+    setLocalStorageConfigs(sampleRepoConfigs);
+    vi.mocked(backendService.listGitRepos).mockResolvedValue(sampleGitRepos);
     vi.mocked(backendService.applyGitRepo).mockResolvedValueOnce({
       ...sampleGitRepos[0],
       paths: ['app1', 'app2'],
@@ -333,11 +350,9 @@ describe('useGitRepoManagement', () => {
   });
 
   it('toggleRepoPath removes path when present', async () => {
-    vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
-    vi.mocked(backendService.applyGitRepo).mockResolvedValueOnce({
-      ...sampleGitRepos[0],
-      paths: [],
-    });
+    setLocalStorageConfigs(sampleRepoConfigs);
+    vi.mocked(backendService.listGitRepos).mockResolvedValue(sampleGitRepos);
+    vi.mocked(backendService.deleteGitRepo).mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() =>
       useGitRepoManagement({ fleetState: defaultFleetState })
@@ -353,26 +368,29 @@ describe('useGitRepoManagement', () => {
       result.current.toggleRepoPath(repo, 'app1');
     });
 
+    // After toggling off the only path, paths should be empty
     expect(result.current.gitRepos[0].paths).not.toContain('app1');
   });
 
   it('clearRepoError clears the error', async () => {
-    vi.mocked(backendService.listGitRepos).mockResolvedValueOnce([]);
-    vi.mocked(backendService.applyGitRepo).mockRejectedValueOnce(new Error('Some error'));
+    // Add a duplicate repo to trigger an error
+    vi.mocked(backendService.listGitRepos).mockResolvedValue([]);
 
     const { result } = renderHook(() =>
       useGitRepoManagement({ fleetState: defaultFleetState })
     );
 
-    await act(async () => {
-      await result.current.fetchGitRepos();
-    });
-
+    // Add first repo
     await act(async () => {
       await result.current.addGitRepo('test', 'https://github.com/owner/repo');
     });
 
-    expect(result.current.repoError).toBe('Some error');
+    // Try to add duplicate - this should set an error
+    await act(async () => {
+      await result.current.addGitRepo('test', 'https://github.com/owner/repo');
+    });
+
+    expect(result.current.repoError).toContain('already exists');
 
     act(() => {
       result.current.clearRepoError();
@@ -453,6 +471,9 @@ describe('useGitRepoManagement', () => {
   });
 
   it('sets up refresh interval for unready repos', async () => {
+    const unreadyRepoConfigs = [
+      { name: 'my-repo', repo: 'https://github.com/owner/repo', paths: ['app1'] },
+    ];
     const unreadyRepos: GitRepo[] = [
       {
         name: 'my-repo',
@@ -467,6 +488,7 @@ describe('useGitRepoManagement', () => {
       },
     ];
 
+    setLocalStorageConfigs(unreadyRepoConfigs);
     vi.mocked(backendService.listGitRepos).mockResolvedValue(unreadyRepos);
 
     const { result, unmount } = renderHook(() =>
@@ -485,6 +507,7 @@ describe('useGitRepoManagement', () => {
   });
 
   it('detects ready status correctly', async () => {
+    setLocalStorageConfigs(sampleRepoConfigs);
     vi.mocked(backendService.listGitRepos).mockResolvedValueOnce(sampleGitRepos);
 
     const { result } = renderHook(() =>
@@ -496,5 +519,66 @@ describe('useGitRepoManagement', () => {
     });
 
     expect(result.current.gitRepos[0].status?.ready).toBe(true);
+  });
+
+  it('updateGitRepoPaths creates K8s resource when paths are selected', async () => {
+    vi.mocked(backendService.listGitRepos).mockResolvedValue([]);
+    vi.mocked(backendService.applyGitRepo).mockResolvedValue({
+      name: 'my-repo',
+      repo: 'https://github.com/owner/repo',
+      paths: ['app1'],
+    });
+
+    const { result } = renderHook(() =>
+      useGitRepoManagement({ fleetState: defaultFleetState })
+    );
+
+    // Add repo (stores in localStorage only)
+    await act(async () => {
+      await result.current.addGitRepo('my-repo', 'https://github.com/owner/repo');
+    });
+
+    expect(backendService.applyGitRepo).not.toHaveBeenCalled();
+
+    // Select a path (should create K8s resource)
+    await act(async () => {
+      await result.current.updateGitRepoPaths(result.current.gitRepos[0], ['app1']);
+    });
+
+    expect(backendService.applyGitRepo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'my-repo',
+        paths: ['app1'],
+      })
+    );
+  });
+
+  it('updateGitRepoPaths deletes K8s resource when all paths are deselected', async () => {
+    // Start with a repo that exists in K8s
+    vi.mocked(backendService.listGitRepos).mockResolvedValue(sampleGitRepos);
+    vi.mocked(backendService.deleteGitRepo).mockResolvedValue(undefined);
+
+    const { result } = renderHook(() =>
+      useGitRepoManagement({ fleetState: defaultFleetState })
+    );
+
+    // Add to localStorage first (simulating existing config)
+    await act(async () => {
+      await result.current.addGitRepo('my-repo', 'https://github.com/owner/repo', 'main');
+    });
+
+    // Fetch K8s repos (should merge with localStorage)
+    await act(async () => {
+      await result.current.fetchGitRepos();
+    });
+
+    const repo = result.current.gitRepos[0];
+
+    // Deselect all paths (should delete K8s resource)
+    await act(async () => {
+      await result.current.updateGitRepoPaths(repo, []);
+    });
+
+    expect(backendService.deleteGitRepo).toHaveBeenCalledWith('my-repo');
   });
 });
