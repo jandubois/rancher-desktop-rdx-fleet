@@ -605,6 +605,9 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
           `  rdctl extension install ${result.imageName}\n\n` +
           (result.output ? `Build output:\n${result.output}` : '')
         );
+        // Refresh fleet images so the new image shows up in the Extensions tab
+        // and triggers the "image already exists" warning if building again
+        await refreshFleetImages();
       } else {
         setBuildError(result.error || 'Build failed');
         if (result.output) {
