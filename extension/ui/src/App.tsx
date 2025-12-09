@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
@@ -821,8 +822,24 @@ function App() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: palette.body.background, display: 'flex', flexDirection: 'column' }}>
-      {/* Fixed Header */}
-      <Box sx={{ bgcolor: palette.header.background, color: palette.header.text, py: 0.5, boxShadow: 1 }}>
+      {/* Fixed Header - striped when extension is not controlling fleet */}
+      <Box sx={{
+        color: palette.header.text,
+        py: 0.5,
+        boxShadow: 1,
+        // Show striped background when not the active owner
+        ...(backendStatus?.ownership?.isOwner === false ? {
+          background: `repeating-linear-gradient(
+            -45deg,
+            ${palette.header.background},
+            ${palette.header.background} 10px,
+            ${alpha(palette.header.background, 0.7)} 10px,
+            ${alpha(palette.header.background, 0.7)} 20px
+          )`,
+        } : {
+          bgcolor: palette.header.background,
+        }),
+      }}>
         <Box sx={{ maxWidth: 900, margin: '0 auto', px: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <EditableHeaderIcon

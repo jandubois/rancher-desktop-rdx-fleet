@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
@@ -492,11 +493,46 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
               return (
                 <ListItem
                   key={index}
-                  sx={{
-                    bgcolor: img.isThisExtension ? 'action.selected' : img.isInstalled ? 'action.hover' : 'transparent',
-                    borderRadius: 1,
-                    mb: 0.5,
-                    pr: 1,
+                  sx={(theme) => {
+                    const hasBackground = img.isThisExtension || img.isInstalled;
+
+                    const baseStyles = {
+                      borderRadius: 1,
+                      mb: 0.5,
+                      pr: 1,
+                    };
+
+                    // For inactive extensions, show diagonal stripes to indicate
+                    // the extension is not currently controlling fleet
+                    if (!img.isActive) {
+                      const darkStripe = hasBackground
+                        ? alpha(theme.palette.grey[500], 0.15)
+                        : alpha(theme.palette.grey[500], 0.08);
+                      const lightStripe = hasBackground
+                        ? alpha(theme.palette.grey[500], 0.05)
+                        : 'transparent';
+
+                      return {
+                        ...baseStyles,
+                        background: `repeating-linear-gradient(
+                          -45deg,
+                          ${darkStripe},
+                          ${darkStripe} 6px,
+                          ${lightStripe} 6px,
+                          ${lightStripe} 12px
+                        )`,
+                      };
+                    }
+
+                    // Active extension gets solid background
+                    return {
+                      ...baseStyles,
+                      bgcolor: img.isThisExtension
+                        ? 'action.selected'
+                        : img.isInstalled
+                          ? 'action.hover'
+                          : 'transparent',
+                    };
                   }}
                   secondaryAction={
                     <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
