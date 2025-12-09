@@ -27,6 +27,69 @@ export interface FleetState {
   message?: string;
 }
 
+// ============================================================
+// Exported utility functions for testing
+// ============================================================
+
+/**
+ * Check if an error is a Kubernetes 404 Not Found error.
+ */
+export function isNotFoundError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const httpError = error as { response?: { statusCode?: number } };
+    return httpError.response?.statusCode === 404;
+  }
+  return false;
+}
+
+/**
+ * Check if an error is a Kubernetes 409 Conflict error.
+ */
+export function isConflictError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const httpError = error as { response?: { statusCode?: number } };
+    return httpError.response?.statusCode === 409;
+  }
+  return false;
+}
+
+/**
+ * Extract version from container image string.
+ * Example: "rancher/fleet:v0.9.0" -> "v0.9.0"
+ * Handles registries with ports: "registry:5000/fleet:v1.0.0" -> "v1.0.0"
+ */
+export function extractVersionFromImage(image: string): string {
+  const lastColon = image.lastIndexOf(':');
+  if (lastColon === -1) {
+    return 'unknown';
+  }
+  // Check if the colon is part of a port number (no / after it)
+  const afterColon = image.slice(lastColon + 1);
+  if (afterColon.includes('/')) {
+    // The colon was for a registry port, no tag present
+    return 'unknown';
+  }
+  return afterColon || 'unknown';
+}
+
+/**
+ * Determine Fleet status based on various conditions.
+ * Used for status reporting.
+ */
+export function determineFleetStatus(conditions: {
+  clusterAccessible: boolean;
+  crdExists: boolean;
+  podRunning: boolean;
+}): FleetStatus {
+  if (!conditions.clusterAccessible) {
+    return 'error';
+  }
+  if (!conditions.crdExists || !conditions.podRunning) {
+    return 'not-installed';
+  }
+  return 'running';
+}
+
 class FleetService {
   private currentState: FleetState = { status: 'checking' };
   private installPromise: Promise<void> | null = null;
@@ -127,7 +190,7 @@ class FleetService {
       return true;
     } catch (error) {
       // 404 means CRD doesn't exist
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         return false;
       }
       const msg = error instanceof Error ? error.message : String(error);
@@ -150,7 +213,7 @@ class FleetService {
       const status = response.body.status;
       return (status?.readyReplicas || 0) > 0;
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         return false;
       }
       const msg = error instanceof Error ? error.message : String(error);
@@ -169,7 +232,7 @@ class FleetService {
       await this.k8sApi.readNamespace(FLEET_NAMESPACE);
       return true;
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         return false;
       }
       throw error;
@@ -190,7 +253,7 @@ class FleetService {
       });
       this.log(`Created namespace ${FLEET_NAMESPACE}`);
     } catch (error) {
-      if (this.isConflictError(error)) {
+      if (isConflictError(error)) {
         this.log(`Namespace ${FLEET_NAMESPACE} already exists`);
         return;
       }
@@ -302,7 +365,7 @@ class FleetService {
         jobName: helmChart.status?.jobName,
       };
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         return { exists: false };
       }
       throw error;
@@ -325,7 +388,7 @@ class FleetService {
       );
       this.log(`Deleted HelmChart ${name}`);
     } catch (error) {
-      if (!this.isNotFoundError(error)) {
+      if (!isNotFoundError(error)) {
         throw error;
       }
     }
@@ -349,7 +412,7 @@ class FleetService {
       );
       this.log(`Deleted Job ${name}`);
     } catch (error) {
-      if (!this.isNotFoundError(error)) {
+      if (!isNotFoundError(error)) {
         const msg = error instanceof Error ? error.message : String(error);
         this.log(`Warning: Failed to delete job ${name}: ${msg}`);
       }
@@ -483,7 +546,7 @@ class FleetService {
         podReason,
       };
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         return { exists: false, status: 'not-found' };
       }
       return { exists: false, status: 'error' };
@@ -659,22 +722,6 @@ class FleetService {
       this.log(`Installation failed: ${errorMessage}`);
       this.setState({ status: 'error', error: errorMessage });
     }
-  }
-
-  private isNotFoundError(error: unknown): boolean {
-    if (error && typeof error === 'object' && 'response' in error) {
-      const httpError = error as { response?: { statusCode?: number } };
-      return httpError.response?.statusCode === 404;
-    }
-    return false;
-  }
-
-  private isConflictError(error: unknown): boolean {
-    if (error && typeof error === 'object' && 'response' in error) {
-      const httpError = error as { response?: { statusCode?: number } };
-      return httpError.response?.statusCode === 409;
-    }
-    return false;
   }
 
   private sleep(ms: number): Promise<void> {

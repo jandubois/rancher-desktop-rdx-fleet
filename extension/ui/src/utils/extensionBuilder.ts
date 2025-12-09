@@ -127,14 +127,18 @@ export function generateManifestYaml(config: ExtensionConfig): string {
   });
 }
 
-// Helper to check if iconState is a custom icon object
-function isCustomIcon(iconState: IconState | undefined): iconState is CustomIcon {
+/**
+ * Type guard to check if iconState is a custom icon object.
+ */
+export function isCustomIcon(iconState: IconState | undefined): iconState is CustomIcon {
   return iconState !== null && iconState !== undefined && iconState !== 'deleted';
 }
 
-// Get the icon path for metadata.json based on config
-// Returns null if icon is explicitly deleted (no icon)
-function getIconPath(config: ExtensionConfig): string | null {
+/**
+ * Get the icon path for metadata.json based on config.
+ * Returns null if icon is explicitly deleted, otherwise returns the path.
+ */
+export function getIconPath(config: ExtensionConfig): string | null {
   const { iconState } = config;
 
   // Explicitly deleted = no icon

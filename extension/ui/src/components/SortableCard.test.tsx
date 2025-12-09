@@ -9,11 +9,14 @@
  * - Applies reduced opacity while dragging
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SortableCard } from './SortableCard';
 
-// Mock @dnd-kit/sortable
+// Control isDragging state per-test
+let mockIsDragging = false;
+
+// Mock @dnd-kit/sortable with controllable isDragging
 vi.mock('@dnd-kit/sortable', () => ({
   useSortable: () => ({
     attributes: { role: 'button' },
@@ -21,9 +24,15 @@ vi.mock('@dnd-kit/sortable', () => ({
     setNodeRef: vi.fn(),
     transform: null,
     transition: undefined,
-    isDragging: false,
+    get isDragging() {
+      return mockIsDragging;
+    },
   }),
 }));
+
+beforeEach(() => {
+  mockIsDragging = false;
+});
 
 // Mock @dnd-kit/utilities
 vi.mock('@dnd-kit/utilities', () => ({
@@ -81,27 +90,29 @@ describe('SortableCard', () => {
   });
 
   it('applies reduced opacity when dragging', () => {
-    // Override the mock for this test
-    vi.doMock('@dnd-kit/sortable', () => ({
-      useSortable: () => ({
-        attributes: {},
-        listeners: {},
-        setNodeRef: vi.fn(),
-        transform: null,
-        transition: undefined,
-        isDragging: true,
-      }),
-    }));
+    mockIsDragging = true;
 
-    // The component would apply opacity: 0.5 when isDragging is true
-    // This is a structural test that verifies the component renders without error
     render(
       <SortableCard id="test-id" editMode={true}>
         <div>Content</div>
       </SortableCard>
     );
 
-    expect(screen.getByText('Content')).toBeInTheDocument();
+    const card = screen.getByTestId('card-test-id');
+    expect(card).toHaveStyle({ opacity: 0.5 });
+  });
+
+  it('applies full opacity when not dragging', () => {
+    mockIsDragging = false;
+
+    render(
+      <SortableCard id="drag-test" editMode={true}>
+        <div>Content</div>
+      </SortableCard>
+    );
+
+    const card = screen.getByTestId('card-drag-test');
+    expect(card).toHaveStyle({ opacity: 1 });
   });
 
   describe('visibility toggle', () => {

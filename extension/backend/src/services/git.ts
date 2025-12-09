@@ -49,6 +49,138 @@ interface CloneResult {
   timeMs: number;
 }
 
+// ============================================================
+// Exported utility functions for testing
+// ============================================================
+
+/**
+ * Extract dependsOn values from fleet.yaml content.
+ * Handles both simple string array and object array formats:
+ * - dependsOn: ["bundle1", "bundle2"]
+ * - dependsOn:
+ *   - name: bundle1
+ *   - name: bundle2
+ */
+export function extractDependsOn(content: string): string[] {
+  const deps: string[] = [];
+
+  // Find dependsOn section
+  const dependsOnMatch = content.match(/^dependsOn:\s*$/m);
+  if (!dependsOnMatch) {
+    // Try inline array format: dependsOn: ["a", "b"]
+    const inlineMatch = content.match(/^dependsOn:\s*\[([^\]]*)\]/m);
+    if (inlineMatch) {
+      const items = inlineMatch[1].split(',');
+      for (const item of items) {
+        const trimmed = item.trim().replace(/^["']|["']$/g, '');
+        if (trimmed) {
+          deps.push(trimmed);
+        }
+      }
+    }
+    return deps;
+  }
+
+  // Find the position of dependsOn:
+  const startIndex = dependsOnMatch.index! + dependsOnMatch[0].length;
+  const restContent = content.slice(startIndex);
+
+  // Parse YAML list items under dependsOn
+  const lines = restContent.split('\n');
+  for (const line of lines) {
+    // Stop if we hit a new top-level key
+    if (/^[a-zA-Z]/.test(line)) {
+      break;
+    }
+
+    // Match list item: "  - name: bundleName" or "  - bundleName"
+    const nameMatch = line.match(/^\s+-\s+name:\s*["']?([^"'\s]+)["']?\s*$/);
+    if (nameMatch) {
+      deps.push(nameMatch[1]);
+      continue;
+    }
+
+    const simpleMatch = line.match(/^\s+-\s+["']?([^"'\s:]+)["']?\s*$/);
+    if (simpleMatch) {
+      deps.push(simpleMatch[1]);
+    }
+  }
+
+  return deps;
+}
+
+/**
+ * Build a URL with embedded credentials for authenticated clones.
+ * Converts https://github.com/user/repo to https://username:password@github.com/user/repo
+ */
+export function buildAuthenticatedUrl(repoUrl: string, credentials?: GitCredentials): string {
+  if (!credentials) {
+    return repoUrl;
+  }
+
+  try {
+    const url = new URL(repoUrl);
+    url.username = encodeURIComponent(credentials.username);
+    url.password = encodeURIComponent(credentials.password);
+    return url.toString();
+  } catch {
+    // If URL parsing fails, return original
+    return repoUrl;
+  }
+}
+
+/**
+ * Check if a filename is a Fleet bundle definition file.
+ */
+export function isFleetFile(filename: string): boolean {
+  return filename === 'fleet.yaml' || filename === 'fleet.yml';
+}
+
+/**
+ * Check if a directory should be skipped during scanning.
+ */
+export function shouldSkipDirectory(dirname: string): boolean {
+  return dirname === '.git';
+}
+
+/**
+ * Sanitize a URL by removing credentials for safe logging.
+ */
+export function sanitizeUrl(url: string): string {
+  return url.replace(/\/\/[^@]+@/, '//***@');
+}
+
+/**
+ * Recursively find Fleet bundle files (fleet.yaml/fleet.yml) in a directory.
+ * Skips .git directories and returns paths relative to baseDir.
+ */
+export function findFleetFiles(baseDir: string, relativePath: string = ''): string[] {
+  const results: string[] = [];
+  const currentDir = path.join(baseDir, relativePath);
+
+  try {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+      if (entry.isDirectory()) {
+        if (shouldSkipDirectory(entry.name)) {
+          continue;
+        }
+        // Recurse into subdirectory
+        results.push(...findFleetFiles(baseDir, entryRelativePath));
+      } else if (entry.isFile() && isFleetFile(entry.name)) {
+        results.push(entryRelativePath);
+      }
+    }
+  } catch {
+    // Silently ignore errors (e.g., permission denied)
+  }
+
+  return results;
+}
+
 class GitService {
   private debugLog: string[] = [];
   private tempDirs: Set<string> = new Set();
@@ -130,7 +262,7 @@ class GitService {
     this.log(`Created temp directory: ${tempDir}`);
 
     // Build clone URL with credentials if provided
-    const cloneUrl = this.buildAuthenticatedUrl(repoUrl, credentials);
+    const cloneUrl = buildAuthenticatedUrl(repoUrl, credentials);
 
     // Try specified branch first, then fallback to common defaults
     const branchesToTry = branch ? [branch] : ['main', 'master'];
@@ -174,10 +306,8 @@ class GitService {
    * Scan a cloned repository for fleet.yaml files and extract path info.
    */
   async scanForFleetPaths(cloneDir: string): Promise<PathInfo[]> {
-    const fleetFiles: string[] = [];
-
     // Recursively find all fleet.yaml and fleet.yml files
-    await this.findFleetFiles(cloneDir, '', fleetFiles);
+    const fleetFiles = findFleetFiles(cloneDir);
 
     // For each fleet.yaml, extract the path and dependencies
     const pathInfos: PathInfo[] = [];
@@ -212,68 +342,12 @@ class GitService {
 
       // Simple YAML parsing for dependsOn field
       // We avoid adding js-yaml dependency by using regex parsing
-      const deps = this.extractDependsOn(content);
+      const deps = extractDependsOn(content);
       return deps.length > 0 ? deps : undefined;
     } catch (error) {
       this.log(`Error parsing ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
       return undefined;
     }
-  }
-
-  /**
-   * Extract dependsOn values from fleet.yaml content.
-   * Handles both simple string array and object array formats:
-   * - dependsOn: ["bundle1", "bundle2"]
-   * - dependsOn:
-   *   - name: bundle1
-   *   - name: bundle2
-   */
-  private extractDependsOn(content: string): string[] {
-    const deps: string[] = [];
-
-    // Find dependsOn section
-    const dependsOnMatch = content.match(/^dependsOn:\s*$/m);
-    if (!dependsOnMatch) {
-      // Try inline array format: dependsOn: ["a", "b"]
-      const inlineMatch = content.match(/^dependsOn:\s*\[([^\]]*)\]/m);
-      if (inlineMatch) {
-        const items = inlineMatch[1].split(',');
-        for (const item of items) {
-          const trimmed = item.trim().replace(/^["']|["']$/g, '');
-          if (trimmed) {
-            deps.push(trimmed);
-          }
-        }
-      }
-      return deps;
-    }
-
-    // Find the position of dependsOn:
-    const startIndex = dependsOnMatch.index! + dependsOnMatch[0].length;
-    const restContent = content.slice(startIndex);
-
-    // Parse YAML list items under dependsOn
-    const lines = restContent.split('\n');
-    for (const line of lines) {
-      // Stop if we hit a new top-level key
-      if (/^[a-zA-Z]/.test(line)) {
-        break;
-      }
-
-      // Match list item: "  - name: bundleName" or "  - bundleName"
-      const nameMatch = line.match(/^\s+-\s+name:\s*["']?([^"'\s]+)["']?\s*$/);
-      if (nameMatch) {
-        deps.push(nameMatch[1]);
-        continue;
-      }
-
-      const simpleMatch = line.match(/^\s+-\s+["']?([^"'\s:]+)["']?\s*$/);
-      if (simpleMatch) {
-        deps.push(simpleMatch[1]);
-      }
-    }
-
-    return deps;
   }
 
   /**
@@ -305,26 +379,6 @@ class GitService {
   // Private helper methods
 
   /**
-   * Build a URL with embedded credentials for authenticated clones.
-   * Converts https://github.com/user/repo to https://username:password@github.com/user/repo
-   */
-  private buildAuthenticatedUrl(repoUrl: string, credentials?: GitCredentials): string {
-    if (!credentials) {
-      return repoUrl;
-    }
-
-    try {
-      const url = new URL(repoUrl);
-      url.username = encodeURIComponent(credentials.username);
-      url.password = encodeURIComponent(credentials.password);
-      return url.toString();
-    } catch {
-      // If URL parsing fails, return original
-      return repoUrl;
-    }
-  }
-
-  /**
    * Execute git clone with depth=1 (shallow clone).
    */
   private executeGitClone(url: string, targetDir: string, branch: string): Promise<void> {
@@ -340,7 +394,7 @@ class GitService {
       ];
 
       // Log command without credentials
-      const safeUrl = url.replace(/\/\/[^@]+@/, '//***@');
+      const safeUrl = sanitizeUrl(url);
       this.log(`Executing: git clone --depth 1 --branch ${branch} --single-branch ${safeUrl} ${targetDir}`);
 
       const proc = spawn('git', args, {
@@ -383,38 +437,7 @@ class GitService {
     });
   }
 
-  /**
-   * Recursively find fleet.yaml/fleet.yml files.
-   */
-  private async findFleetFiles(
-    baseDir: string,
-    relativePath: string,
-    results: string[]
-  ): Promise<void> {
-    const currentDir = path.join(baseDir, relativePath);
-
-    try {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-
-        if (entry.isDirectory()) {
-          // Skip .git directory
-          if (entry.name === '.git') {
-            continue;
-          }
-          await this.findFleetFiles(baseDir, entryRelativePath, results);
-        } else if (entry.isFile()) {
-          if (entry.name === 'fleet.yaml' || entry.name === 'fleet.yml') {
-            results.push(entryRelativePath);
-          }
-        }
-      }
-    } catch (error) {
-      this.log(`Error scanning ${currentDir}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
+  // findFleetFiles is now an exported function at module level
 
   /**
    * Get Git credentials from a Kubernetes Secret.

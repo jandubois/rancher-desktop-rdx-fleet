@@ -193,13 +193,21 @@ export function generatePaletteFromColor(
 }
 
 /**
+ * Check if a harmony type should use higher chroma values.
+ * Triadic and Tints & Shades use higher chroma to be more distinctive.
+ */
+export function isHighChromaHarmony(harmonyType: HarmonyType): boolean {
+  return harmonyType === 'triadic' || harmonyType === 'tintsShades';
+}
+
+/**
  * Build a ColorPalette suitable for the Fleet extension UI from harmony colors.
  * Uses the harmony colors to create a cohesive theme that varies by harmony type.
  *
  * Triadic and Tints & Shades use higher chroma values to differentiate them
  * from Split Complementary and Analogous respectively.
  */
-function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[], harmonyType: HarmonyType): ColorPalette {
+export function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[], harmonyType: HarmonyType): ColorPalette {
   // Use the base color as header background (keeps brand identity)
   const headerBackground = baseColor.hex;
   const headerText = getContrastTextColor(baseColor.rgb);
@@ -211,11 +219,11 @@ function buildUiPalette(baseColor: ExtractedColor, harmonyColors: OKLCH[], harmo
 
   // Determine chroma multipliers based on harmony type
   // Triadic and Tints & Shades use higher chroma to be more distinctive
-  const isHighChromaHarmony = harmonyType === 'triadic' || harmonyType === 'tintsShades';
-  const bodyChromaCap = isHighChromaHarmony ? 0.12 : 0.05;
-  const borderChromaCap = isHighChromaHarmony ? 0.18 : 0.07;
-  const titleChromaCap = isHighChromaHarmony ? 0.35 : 0.18;
-  const titleLightness = isHighChromaHarmony ? 0.35 : 0.45;
+  const highChroma = isHighChromaHarmony(harmonyType);
+  const bodyChromaCap = highChroma ? 0.12 : 0.05;
+  const borderChromaCap = highChroma ? 0.18 : 0.07;
+  const titleChromaCap = highChroma ? 0.35 : 0.18;
+  const titleLightness = highChroma ? 0.35 : 0.45;
 
   // For body background, use a light tint of the accent color
   const lightTint: OKLCH = {

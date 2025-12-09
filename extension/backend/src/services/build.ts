@@ -43,6 +43,126 @@ export interface BuildResult {
   error?: string;
 }
 
+// ============================================================
+// Exported utility functions for testing
+// ============================================================
+
+/**
+ * Generate Dockerfile content for the custom extension.
+ * Creates a multi-stage Dockerfile that extends a base image with custom configuration.
+ */
+export function generateDockerfile(request: BuildRequest): string {
+  const hasCustomIcon = !!request.icon;
+  const hasBundledImages = request.bundledImages && request.bundledImages.length > 0;
+
+  // Note: BASE_IMAGE ARG must be declared before FROM (for FROM instruction)
+  // and again after FROM (to use in labels, since ARGs reset after FROM)
+  let dockerfile = `# Custom Fleet GitOps Extension
+# Built via Docker API
+
+ARG BASE_IMAGE="${request.baseImage}"
+FROM \${BASE_IMAGE}
+ARG BASE_IMAGE
+
+# Extension metadata - override base image labels
+LABEL org.opencontainers.image.title="${request.title}"
+LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
+`;
+
+  // Only add icon label if there's an icon path
+  if (request.iconPath) {
+    dockerfile += `LABEL com.docker.desktop.extension.icon="${request.iconPath}"
+`;
+  }
+
+  dockerfile += `
+# Mark this as a custom Fleet extension (enables config extraction)
+LABEL io.rancher-desktop.fleet.type="custom"
+LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"`;
+
+  // Add header background color label if provided
+  if (request.headerBackground) {
+    dockerfile += `
+LABEL io.rancher-desktop.fleet.header-background="${request.headerBackground}"`;
+  }
+
+  dockerfile += `
+
+# Override manifest with custom configuration
+COPY manifest.yaml /ui/manifest.yaml
+
+# Override metadata for custom title
+COPY metadata.json /metadata.json
+`;
+
+  if (hasCustomIcon) {
+    dockerfile += `
+# Add custom icon
+COPY icons/ /icons/
+`;
+  }
+
+  if (hasBundledImages) {
+    dockerfile += `
+# Add bundled images for image cards
+COPY images/ /images/
+`;
+  }
+
+  return dockerfile;
+}
+
+/**
+ * Create a tar archive containing the build context.
+ * Includes Dockerfile, manifest, metadata, and optional icons/images.
+ */
+export async function createBuildContext(request: BuildRequest): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const pack = tar.pack();
+    const chunks: Buffer[] = [];
+
+    // Collect the tar output
+    const passThrough = new PassThrough();
+    pack.pipe(passThrough);
+    passThrough.on('data', (chunk: Buffer) => chunks.push(chunk));
+    passThrough.on('end', () => resolve(Buffer.concat(chunks)));
+    passThrough.on('error', reject);
+
+    try {
+      // Add Dockerfile
+      const dockerfile = generateDockerfile(request);
+      pack.entry({ name: 'Dockerfile' }, dockerfile);
+
+      // Add manifest.yaml (decode from base64)
+      const manifestContent = Buffer.from(request.manifest, 'base64').toString('utf-8');
+      pack.entry({ name: 'manifest.yaml' }, manifestContent);
+
+      // Add metadata.json (decode from base64)
+      const metadataContent = Buffer.from(request.metadata, 'base64').toString('utf-8');
+      pack.entry({ name: 'metadata.json' }, metadataContent);
+
+      // Add custom icon if present
+      if (request.icon) {
+        const iconData = Buffer.from(request.icon.data, 'base64');
+        pack.entry({ name: `icons/${request.icon.filename}` }, iconData);
+      }
+
+      // Add bundled images if present
+      if (request.bundledImages) {
+        for (const img of request.bundledImages) {
+          const imageData = Buffer.from(img.data, 'base64');
+          pack.entry({ name: img.path }, imageData);
+        }
+      }
+
+      // Finalize the tar archive
+      pack.finalize();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
 /**
  * Service for building Docker images via the Docker API.
  */
@@ -71,119 +191,7 @@ export class BuildService {
     return [...this.debugLog];
   }
 
-  /**
-   * Generate Dockerfile content for the custom extension.
-   */
-  private generateDockerfile(request: BuildRequest): string {
-    const hasCustomIcon = !!request.icon;
-    const hasBundledImages = request.bundledImages && request.bundledImages.length > 0;
-
-    // Note: BASE_IMAGE ARG must be declared before FROM (for FROM instruction)
-    // and again after FROM (to use in labels, since ARGs reset after FROM)
-    let dockerfile = `# Custom Fleet GitOps Extension
-# Built via Docker API
-
-ARG BASE_IMAGE="${request.baseImage}"
-FROM \${BASE_IMAGE}
-ARG BASE_IMAGE
-
-# Extension metadata - override base image labels
-LABEL org.opencontainers.image.title="${request.title}"
-LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
-`;
-
-    // Only add icon label if there's an icon path
-    if (request.iconPath) {
-      dockerfile += `LABEL com.docker.desktop.extension.icon="${request.iconPath}"
-`;
-    }
-
-    dockerfile += `
-# Mark this as a custom Fleet extension (enables config extraction)
-LABEL io.rancher-desktop.fleet.type="custom"
-LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"`;
-
-    // Add header background color label if provided
-    if (request.headerBackground) {
-      dockerfile += `
-LABEL io.rancher-desktop.fleet.header-background="${request.headerBackground}"`;
-    }
-
-    dockerfile += `
-
-# Override manifest with custom configuration
-COPY manifest.yaml /ui/manifest.yaml
-
-# Override metadata for custom title
-COPY metadata.json /metadata.json
-`;
-
-    if (hasCustomIcon) {
-      dockerfile += `
-# Add custom icon
-COPY icons/ /icons/
-`;
-    }
-
-    if (hasBundledImages) {
-      dockerfile += `
-# Add bundled images for image cards
-COPY images/ /images/
-`;
-    }
-
-    return dockerfile;
-  }
-
-  /**
-   * Create a tar archive containing the build context.
-   */
-  private async createBuildContext(request: BuildRequest): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const pack = tar.pack();
-      const chunks: Buffer[] = [];
-
-      // Collect the tar output
-      const passThrough = new PassThrough();
-      pack.pipe(passThrough);
-      passThrough.on('data', (chunk: Buffer) => chunks.push(chunk));
-      passThrough.on('end', () => resolve(Buffer.concat(chunks)));
-      passThrough.on('error', reject);
-
-      try {
-        // Add Dockerfile
-        const dockerfile = this.generateDockerfile(request);
-        pack.entry({ name: 'Dockerfile' }, dockerfile);
-
-        // Add manifest.yaml (decode from base64)
-        const manifestContent = Buffer.from(request.manifest, 'base64').toString('utf-8');
-        pack.entry({ name: 'manifest.yaml' }, manifestContent);
-
-        // Add metadata.json (decode from base64)
-        const metadataContent = Buffer.from(request.metadata, 'base64').toString('utf-8');
-        pack.entry({ name: 'metadata.json' }, metadataContent);
-
-        // Add custom icon if present
-        if (request.icon) {
-          const iconData = Buffer.from(request.icon.data, 'base64');
-          pack.entry({ name: `icons/${request.icon.filename}` }, iconData);
-        }
-
-        // Add bundled images if present
-        if (request.bundledImages) {
-          for (const img of request.bundledImages) {
-            const imageData = Buffer.from(img.data, 'base64');
-            pack.entry({ name: img.path }, imageData);
-          }
-        }
-
-        // Finalize the tar archive
-        pack.finalize();
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
+  // generateDockerfile and createBuildContext are now exported functions at module level
 
   /**
    * Build a Docker image from the provided configuration.
@@ -204,7 +212,7 @@ COPY images/ /images/
     try {
       // Create the build context tar archive
       onProgress?.({ type: 'progress', message: 'Creating build context...' });
-      const buildContext = await this.createBuildContext(request);
+      const buildContext = await createBuildContext(request);
       this.log(`Build context created: ${buildContext.length} bytes`);
 
       // Start the build

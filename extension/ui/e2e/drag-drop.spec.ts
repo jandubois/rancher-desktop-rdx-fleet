@@ -66,9 +66,11 @@ test.describe('Drag and Drop Card Reordering', () => {
     await expect(cards.first()).toHaveAttribute('data-testid', 'card-fleet-status');
   });
 
-  // Skip: Raw mouse events don't trigger dnd-kit's drag handlers correctly in Playwright.
-  // The drag-drop functionality works in real use but requires dnd-kit-specific test utilities.
-  test.skip('should reorder cards via drag and drop', async ({ page }) => {
+  // FIXME: Raw mouse events don't trigger dnd-kit's drag handlers correctly in Playwright.
+  // The drag-drop functionality works in real use but requires dnd-kit-specific test utilities
+  // (e.g., keyboard-based dragging or dnd-kit's testing utilities).
+  // Note: Other tests in this file using mouse.move/down/up may also be flaky for the same reason.
+  test.fixme('should reorder cards via drag and drop', async ({ page }) => {
     // Enter edit mode to enable drag handles
     await page.getByRole('button', { name: /enter edit mode/i }).click();
 
