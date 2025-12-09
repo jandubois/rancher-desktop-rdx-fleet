@@ -15,6 +15,7 @@ import {
   isFleetFile,
   shouldSkipDirectory,
   sanitizeUrl,
+  findFleetFiles,
   PathInfo,
 } from './git';
 
@@ -411,41 +412,10 @@ describe('Fleet YAML file scanning (integration)', () => {
     fs.rmSync(testDir, { recursive: true, force: true });
   });
 
-  // Local scanning functions for integration testing
-  async function findFleetFiles(
-    baseDir: string,
-    relativePath: string,
-    results: string[]
-  ): Promise<void> {
-    const currentDir = path.join(baseDir, relativePath);
-
-    try {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-
-        if (entry.isDirectory()) {
-          if (shouldSkipDirectory(entry.name)) {
-            continue;
-          }
-          await findFleetFiles(baseDir, entryRelativePath, results);
-        } else if (entry.isFile()) {
-          if (isFleetFile(entry.name)) {
-            results.push(entryRelativePath);
-          }
-        }
-      }
-    } catch {
-      // Ignore errors
-    }
-  }
-
-  async function scanForFleetPaths(
-    cloneDir: string
-  ): Promise<Array<{ path: string; dependsOn?: string[] }>> {
-    const fleetFiles: string[] = [];
-    await findFleetFiles(cloneDir, '', fleetFiles);
+  // Helper to convert findFleetFiles output to sorted PathInfo array
+  // (skips root-level fleet.yaml files as the actual code does)
+  function scanForFleetPaths(cloneDir: string): Array<{ path: string; dependsOn?: string[] }> {
+    const fleetFiles = findFleetFiles(cloneDir); // Uses exported function
 
     const pathInfos: Array<{ path: string; dependsOn?: string[] }> = [];
     for (const relativePath of fleetFiles) {
@@ -459,68 +429,68 @@ describe('Fleet YAML file scanning (integration)', () => {
     return pathInfos.sort((a, b) => a.path.localeCompare(b.path));
   }
 
-  it('should find fleet.yaml files in subdirectories', async () => {
+  it('should find fleet.yaml files in subdirectories', () => {
     // Create directory structure
     fs.mkdirSync(path.join(testDir, 'apps/nginx'), { recursive: true });
     fs.mkdirSync(path.join(testDir, 'apps/redis'), { recursive: true });
     fs.writeFileSync(path.join(testDir, 'apps/nginx/fleet.yaml'), 'name: nginx');
     fs.writeFileSync(path.join(testDir, 'apps/redis/fleet.yaml'), 'name: redis');
 
-    const paths = await scanForFleetPaths(testDir);
+    const paths = scanForFleetPaths(testDir);
 
     expect(paths).toHaveLength(2);
     expect(paths.map((p) => p.path)).toEqual(['apps/nginx', 'apps/redis']);
   });
 
-  it('should find fleet.yml files', async () => {
+  it('should find fleet.yml files', () => {
     fs.mkdirSync(path.join(testDir, 'bundles'), { recursive: true });
     fs.writeFileSync(path.join(testDir, 'bundles/fleet.yml'), 'name: bundle');
 
-    const paths = await scanForFleetPaths(testDir);
+    const paths = scanForFleetPaths(testDir);
 
     expect(paths).toHaveLength(1);
     expect(paths[0].path).toBe('bundles');
   });
 
-  it('should skip root-level fleet.yaml', async () => {
+  it('should skip root-level fleet.yaml', () => {
     fs.writeFileSync(path.join(testDir, 'fleet.yaml'), 'name: root');
     fs.mkdirSync(path.join(testDir, 'apps'), { recursive: true });
     fs.writeFileSync(path.join(testDir, 'apps/fleet.yaml'), 'name: app');
 
-    const paths = await scanForFleetPaths(testDir);
+    const paths = scanForFleetPaths(testDir);
 
     expect(paths).toHaveLength(1);
     expect(paths[0].path).toBe('apps');
   });
 
-  it('should skip .git directory', async () => {
+  it('should skip .git directory', () => {
     fs.mkdirSync(path.join(testDir, '.git/hooks'), { recursive: true });
     fs.writeFileSync(path.join(testDir, '.git/hooks/fleet.yaml'), 'should be skipped');
     fs.mkdirSync(path.join(testDir, 'apps'), { recursive: true });
     fs.writeFileSync(path.join(testDir, 'apps/fleet.yaml'), 'name: app');
 
-    const paths = await scanForFleetPaths(testDir);
+    const paths = scanForFleetPaths(testDir);
 
     expect(paths).toHaveLength(1);
     expect(paths[0].path).toBe('apps');
   });
 
-  it('should handle deeply nested directories', async () => {
+  it('should handle deeply nested directories', () => {
     fs.mkdirSync(path.join(testDir, 'level1/level2/level3/level4'), { recursive: true });
     fs.writeFileSync(path.join(testDir, 'level1/level2/level3/level4/fleet.yaml'), 'name: deep');
 
-    const paths = await scanForFleetPaths(testDir);
+    const paths = scanForFleetPaths(testDir);
 
     expect(paths).toHaveLength(1);
     expect(paths[0].path).toBe('level1/level2/level3/level4');
   });
 
-  it('should return empty array for empty directory', async () => {
-    const paths = await scanForFleetPaths(testDir);
+  it('should return empty array for empty directory', () => {
+    const paths = scanForFleetPaths(testDir);
     expect(paths).toEqual([]);
   });
 
-  it('should return sorted paths', async () => {
+  it('should return sorted paths', () => {
     fs.mkdirSync(path.join(testDir, 'zebra'), { recursive: true });
     fs.mkdirSync(path.join(testDir, 'alpha'), { recursive: true });
     fs.mkdirSync(path.join(testDir, 'middle'), { recursive: true });
@@ -528,7 +498,7 @@ describe('Fleet YAML file scanning (integration)', () => {
     fs.writeFileSync(path.join(testDir, 'alpha/fleet.yaml'), 'name: a');
     fs.writeFileSync(path.join(testDir, 'middle/fleet.yaml'), 'name: m');
 
-    const paths = await scanForFleetPaths(testDir);
+    const paths = scanForFleetPaths(testDir);
 
     expect(paths.map((p) => p.path)).toEqual(['alpha', 'middle', 'zebra']);
   });
