@@ -26,7 +26,7 @@ export interface EditModeLoadTabProps {
   /** Whether an import is in progress */
   importing: boolean;
   /** Ref to the file input element (for resetting after upload) */
-  fileInputRef: RefObject<HTMLInputElement>;
+  fileInputRef: RefObject<HTMLInputElement | null>;
   /** Callback when selected image changes */
   onSelectedImageChange: (image: string) => void;
   /** Callback to refresh image list */
