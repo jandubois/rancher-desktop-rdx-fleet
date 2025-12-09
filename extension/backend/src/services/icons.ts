@@ -280,6 +280,7 @@ export class IconsService {
         this.log(`=== Processing image: ${imageName} ===`);
         this.log(`  Type: ${fleetType}`);
         this.log(`  Title: ${title || '(none)'}`);
+        this.log(`  Header background: ${headerBackground || '(none)'}`);
 
         if (fleetType === 'custom') {
           this.log(`  Base image: ${baseImageLabel || '(none)'}`);

@@ -632,6 +632,7 @@ export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]>
       iconPath: img.iconPath,
       iconData: img.iconData,
       iconMimeType: img.iconMimeType,
+      headerBackground: img.headerBackground,
     }));
   } catch (err) {
     console.error('Failed to list Fleet extension images from backend:', err);

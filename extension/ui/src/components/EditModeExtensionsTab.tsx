@@ -80,12 +80,14 @@ export interface EditModeExtensionsTabProps {
   loadingImages: boolean;
   /** Callback to refresh fleet images */
   onRefreshImages: () => void;
+  /** Our own extension's header background color (from palette) */
+  ownHeaderBackground?: string;
 }
 
 /** Operation type for tracking which button is spinning */
 type OperationType = 'uninstall' | 'activate' | 'delete';
 
-export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages, loadingImages, onRefreshImages }: EditModeExtensionsTabProps) {
+export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages, loadingImages, onRefreshImages, ownHeaderBackground }: EditModeExtensionsTabProps) {
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
   const [operatingImage, setOperatingImage] = useState<{ image: string; op: OperationType } | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -167,11 +169,23 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
 
     // Check if this is the currently active (owner) extension
     // currentOwner is already defined in outer scope from ownership?.currentOwner
+    // If there's only one installed Fleet extension and it's this one, consider it active
+    const onlyInstalledExtension = allInstalledExtensions.length === 1 && isThisExtension;
     const isActive = !!installedExt && (
       currentOwner === imageName ||
       currentOwner === normalizedImageName ||
-      (isThisExtension && isOwner)
+      (isThisExtension && isOwner) ||
+      onlyInstalledExtension  // Default to active if only one extension installed
     );
+
+    // Determine header background color:
+    // 1. If this is our own extension, use our palette's header background (may have been customized)
+    // 2. Otherwise, if the extension has a label, use it
+    // 3. Otherwise, use the default icon color (derived from the default Fleet icon)
+    const defaultIconColor = '#22ad5f';  // Default Fleet icon green
+    const headerBackground = isThisExtension && ownHeaderBackground
+      ? ownHeaderBackground
+      : (img.headerBackground || defaultIconColor);
 
     return {
       imageName,
@@ -181,7 +195,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
       type: img.type,
       title: img.title,
       baseImage: img.baseImage,
-      headerBackground: img.headerBackground,
+      headerBackground,
       isInstalled: !!installedExt,
       isActive: !!isActive,
       isThisExtension: !!isThisExtension,
@@ -496,27 +510,21 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
               return (
                 <ListItem
                   key={index}
-                  sx={(theme) => {
-                    const hasBackground = img.isThisExtension || img.isInstalled;
-
+                  sx={() => {
                     const baseStyles = {
                       borderRadius: 1,
                       mb: 0.5,
                       pr: 1,
                     };
 
+                    // Use the extension's header background color (always set, with default)
+                    const headerColor = img.headerBackground || '#22ad5f';
+
                     // For inactive extensions, show diagonal stripes to indicate
                     // the extension is not currently controlling fleet
                     if (!img.isActive) {
-                      // Use the extension's header background color if available,
-                      // otherwise fall back to grey
-                      const baseColor = img.headerBackground || theme.palette.grey[500];
-                      const darkStripe = hasBackground
-                        ? alpha(baseColor, 0.25)
-                        : alpha(baseColor, 0.15);
-                      const lightStripe = hasBackground
-                        ? alpha(baseColor, 0.10)
-                        : alpha(baseColor, 0.05);
+                      const darkStripe = alpha(headerColor, 0.35);
+                      const lightStripe = alpha(headerColor, 0.15);
 
                       return {
                         ...baseStyles,
@@ -530,21 +538,10 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
                       };
                     }
 
-                    // Active extension gets solid background using its header color if available
-                    if (img.headerBackground) {
-                      return {
-                        ...baseStyles,
-                        bgcolor: alpha(img.headerBackground, 0.15),
-                      };
-                    }
-
+                    // Active extension gets solid background using its header color
                     return {
                       ...baseStyles,
-                      bgcolor: img.isThisExtension
-                        ? 'action.selected'
-                        : img.isInstalled
-                          ? 'action.hover'
-                          : 'transparent',
+                      bgcolor: alpha(headerColor, 0.2),
                     };
                   }}
                   secondaryAction={

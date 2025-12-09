@@ -627,6 +627,7 @@ export interface FleetImageWithIcon {
   type: 'base' | 'custom';
   title?: string;
   baseImage?: string;
+  headerBackground?: string;
   iconPath?: string;
   iconData?: string;
   iconMimeType?: string;
