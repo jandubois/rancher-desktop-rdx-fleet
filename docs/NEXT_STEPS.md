@@ -144,20 +144,33 @@ Essential for private Git repositories and enterprise use.
 
 ## Priority 4: Testing
 
+See **[TEST_FIXES.md](TEST_FIXES.md)** for detailed analysis and fix plan.
+
 ### Completed
 
-1. **Frontend tests** - Comprehensive coverage
+1. **Frontend tests** - Comprehensive coverage (37 test files)
    - Hook tests: `usePathDiscovery`, `useGitRepoManagement`, `useDependencyResolver`, etc.
-   - Service tests: `GitHubService`, `CredentialService`
+   - Service tests: `GitHubService`, `CredentialService`, `AppCoService`
    - Component tests: Cards, dialogs, drag-and-drop
    - E2E tests: Add repo, auth flows, edit mode
 
+### Critical Issues (Backend Tests)
+
+1. **Backend tests exist but don't test actual code** - Tests duplicate the implementation instead of importing and testing real functions. This means tests could pass even if features are broken.
+   - `gitrepos.test.ts` - Re-implements `parseGitRepoItem`, `buildGitRepoSpec`, `isNotFoundError`
+   - `git.test.ts` - Re-implements `extractDependsOn`, `buildAuthenticatedUrl`, and 5 other functions
+   - `fleet.test.ts` - Re-implements `determineFleetStatus`, `extractVersionFromImage` (with different logic), and tests `getNextState` which doesn't exist
+
 ### Remaining
 
-1. **Backend unit tests** - Currently missing
-   - `gitrepos.ts` - Test CRUD operations with mocked K8s client
-   - `fleet.ts` - Test installation flow with mocked K8s client
-   - `git.ts` (new) - Test shallow clone and path discovery
+1. **Fix backend tests** - Rewrite to import and test actual functions
+   - Export utility functions from service modules
+   - Use `vi.mock()` for K8s client dependencies
+   - Remove tests for non-existent functionality
+
+2. **Add missing coverage**
+   - Integration tests for K8s operations with mocked client
+   - Error handling path tests
 
 ---
 

@@ -7,11 +7,11 @@
 
 import * as k8s from '@kubernetes/client-node';
 
-// Constants
-const FLEET_NAMESPACE = 'fleet-local';
-const FLEET_GROUP = 'fleet.cattle.io';
-const FLEET_VERSION = 'v1alpha1';
-const GITREPO_PLURAL = 'gitrepos';
+// Constants - exported for testing
+export const FLEET_NAMESPACE = 'fleet-local';
+export const FLEET_GROUP = 'fleet.cattle.io';
+export const FLEET_VERSION = 'v1alpha1';
+export const GITREPO_PLURAL = 'gitrepos';
 
 /** GitRepo status display info */
 export interface GitRepoDisplay {
@@ -61,6 +61,87 @@ export interface GitRepoRequest {
   branch?: string;
   paths?: string[];
   paused?: boolean;
+}
+
+/**
+ * Parse a raw GitRepo item from Kubernetes API response.
+ * Exported for testing.
+ */
+export function parseGitRepoItem(item: Record<string, unknown>): GitRepo {
+  const spec = (item.spec as Record<string, unknown>) || {};
+  const status = (item.status as Record<string, unknown>) || {};
+  const metadata = (item.metadata as Record<string, unknown>) || {};
+  const conditions = (status.conditions as Array<Record<string, unknown>>) || [];
+  const display = status.display as Record<string, unknown> | undefined;
+  const resources = (status.resources as Array<Record<string, unknown>>) || [];
+
+  return {
+    name: metadata.name as string,
+    repo: spec.repo as string,
+    branch: spec.branch as string | undefined,
+    paths: spec.paths as string[] | undefined,
+    paused: spec.paused as boolean | undefined,
+    status: {
+      ready: conditions.some((c) => c.type === 'Ready' && c.status === 'True'),
+      display: display
+        ? {
+            state: display.state as string | undefined,
+            message: display.message as string | undefined,
+            error: display.error as boolean | undefined,
+          }
+        : undefined,
+      desiredReadyClusters: (status.desiredReadyClusters as number) || 0,
+      readyClusters: (status.readyClusters as number) || 0,
+      resources: resources.map((r) => ({
+        kind: r.kind as string,
+        name: r.name as string,
+        state: r.state as string,
+      })),
+      conditions: conditions.map((c) => ({
+        type: c.type as string,
+        status: c.status as string,
+        message: c.message as string | undefined,
+      })),
+    },
+  };
+}
+
+/**
+ * Build GitRepo spec from a request.
+ * Exported for testing.
+ */
+export function buildGitRepoSpec(request: GitRepoRequest): Record<string, unknown> {
+  const { repo, branch, paths, paused } = request;
+
+  const gitRepoSpec: Record<string, unknown> = { repo };
+
+  if (branch) {
+    gitRepoSpec.branch = branch;
+  }
+
+  // Include paths field if defined - empty array means "deploy nothing"
+  // Omitting paths entirely causes Fleet to deploy from root (all bundles)
+  if (paths !== undefined) {
+    gitRepoSpec.paths = paths;
+  }
+
+  if (paused !== undefined) {
+    gitRepoSpec.paused = paused;
+  }
+
+  return gitRepoSpec;
+}
+
+/**
+ * Check if an error is a Kubernetes 404 Not Found error.
+ * Exported for testing.
+ */
+export function isNotFoundError(error: unknown): boolean {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const httpError = error as { response?: { statusCode?: number } };
+    return httpError.response?.statusCode === 404;
+  }
+  return false;
 }
 
 class GitRepoService {
@@ -131,11 +212,11 @@ class GitRepoService {
       const list = response.body as { items?: unknown[] };
       const items = list.items || [];
 
-      const gitRepos = items.map((item) => this.parseGitRepoItem(item as Record<string, unknown>));
+      const gitRepos = items.map((item) => parseGitRepoItem(item as Record<string, unknown>));
       this.log(`Found ${gitRepos.length} GitRepos`);
       return gitRepos;
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         this.log('GitRepo CRD not found or namespace does not exist');
         return [];
       }
@@ -164,9 +245,9 @@ class GitRepoService {
         name
       );
 
-      return this.parseGitRepoItem(response.body as Record<string, unknown>);
+      return parseGitRepoItem(response.body as Record<string, unknown>);
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         this.log(`GitRepo not found: ${name}`);
         return null;
       }
@@ -182,26 +263,10 @@ class GitRepoService {
       throw new Error('Kubernetes client not initialized');
     }
 
-    const { name, repo, branch, paths, paused } = request;
-    this.log(`Applying GitRepo: ${name} -> ${repo}`);
+    const { name } = request;
+    this.log(`Applying GitRepo: ${name} -> ${request.repo}`);
 
-    const gitRepoSpec: Record<string, unknown> = {
-      repo,
-    };
-
-    if (branch) {
-      gitRepoSpec.branch = branch;
-    }
-
-    // Always include paths field - empty array means "deploy nothing"
-    // Omitting paths entirely causes Fleet to deploy from root (all bundles)
-    if (paths !== undefined) {
-      gitRepoSpec.paths = paths;
-    }
-
-    if (paused !== undefined) {
-      gitRepoSpec.paused = paused;
-    }
+    const gitRepoSpec = buildGitRepoSpec(request);
 
     const gitRepoResource = {
       apiVersion: `${FLEET_GROUP}/${FLEET_VERSION}`,
@@ -228,7 +293,7 @@ class GitRepoService {
           name,
           gitRepoResource
         );
-        return this.parseGitRepoItem(response.body as Record<string, unknown>);
+        return parseGitRepoItem(response.body as Record<string, unknown>);
       } else {
         // Create new resource
         this.log(`Creating new GitRepo: ${name}`);
@@ -239,7 +304,7 @@ class GitRepoService {
           GITREPO_PLURAL,
           gitRepoResource
         );
-        return this.parseGitRepoItem(response.body as Record<string, unknown>);
+        return parseGitRepoItem(response.body as Record<string, unknown>);
       }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -268,7 +333,7 @@ class GitRepoService {
       );
       this.log(`GitRepo deleted: ${name}`);
     } catch (error) {
-      if (this.isNotFoundError(error)) {
+      if (isNotFoundError(error)) {
         this.log(`GitRepo not found (already deleted): ${name}`);
         return;
       }
@@ -276,56 +341,6 @@ class GitRepoService {
       this.log(`Error deleting GitRepo: ${msg}`);
       throw error;
     }
-  }
-
-  /**
-   * Parse a raw GitRepo item from Kubernetes API
-   */
-  private parseGitRepoItem(item: Record<string, unknown>): GitRepo {
-    const spec = (item.spec as Record<string, unknown>) || {};
-    const status = (item.status as Record<string, unknown>) || {};
-    const metadata = (item.metadata as Record<string, unknown>) || {};
-    const conditions = (status.conditions as Array<Record<string, unknown>>) || [];
-    const display = status.display as Record<string, unknown> | undefined;
-    const resources = (status.resources as Array<Record<string, unknown>>) || [];
-
-    return {
-      name: metadata.name as string,
-      repo: spec.repo as string,
-      branch: spec.branch as string | undefined,
-      paths: spec.paths as string[] | undefined,
-      paused: spec.paused as boolean | undefined,
-      status: {
-        ready: conditions.some((c) => c.type === 'Ready' && c.status === 'True'),
-        display: display
-          ? {
-              state: display.state as string | undefined,
-              message: display.message as string | undefined,
-              error: display.error as boolean | undefined,
-            }
-          : undefined,
-        desiredReadyClusters: (status.desiredReadyClusters as number) || 0,
-        readyClusters: (status.readyClusters as number) || 0,
-        resources: resources.map((r) => ({
-          kind: r.kind as string,
-          name: r.name as string,
-          state: r.state as string,
-        })),
-        conditions: conditions.map((c) => ({
-          type: c.type as string,
-          status: c.status as string,
-          message: c.message as string | undefined,
-        })),
-      },
-    };
-  }
-
-  private isNotFoundError(error: unknown): boolean {
-    if (error && typeof error === 'object' && 'response' in error) {
-      const httpError = error as { response?: { statusCode?: number } };
-      return httpError.response?.statusCode === 404;
-    }
-    return false;
   }
 }
 
