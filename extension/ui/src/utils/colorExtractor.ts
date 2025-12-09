@@ -123,15 +123,17 @@ export function parseCssColor(color: string): { r: number; g: number; b: number 
 
 /**
  * Check if a color is near white (high brightness, low saturation)
+ * Used for filtering out near-white colors from extracted palettes.
  */
-function isNearWhite(r: number, g: number, b: number, threshold = 245): boolean {
+export function isNearWhite(r: number, g: number, b: number, threshold = 245): boolean {
   return r > threshold && g > threshold && b > threshold;
 }
 
 /**
- * Check if a color is near black
+ * Check if a color is near black.
+ * Used for filtering out near-black colors from extracted palettes.
  */
-function isNearBlack(r: number, g: number, b: number, threshold = 15): boolean {
+export function isNearBlack(r: number, g: number, b: number, threshold = 15): boolean {
   return r < threshold && g < threshold && b < threshold;
 }
 

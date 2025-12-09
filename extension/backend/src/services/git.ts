@@ -150,6 +150,37 @@ export function sanitizeUrl(url: string): string {
   return url.replace(/\/\/[^@]+@/, '//***@');
 }
 
+/**
+ * Recursively find Fleet bundle files (fleet.yaml/fleet.yml) in a directory.
+ * Skips .git directories and returns paths relative to baseDir.
+ */
+export function findFleetFiles(baseDir: string, relativePath: string = ''): string[] {
+  const results: string[] = [];
+  const currentDir = path.join(baseDir, relativePath);
+
+  try {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+
+      if (entry.isDirectory()) {
+        if (shouldSkipDirectory(entry.name)) {
+          continue;
+        }
+        // Recurse into subdirectory
+        results.push(...findFleetFiles(baseDir, entryRelativePath));
+      } else if (entry.isFile() && isFleetFile(entry.name)) {
+        results.push(entryRelativePath);
+      }
+    }
+  } catch {
+    // Silently ignore errors (e.g., permission denied)
+  }
+
+  return results;
+}
+
 class GitService {
   private debugLog: string[] = [];
   private tempDirs: Set<string> = new Set();
@@ -275,10 +306,8 @@ class GitService {
    * Scan a cloned repository for fleet.yaml files and extract path info.
    */
   async scanForFleetPaths(cloneDir: string): Promise<PathInfo[]> {
-    const fleetFiles: string[] = [];
-
     // Recursively find all fleet.yaml and fleet.yml files
-    await this.findFleetFiles(cloneDir, '', fleetFiles);
+    const fleetFiles = findFleetFiles(cloneDir);
 
     // For each fleet.yaml, extract the path and dependencies
     const pathInfos: PathInfo[] = [];
@@ -408,38 +437,7 @@ class GitService {
     });
   }
 
-  /**
-   * Recursively find fleet.yaml/fleet.yml files.
-   */
-  private async findFleetFiles(
-    baseDir: string,
-    relativePath: string,
-    results: string[]
-  ): Promise<void> {
-    const currentDir = path.join(baseDir, relativePath);
-
-    try {
-      const entries = fs.readdirSync(currentDir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const entryRelativePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-
-        if (entry.isDirectory()) {
-          // Skip .git directory
-          if (entry.name === '.git') {
-            continue;
-          }
-          await this.findFleetFiles(baseDir, entryRelativePath, results);
-        } else if (entry.isFile()) {
-          if (entry.name === 'fleet.yaml' || entry.name === 'fleet.yml') {
-            results.push(entryRelativePath);
-          }
-        }
-      }
-    } catch (error) {
-      this.log(`Error scanning ${currentDir}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
+  // findFleetFiles is now an exported function at module level
 
   /**
    * Get Git credentials from a Kubernetes Secret.
