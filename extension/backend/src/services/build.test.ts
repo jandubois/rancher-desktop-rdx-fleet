@@ -117,6 +117,23 @@ describe('generateDockerfile', () => {
 
     expect(dockerfile).toContain('LABEL org.opencontainers.image.title="My "Special" Extension"');
   });
+
+  it('should include header background label when provided', () => {
+    const request: BuildRequest = {
+      ...baseRequest,
+      headerBackground: '#336699',
+    };
+
+    const dockerfile = generateDockerfile(request);
+
+    expect(dockerfile).toContain('LABEL io.rancher-desktop.fleet.header-background="#336699"');
+  });
+
+  it('should not include header background label when not provided', () => {
+    const dockerfile = generateDockerfile(baseRequest);
+
+    expect(dockerfile).not.toContain('io.rancher-desktop.fleet.header-background');
+  });
 });
 
 describe('createBuildContext', () => {
