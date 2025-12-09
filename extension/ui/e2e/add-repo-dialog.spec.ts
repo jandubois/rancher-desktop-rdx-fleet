@@ -21,14 +21,18 @@ test.describe('Add Repository Dialog', () => {
     await page.waitForLoadState('load');
   });
 
+  // Helper to wait for Configure Repository button to be ready
+  async function waitForConfigureButton(page: import('@playwright/test').Page) {
+    const configureButton = page.getByRole('button', { name: /configure repository/i });
+    // Wait for the button to exist (may not be visible if Fleet isn't running)
+    await configureButton.waitFor({ state: 'attached', timeout: 2000 }).catch(() => {});
+    return configureButton;
+  }
+
   test('should open dialog from Configure Repository button', async ({ page }) => {
     // The "Configure Repository" button should be visible when Fleet is running
     // In our mocked setup, the Fleet status card shows when no repos are configured
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-
-    // Wait for the button to become enabled (Fleet needs to be "running")
-    // In the mocked environment, we may need to wait for the status to settle
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     // If the button is disabled, it's because Fleet isn't running - that's expected
     // Let's check if the dialog can be opened via the add button in edit mode instead
@@ -47,8 +51,7 @@ test.describe('Add Repository Dialog', () => {
 
   test('should show form with default values', async ({ page }) => {
     // Open the dialog
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     if (await configureButton.isVisible()) {
       await configureButton.click();
@@ -61,8 +64,7 @@ test.describe('Add Repository Dialog', () => {
   });
 
   test('should disable Add button when required fields are empty', async ({ page }) => {
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     if (await configureButton.isVisible()) {
       await configureButton.click();
@@ -91,8 +93,7 @@ test.describe('Add Repository Dialog', () => {
   });
 
   test('should close dialog on Cancel', async ({ page }) => {
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     if (await configureButton.isVisible()) {
       await configureButton.click();
@@ -107,8 +108,7 @@ test.describe('Add Repository Dialog', () => {
   });
 
   test('should allow entering custom repository details', async ({ page }) => {
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     if (await configureButton.isVisible()) {
       await configureButton.click();
@@ -133,8 +133,7 @@ test.describe('Add Repository Dialog', () => {
   });
 
   test('should show loading state when adding', async ({ page }) => {
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     if (await configureButton.isVisible()) {
       await configureButton.click();
@@ -150,8 +149,7 @@ test.describe('Add Repository Dialog', () => {
   });
 
   test('should show helper text for each field', async ({ page }) => {
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     if (await configureButton.isVisible()) {
       await configureButton.click();
@@ -164,8 +162,7 @@ test.describe('Add Repository Dialog', () => {
   });
 
   test('should show info about path discovery', async ({ page }) => {
-    const configureButton = page.getByRole('button', { name: /configure repository/i });
-    await page.waitForTimeout(500);
+    const configureButton = await waitForConfigureButton(page);
 
     if (await configureButton.isVisible()) {
       await configureButton.click();
