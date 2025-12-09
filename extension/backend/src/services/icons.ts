@@ -29,6 +29,36 @@ export interface FleetImageWithIcon {
   iconMimeType?: string;
 }
 
+// ============================================================
+// Exported utility functions for testing
+// ============================================================
+
+/**
+ * Get MIME type from file extension.
+ * Maps common image extensions to their MIME types.
+ */
+export function getMimeType(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() || 'png';
+  switch (ext) {
+    case 'svg': return 'image/svg+xml';
+    case 'png': return 'image/png';
+    case 'jpg':
+    case 'jpeg': return 'image/jpeg';
+    case 'gif': return 'image/gif';
+    case 'webp': return 'image/webp';
+    default: return 'image/png';
+  }
+}
+
+/**
+ * Check if a tar entry name matches a target file path.
+ * Handles both exact matches and path suffix matches.
+ */
+export function matchesTarEntry(entryName: string, targetPath: string): boolean {
+  const targetName = targetPath.split('/').pop() || '';
+  return entryName === targetName || entryName.endsWith(`/${targetName}`);
+}
+
 /**
  * Service for extracting icons from Docker images.
  */
@@ -57,21 +87,7 @@ export class IconsService {
     return [...this.debugLog];
   }
 
-  /**
-   * Get MIME type from file extension.
-   */
-  private getMimeType(filePath: string): string {
-    const ext = filePath.split('.').pop()?.toLowerCase() || 'png';
-    switch (ext) {
-      case 'svg': return 'image/svg+xml';
-      case 'png': return 'image/png';
-      case 'jpg':
-      case 'jpeg': return 'image/jpeg';
-      case 'gif': return 'image/gif';
-      case 'webp': return 'image/webp';
-      default: return 'image/png';
-    }
-  }
+  // getMimeType is now an exported function at module level
 
   /**
    * Extract icon from a Docker image.
@@ -112,7 +128,7 @@ export class IconsService {
         return null;
       }
 
-      const mimeType = this.getMimeType(iconPath);
+      const mimeType = getMimeType(iconPath);
       this.log(`Extracted icon from ${imageName}: ${iconData.length} bytes, ${mimeType}`);
 
       return {
@@ -152,8 +168,8 @@ export class IconsService {
       extract.on('entry', (header, entryStream, next) => {
         allEntries.push(`${header.name} (${header.size} bytes)`);
 
-        // Check if this is the file we're looking for
-        if (!found && (header.name === targetName || header.name.endsWith(`/${targetName}`))) {
+        // Check if this is the file we're looking for (using exported helper)
+        if (!found && matchesTarEntry(header.name, targetPath)) {
           found = true;
           this.log(`Found matching entry: ${header.name}`);
           entryStream.on('data', (chunk: Buffer) => chunks.push(chunk));

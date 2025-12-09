@@ -48,6 +48,52 @@ The tests were re-implementing functionality instead of testing actual code. The
 
 ---
 
+## Functions to Export for Testability
+
+These private functions contain significant business logic that would benefit from unit testing. Export them as standalone functions (same pattern used in Phase 1).
+
+### Backend - High Priority
+
+| File | Function | Line | Why Export |
+|------|----------|------|------------|
+| `build.ts` | `generateDockerfile()` | 76 | Complex Dockerfile string generation with conditional sections |
+| `build.ts` | `createBuildContext()` | 132 | Complex tar/stream operations, Base64 decoding |
+| `icons.ts` | `extractFileFromTar()` | 141 | Complex tar parsing with path matching logic |
+| `icons.ts` | `getIconPathFromMetadata()` | 196 | JSON parsing, metadata extraction |
+| `icons.ts` | `getMimeType()` | 62 | File extension to MIME type mapping |
+| `fleet.ts` | `getHelmJobStatus()` | 493 | Nested object traversal for job status extraction |
+| `git.ts` | `findFleetFiles()` | 414 | Recursive directory traversal (can test with temp dirs) |
+
+### UI - High Priority
+
+| File | Function | Line | Why Export |
+|------|----------|------|------------|
+| `paletteGenerator.ts` | `buildUiPalette()` | 202 | Complex color harmony calculations |
+| `extensionBuilder.ts` | `getIconPath()` | 136 | State-based icon path determination |
+| `colorExtractor.ts` | `isNearWhite()` | 127 | Color threshold check (used in filtering) |
+| `colorExtractor.ts` | `isNearBlack()` | 134 | Color threshold check (used in filtering) |
+
+### Export Pattern
+
+```typescript
+// Before (private method in class)
+class BuildService {
+  private generateDockerfile(config: BuildConfig): string { ... }
+}
+
+// After (exported function, class uses it)
+export function generateDockerfile(config: BuildConfig): string { ... }
+
+class BuildService {
+  private buildImage(config: BuildConfig) {
+    const dockerfile = generateDockerfile(config);  // uses exported function
+    // ...
+  }
+}
+```
+
+---
+
 ## UI Tests (Good Quality)
 
 The 37 UI test files properly import and test the actual components/hooks/utilities:
