@@ -816,6 +816,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 fleetImages={fleetImages}
                 loadingImages={loadingImages}
                 onRefreshImages={refreshFleetImages}
+                ownHeaderBackground={resolvedPalette?.header?.background}
               />
             </TabPanel>
           </Box>

@@ -146,6 +146,7 @@ app.listen(SOCKET_PATH, async () => {
           fleetService.initialize(kubeconfig);
           gitRepoService.initialize(kubeconfig);
           secretsService.initialize(kubeconfig);
+          ownershipService.initialize(kubeconfig);
           console.log('All Kubernetes services initialized');
         } catch (error) {
           console.error('Failed to initialize Kubernetes services:', error);

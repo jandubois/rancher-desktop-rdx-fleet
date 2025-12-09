@@ -23,6 +23,7 @@ export interface FleetImageWithIcon {
   type: 'base' | 'custom';
   title?: string;
   baseImage?: string;
+  headerBackground?: string;  // Header background color from label
   iconPath?: string;
   iconData?: string;
   iconMimeType?: string;
@@ -272,12 +273,14 @@ export class IconsService {
 
         const fleetType = labels['io.rancher-desktop.fleet.type'] as 'base' | 'custom';
         const baseImageLabel = labels['io.rancher-desktop.fleet.base-image'];
+        const headerBackground = labels['io.rancher-desktop.fleet.header-background'];
         const title = labels['org.opencontainers.image.title'];
 
         // Detailed logging for debugging
         this.log(`=== Processing image: ${imageName} ===`);
         this.log(`  Type: ${fleetType}`);
         this.log(`  Title: ${title || '(none)'}`);
+        this.log(`  Header background: ${headerBackground || '(none)'}`);
 
         if (fleetType === 'custom') {
           this.log(`  Base image: ${baseImageLabel || '(none)'}`);
@@ -293,6 +296,7 @@ export class IconsService {
           type: fleetType,
           title,
           baseImage: baseImageLabel,
+          headerBackground,
           iconPath: iconPath || undefined,
         };
 

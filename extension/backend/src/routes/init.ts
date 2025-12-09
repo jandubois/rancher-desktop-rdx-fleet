@@ -97,9 +97,13 @@ initRouter.post('/', async (req, res) => {
         '$1\n    insecure-skip-tls-verify: true'
       );
 
-      // Initialize ownership service
-      await ownershipService.initialize(kubeconfig);
-      log('Ownership service initialized');
+      // Initialize ownership service (if not already initialized from startup)
+      if (!ownershipService.isReady()) {
+        await ownershipService.initialize(patchedKubeconfig);
+        log('Ownership service initialized');
+      } else {
+        log('Ownership service already initialized (from backend startup)');
+      }
 
       // Initialize all Kubernetes services (if not already initialized from startup)
       if (!fleetService.isReady()) {

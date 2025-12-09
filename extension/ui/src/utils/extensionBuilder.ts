@@ -23,6 +23,7 @@ export interface FleetExtensionImage {
   type: 'base' | 'custom';  // Fleet extension type
   title?: string;       // Human-readable title from OCI label
   baseImage?: string;   // For custom extensions, the base image used
+  headerBackground?: string; // Header background color from label
   iconPath?: string;    // Icon path from Docker label (e.g., "/icons/fleet-icon.svg")
   iconData?: string;    // Base64 encoded icon data (extracted from image)
   iconMimeType?: string; // MIME type of the icon
@@ -559,6 +560,9 @@ export async function buildExtension(
   try {
     onProgress?.('Starting Docker build...');
 
+    // Get the header background color from the manifest palette
+    const headerBackground = config.manifest.branding?.palette?.header?.background;
+
     // Build the request for the backend API
     const buildRequest = {
       imageName,
@@ -567,6 +571,7 @@ export async function buildExtension(
       manifest: manifestB64,
       metadata: metadataB64,
       iconPath,
+      headerBackground,
       icon: hasCustomIcon ? {
         filename: iconFilename,
         data: (config.iconState as CustomIcon).data,
@@ -627,6 +632,7 @@ export async function listFleetExtensionImages(): Promise<FleetExtensionImage[]>
       iconPath: img.iconPath,
       iconData: img.iconData,
       iconMimeType: img.iconMimeType,
+      headerBackground: img.headerBackground,
     }));
   } catch (err) {
     console.error('Failed to list Fleet extension images from backend:', err);
