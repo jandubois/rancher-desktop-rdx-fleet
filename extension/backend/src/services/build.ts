@@ -17,6 +17,7 @@ export interface BuildRequest {
   manifest: string;      // Base64 encoded manifest.yaml content
   metadata: string;      // Base64 encoded metadata.json content
   iconPath?: string;     // Path for icon label (e.g., "/icons/custom-icon.svg")
+  headerBackground?: string;  // Header background color for the extension
   icon?: {               // Custom icon data
     filename: string;    // e.g., "custom-icon.svg"
     data: string;        // Base64 encoded icon data
@@ -100,7 +101,15 @@ LABEL org.opencontainers.image.description="Custom Fleet GitOps extension"
     dockerfile += `
 # Mark this as a custom Fleet extension (enables config extraction)
 LABEL io.rancher-desktop.fleet.type="custom"
-LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"
+LABEL io.rancher-desktop.fleet.base-image="\${BASE_IMAGE}"`;
+
+    // Add header background color label if provided
+    if (request.headerBackground) {
+      dockerfile += `
+LABEL io.rancher-desktop.fleet.header-background="${request.headerBackground}"`;
+    }
+
+    dockerfile += `
 
 # Override manifest with custom configuration
 COPY manifest.yaml /ui/manifest.yaml

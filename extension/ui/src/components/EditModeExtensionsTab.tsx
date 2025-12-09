@@ -53,6 +53,8 @@ interface UnifiedImageInfo {
   title?: string;
   /** For custom extensions, the base image used */
   baseImage?: string;
+  /** Header background color from label */
+  headerBackground?: string;
   /** Whether this image is installed as an extension */
   isInstalled: boolean;
   /** Whether this is the currently active (owner) extension */
@@ -179,6 +181,7 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
       type: img.type,
       title: img.title,
       baseImage: img.baseImage,
+      headerBackground: img.headerBackground,
       isInstalled: !!installedExt,
       isActive: !!isActive,
       isThisExtension: !!isThisExtension,
@@ -505,12 +508,15 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
                     // For inactive extensions, show diagonal stripes to indicate
                     // the extension is not currently controlling fleet
                     if (!img.isActive) {
+                      // Use the extension's header background color if available,
+                      // otherwise fall back to grey
+                      const baseColor = img.headerBackground || theme.palette.grey[500];
                       const darkStripe = hasBackground
-                        ? alpha(theme.palette.grey[500], 0.15)
-                        : alpha(theme.palette.grey[500], 0.08);
+                        ? alpha(baseColor, 0.25)
+                        : alpha(baseColor, 0.15);
                       const lightStripe = hasBackground
-                        ? alpha(theme.palette.grey[500], 0.05)
-                        : 'transparent';
+                        ? alpha(baseColor, 0.10)
+                        : alpha(baseColor, 0.05);
 
                       return {
                         ...baseStyles,
@@ -524,7 +530,14 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
                       };
                     }
 
-                    // Active extension gets solid background
+                    // Active extension gets solid background using its header color if available
+                    if (img.headerBackground) {
+                      return {
+                        ...baseStyles,
+                        bgcolor: alpha(img.headerBackground, 0.15),
+                      };
+                    }
+
                     return {
                       ...baseStyles,
                       bgcolor: img.isThisExtension
