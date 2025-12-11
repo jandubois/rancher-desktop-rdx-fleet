@@ -1,11 +1,20 @@
 # Fleet GitOps Extension - Documentation
 
-## Quick Start
+## New Developer? Start Here
 
 | Document | Purpose |
 |----------|---------|
-| **[NEXT_STEPS.md](NEXT_STEPS.md)** | Current development plan and priorities - **read first** |
+| **[ARCHITECTURE.md](ARCHITECTURE.md)** | **Complete architecture guide** - system overview, frontend/backend interaction, data flow, key entry points, development workflow |
+| [NEXT_STEPS.md](NEXT_STEPS.md) | Current development plan and priorities |
 | [PRD.md](PRD.md) | Product requirements, features, UI mockups |
+
+The [Architecture Guide](ARCHITECTURE.md) provides everything you need to understand the codebase and start contributing, including:
+- High-level system architecture with diagrams
+- Frontend structure (React, cards, hooks, services)
+- Backend structure (Express, Kubernetes client)
+- Communication patterns between components
+- Data flow diagrams for key operations
+- Step-by-step guides for adding new features
 
 ## User Guide
 
@@ -66,8 +75,10 @@ rancher-desktop-rdx-fleet/
 
 The extension runs as a Docker image containing:
 - **UI layer** (React) - Renders in Rancher Desktop sidebar
-- **Host binaries** (kubectl, helm) - Delegated to `~/.rd/bin/`
-- No backend service - all operations via kubectl/helm CLI
+- **Backend service** (Express.js) - Handles Kubernetes operations via client library
+- **Host binaries** - Platform-specific scripts for credential helpers and CLI tools
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
 
 ### Card-Based UI
 
