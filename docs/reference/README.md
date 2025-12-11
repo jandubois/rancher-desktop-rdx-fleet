@@ -1,6 +1,10 @@
 # Reference Documentation
 
-This directory contains curated reference documents for implementing the Fleet extension for Rancher Desktop. These documents are synthesized from the background materials in `docs/background/`.
+This directory contains detailed reference documents for specific technical topics.
+
+> **Start Here**: For an overview of the project architecture, see [ARCHITECTURE.md](../ARCHITECTURE.md) which covers the system structure, data flow, and development workflow.
+
+The documents below provide deeper technical reference for specific areas.
 
 ## Documents
 

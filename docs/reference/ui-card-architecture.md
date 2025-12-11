@@ -1,6 +1,8 @@
 # UI Card Architecture
 
-This document describes the card-based UI architecture implemented for the Fleet GitOps extension.
+This document provides detailed reference for the card-based UI system.
+
+> **For high-level architecture**, see [ARCHITECTURE.md](../ARCHITECTURE.md) which covers the overall system structure and how cards fit into the frontend.
 
 ## Overview
 
