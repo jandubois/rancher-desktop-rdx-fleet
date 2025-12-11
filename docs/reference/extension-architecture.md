@@ -1,6 +1,10 @@
-# Docker Desktop / Rancher Desktop Extension Architecture
+# Docker Desktop / Rancher Desktop Extension SDK Reference
 
-This document provides a curated reference for building extensions compatible with Docker Desktop and Rancher Desktop. It synthesizes information from the Docker Extensions SDK and the AppCo extension (our blueprint).
+This document provides SDK reference material for building extensions compatible with Docker Desktop and Rancher Desktop.
+
+> **For project-specific architecture**, see [ARCHITECTURE.md](../ARCHITECTURE.md) which documents how this extension is structured, data flow, and development workflow.
+
+This document covers the **Extension SDK** itself - how any Docker/Rancher Desktop extension works.
 
 ## Overview
 

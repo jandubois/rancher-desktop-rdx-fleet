@@ -168,94 +168,18 @@ Fleet provides a **pull-based GitOps model** that solves these problems:
 
 ## Technical Architecture
 
-### Extension Structure
+> **For current architecture details**, see [ARCHITECTURE.md](ARCHITECTURE.md) which provides comprehensive documentation of the actual implementation including frontend, backend, and communication patterns.
 
-```
-fleet-extension/
-├── Dockerfile              # Multi-stage build
-├── metadata.json           # Extension metadata
-├── ui/                     # React frontend
-│   ├── src/
-│   │   ├── App.tsx
-│   │   ├── components/
-│   │   │   ├── FleetStatus.tsx
-│   │   │   ├── GitRepoList.tsx
-│   │   │   ├── GitRepoForm.tsx
-│   │   │   ├── BundleStatus.tsx
-│   │   │   └── Settings.tsx
-│   │   ├── hooks/
-│   │   │   ├── useFleet.ts
-│   │   │   └── useKubectl.ts
-│   │   └── lib/
-│   │       └── ddClient.ts
-│   ├── package.json
-│   └── vite.config.ts
-└── backend/                # Express.js (optional, for complex operations)
-    ├── app.js
-    └── package.json
-```
+The extension uses a **three-tier architecture**:
+- **Frontend** (React) - User interface with card-based layout
+- **Backend** (Express.js) - Kubernetes operations via `@kubernetes/client-node`
+- **Host Scripts** - Platform-specific CLI wrappers for credentials and tools
 
-**Note**: Rancher Desktop already bundles `kubectl`, `helm`, and `docker` binaries. We use these directly via the Docker Desktop Client SDK - no need to ship our own binaries.
-
-### Key Technical Decisions
-
-#### 1. Fleet Installation Method
-Install Fleet using `helm` (provided by Rancher Desktop):
-```typescript
-// Install Fleet CRDs and controller via Helm
-await ddClient.extension.host?.cli.exec("helm", [
-  "repo", "add", "fleet", "https://rancher.github.io/fleet-helm-charts/"
-]);
-await ddClient.extension.host?.cli.exec("helm", [
-  "install", "--create-namespace", "-n", "cattle-fleet-system",
-  "fleet-crd", "fleet/fleet-crd", "--wait"
-]);
-await ddClient.extension.host?.cli.exec("helm", [
-  "install", "--create-namespace", "-n", "cattle-fleet-system",
-  "fleet", "fleet/fleet", "--wait"
-]);
-```
-
-#### 2. Kubernetes Interaction
-All K8s operations via Rancher Desktop's bundled CLI tools:
-- `kubectl` for resource management (get, apply, delete)
-- `helm` for Fleet installation
-- Uses Rancher Desktop's kubeconfig automatically via `--context rancher-desktop`
-
-#### 3. State Management
-- GitRepo CRs are the source of truth
-- UI reads state via `kubectl get gitrepos -n fleet-local`
-- No local database needed
-
-#### 4. Authentication Storage
-- Store Git credentials in Kubernetes Secrets
-- Reference secrets in GitRepo CR
-- Never store credentials in extension storage
-
-### API Flow
-
-```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────────────────┐
-│   React UI      │────▶│  ddClient SDK   │────▶│  kubectl / helm (RD host)   │
-└─────────────────┘     └─────────────────┘     └──────────────┬──────────────┘
-                                                               │
-                                                               ▼
-                                                     ┌─────────────────┐
-                                                     │  Kubernetes API │
-                                                     └────────┬────────┘
-                                                               │
-                        ┌──────────────────────────────────────┼──────────────────────────────────────┐
-                        │                                      │                                      │
-                        ▼                                      ▼                                      ▼
-              ┌─────────────────┐                  ┌─────────────────┐                  ┌─────────────────┐
-              │  Fleet CRDs     │                  │ Fleet Controller │                  │  Deployed Apps  │
-              │  (GitRepo, etc) │                  │  (watches CRs)   │                  │  (from Git)     │
-              └─────────────────┘                  └─────────────────┘                  └─────────────────┘
-```
+Fleet installation uses HelmChart CRDs (via k3s Helm Controller), not direct helm CLI calls.
 
 ---
 
-## Multi-Card Architecture (Planned)
+## Multi-Card Architecture
 
 ### Overview
 
@@ -839,48 +763,6 @@ The following questions have been resolved:
 | **Card Type Extensibility** | Custom card types require modifying the extension source. No plugin mechanism - we add generalized, customizable card types as requirements emerge. The manifest system is designed for easy expansion. |
 | **Runtime Compatibility** | Extension builder and image extraction must work with both moby/dockerd and containerd runtimes (Rancher Desktop supports both). |
 
-## Implementation Notes
-
-### Actual Architecture (as built)
-
-The extension uses a simpler architecture than originally planned:
-
-```
-extension/
-├── Dockerfile              # Multi-stage build
-├── metadata.json           # Extension metadata with host binaries config
-├── host/                   # Wrapper scripts for kubectl/helm
-│   ├── darwin/
-│   │   ├── kubectl         # Delegates to ~/.rd/bin/kubectl, handles --apply-json
-│   │   └── helm            # Delegates to ~/.rd/bin/helm
-│   ├── linux/
-│   │   ├── kubectl
-│   │   └── helm
-│   └── windows/
-│       ├── kubectl.cmd
-│       └── helm.cmd
-└── ui/                     # React frontend (single App.tsx component)
-    ├── src/
-    │   ├── App.tsx         # Main component with all functionality
-    │   └── lib/
-    │       └── ddClient.ts # Docker Desktop client SDK wrapper
-    ├── package.json
-    └── vite.config.ts
-```
-
-**Key simplifications from original plan:**
-- No separate components - single `App.tsx` handles everything
-- No backend service needed - all operations via kubectl/helm CLI
-- Card-based UI instead of table for GitRepos
-- Inline path editing via checkboxes instead of separate edit dialog
-- Auto-discovery of available paths from GitHub repos
-
-## Open Questions
-
-1. **Credential Management**: How should we handle credentials for AppCo, GitHub, and internal Git repos in a unified way? (To be addressed in Phase 2)
-
-2. **Extension Image Extraction**: What's the best approach to extract manifest.yaml and assets from an existing extension image? Preference is to extract directly without spinning up a container. Options: (a) `docker cp` from a temporary container via ddClient, (b) use Docker/containerd image layer inspection APIs. Need to verify this works with both moby/dockerd and containerd runtimes. (To be addressed in Phase 4)
-
 ---
 
 ## Testing Configuration
@@ -918,15 +800,11 @@ This repository contains various example configurations:
 ## References
 
 ### Project Documentation
+- [ARCHITECTURE.md](ARCHITECTURE.md) - Complete architecture guide for developers
 - [NEXT_STEPS.md](NEXT_STEPS.md) - Current development plan and priorities
-- [Documentation Index](README.md) - Guide to all documentation
+- [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) - Known issues and refactoring recommendations
 
 ### Technical Reference
 - [UI Card Architecture](reference/ui-card-architecture.md) - Card system, drag-and-drop, state management
 - [Extension Architecture](reference/extension-architecture.md) - Docker/Rancher Desktop extension SDK
 - [Fleet Local Mode](reference/fleet-local-mode.md) - Fleet installation, GitRepo CRD, authentication
-- [Helm Controller Integration](reference/helm-controller-integration.md) - Alternative to Fleet for simple cases
-
-### Background Materials
-- [AppCo Extension Wiki](background/wiki/rancherlabs/application-collection-extension/1-overview.md)
-- [Fleet Wiki](background/wiki/rancher/fleet/1-overview.md)

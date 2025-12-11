@@ -12,36 +12,7 @@ This document tracks the current development plan and priorities. **Read this fi
 - Card types implemented: `gitrepo`, `markdown`, `html`, `image`, `video`, `link`, `divider`, `placeholder`, `auth-github`, `auth-appco`
 - Card types defined but not implemented: `auth-git`
 
----
-
-## Architecture Overview
-
-### Client-Server Model
-
-The extension uses a **client-server architecture**:
-
-- **Backend** (Node.js/Express): Runs in the Rancher Desktop VM, manages all Kubernetes resources (Fleet, GitRepos, Secrets) using `@kubernetes/client-node`. The backend is the single source of truth for cluster state.
-
-- **Frontend** (React): User-facing UI that communicates with the backend via the Rancher Desktop extension SDK. Manages UI state only (card layout, edit mode, etc.).
-
-### Path Discovery Architecture
-
-Path discovery (finding `fleet.yaml` files in Git repositories) uses a **backend shallow clone approach**:
-
-- **Backend clones repos**: Uses `git clone --depth 1` to perform shallow clones
-- **Local file analysis**: Scans cloned repos for `fleet.yaml`/`fleet.yml` files
-- **Provider agnostic**: Works with GitHub, GitLab, Bitbucket, or any Git server
-- **Private repo support**: Uses credentials from Kubernetes Secrets
-
-This approach eliminates GitHub API rate limits and enables support for any Git hosting provider.
-
-### Data Storage
-
-| Data Type | Storage Location | Notes |
-|-----------|------------------|-------|
-| GitRepo configs | Kubernetes CRDs | `fleet.cattle.io/v1alpha1` in `fleet-local` namespace |
-| Git credentials | Docker credential helpers | Via `docker-credential-*` commands |
-| UI state | Browser localStorage | Card order, manifest, edit mode state |
+> **For architecture details**, see [ARCHITECTURE.md](ARCHITECTURE.md) - covers system overview, frontend/backend structure, data flow, and key entry points.
 
 ---
 
@@ -223,51 +194,6 @@ Backend improvements for handling cluster lifecycle events.
 
 ---
 
-## Key Files Reference
-
-### Backend
-
-| Purpose | File |
-|---------|------|
-| Express app & init | `extension/backend/src/index.ts` |
-| GitRepo CRUD service | `extension/backend/src/services/gitrepos.ts` |
-| Fleet installation | `extension/backend/src/services/fleet.ts` |
-| Git path discovery | `extension/backend/src/services/git.ts` |
-| Git discovery routes | `extension/backend/src/routes/git.ts` |
-
-### Frontend - Core
-
-| Purpose | File |
-|---------|------|
-| Main UI component | `extension/ui/src/App.tsx` |
-| Shared types | `extension/ui/src/types.ts` |
-
-### Frontend - Hooks (Business Logic)
-
-| Purpose | File |
-|---------|------|
-| Fleet status & install | `extension/ui/src/hooks/useFleetStatus.ts` |
-| GitRepo CRUD & polling | `extension/ui/src/hooks/useGitRepoManagement.ts` |
-| Path discovery & caching | `extension/ui/src/hooks/usePathDiscovery.ts` |
-| Dependency resolution | `extension/ui/src/hooks/useDependencyResolver.ts` |
-
-### Frontend - Services
-
-| Purpose | File |
-|---------|------|
-| Backend API client | `extension/ui/src/services/BackendService.ts` |
-| GitHub API (to be deprecated) | `extension/ui/src/services/GitHubService.ts` |
-| Docker credentials | `extension/ui/src/services/CredentialService.ts` |
-
-### Frontend - Cards
-
-| Purpose | File |
-|---------|------|
-| Card registry | `extension/ui/src/cards/registry.ts` |
-| Card wrapper | `extension/ui/src/cards/CardWrapper.tsx` |
-
----
-
 ## Technical Decisions
 
 | Topic | Decision |
@@ -280,10 +206,8 @@ Backend improvements for handling cluster lifecycle events.
 
 ---
 
-## Documentation Structure
+## Related Documentation
 
-- `docs/NEXT_STEPS.md` - **You are here** - Development plan
-- `docs/README.md` - Documentation index
-- `docs/PRD.md` - Product requirements (features, UI mockups)
-- `docs/reference/` - Technical reference docs
-- `docs/background/` - External reference materials (wikis, etc.)
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture, frontend/backend structure, data flow
+- [ARCHITECTURE_REVIEW.md](ARCHITECTURE_REVIEW.md) - Known issues and refactoring recommendations
+- [PRD.md](PRD.md) - Product requirements and feature specifications
