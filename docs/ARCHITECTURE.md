@@ -855,5 +855,6 @@ await ddClient.extension.host?.cli.exec('my-script', ['arg1', 'arg2']);
 - [UI Card Architecture](reference/ui-card-architecture.md) - Detailed card system documentation
 - [Extension Architecture](reference/extension-architecture.md) - Docker/Rancher Desktop SDK details
 - [Fleet Local Mode](reference/fleet-local-mode.md) - Fleet configuration and GitRepo CRD
-- [Architecture Review](ARCHITECTURE_REVIEW.md) - Known issues and refactoring recommendations
 - [Card Types Reference](user-guide/card-types.md) - YAML configuration for all card types
+- [PRD](PRD.md) - Product requirements and feature specifications
+- [Next Steps](NEXT_STEPS.md) - Current development priorities

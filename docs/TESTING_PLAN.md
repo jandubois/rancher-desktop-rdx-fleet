@@ -119,5 +119,5 @@ const handlers = [
 
 ## Related Documentation
 
-- [TEST_FIXES.md](TEST_FIXES.md) - Test suite audit and fixes (completed)
 - [E2E Testing Plan](../extension/ui/e2e/E2E_TESTING_PLAN.md) - Playwright E2E tests
+- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture for developers
