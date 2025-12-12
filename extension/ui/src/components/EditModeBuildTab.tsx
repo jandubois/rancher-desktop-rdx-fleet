@@ -29,7 +29,7 @@ function useAutoScroll(content: string | null) {
  * Returns true if the image has an org/repo format or includes a registry.
  * Simple names like "my-extension" (which map to "library/my-extension") are not pushable.
  */
-export function isPushableImageName(imageName: string): boolean {
+function isPushableImageName(imageName: string): boolean {
   // Just check if there's a slash anywhere - handles org/repo and registry:port/repo
   return imageName.includes('/');
 }
