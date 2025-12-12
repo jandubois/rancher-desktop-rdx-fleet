@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import TextField from '@mui/material/TextField';
@@ -96,9 +96,76 @@ export const VideoCard: React.FC<CardProps<VideoCardSettings>> = ({
   );
 };
 
-// Separate component for rendering video to avoid duplication
+/**
+ * VideoPlayer - Renders embedded videos using document.write to bypass CSP restrictions
+ *
+ * Uses the same approach as HtmlCard - creates an iframe without a src attribute
+ * and uses document.write to inject the video embed content. This bypasses
+ * Rancher Desktop's CSP restrictions on external iframe sources.
+ */
 const VideoPlayer: React.FC<{ src: string; title: string }> = ({ src, title }) => {
   const { type, url } = getEmbedUrl(src);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Generate a unique key when src changes to force iframe recreation
+  const iframeKey = useMemo(() => {
+    return `video-${src.length}-${src.slice(0, 50)}`;
+  }, [src]);
+
+  // Build the HTML document for the embed iframe
+  const buildEmbedDocument = (embedUrl: string, embedTitle: string): string => {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <iframe
+    src="${embedUrl}"
+    title="${embedTitle || 'Embedded video'}"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+    allowfullscreen
+  ></iframe>
+</body>
+</html>`;
+  };
+
+  // Write content to iframe using document.write (bypasses CSP restrictions)
+  useEffect(() => {
+    if (type !== 'embed') return;
+
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const writeContent = () => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (doc) {
+          doc.open();
+          doc.write(buildEmbedDocument(url, title));
+          doc.close();
+        }
+      } catch (e) {
+        console.error('Failed to write video embed to iframe:', e);
+      }
+    };
+
+    // Small delay to ensure iframe is mounted
+    const timer = setTimeout(writeContent, 50);
+    return () => clearTimeout(timer);
+  }, [type, url, title, iframeKey]);
 
   if (type === 'embed') {
     return (
@@ -112,11 +179,10 @@ const VideoPlayer: React.FC<{ src: string; title: string }> = ({ src, title }) =
         }}
       >
         <Box
+          key={iframeKey}
           component="iframe"
-          src={url}
+          ref={iframeRef}
           title={title || 'Embedded video'}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
           sx={{
             position: 'absolute',
             top: 0,
