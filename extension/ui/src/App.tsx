@@ -32,6 +32,7 @@ import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, GitRepoCardSe
 import { GitRepo } from './types';
 import { loadExtensionState, saveExtensionState, PersistedExtensionState, EditModeSnapshot, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
 import { backendService } from './services/BackendService';
+import type { GitRepoConfig } from './utils';
 
 // Get initial state from localStorage (synchronous for lazy useState)
 function getInitialState(): PersistedExtensionState | null {
@@ -169,6 +170,7 @@ function App() {
     clearAllGitRepos,
   } = useGitRepoManagement({
     fleetState,
+    manifestCards,  // Pass manifest cards for initializing from defaults
     onReposLoaded: (repos) => {
       // Auto-discover paths for repos that don't have cached paths
       repos.forEach((repo) => {
@@ -224,6 +226,17 @@ function App() {
       }
     }
     return selected;
+  }, [gitRepos]);
+
+  // Convert gitRepos to GitRepoConfig format for extension building
+  // This stores the current repo configuration as defaults in the manifest
+  const gitRepoConfigs: GitRepoConfig[] = useMemo(() => {
+    return gitRepos.map(repo => ({
+      name: repo.name,
+      repo: repo.repo,
+      branch: repo.branch,
+      paths: repo.paths || [],
+    }));
   }, [gitRepos]);
 
   // DnD sensors
@@ -956,6 +969,7 @@ function App() {
               onTitleWarningChange={setTitleWarning}
               activeTab={activeEditTab}
               onActiveTabChange={setActiveEditTab}
+              gitRepoConfigs={gitRepoConfigs}
             />
           )}
 

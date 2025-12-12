@@ -17,7 +17,7 @@ export {
   detectCurrentExtensionImage,
   detectCurrentExtensionImageAsync,
 } from './extensionBuilder';
-export type { ExtensionConfig, BuildResult, DetectionResult } from './extensionBuilder';
+export type { ExtensionConfig, BuildResult, DetectionResult, GitRepoConfig } from './extensionBuilder';
 export {
   buildEffectiveCardOrder,
   insertCardAfter,
