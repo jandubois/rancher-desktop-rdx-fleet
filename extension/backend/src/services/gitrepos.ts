@@ -268,23 +268,41 @@ class GitRepoService {
 
     const gitRepoSpec = buildGitRepoSpec(request);
 
-    const gitRepoResource = {
-      apiVersion: `${FLEET_GROUP}/${FLEET_VERSION}`,
-      kind: 'GitRepo',
-      metadata: {
-        name,
-        namespace: FLEET_NAMESPACE,
-      },
-      spec: gitRepoSpec,
-    };
-
     try {
-      // Try to get existing resource first
-      const existing = await this.getGitRepo(name);
+      // Try to get existing resource first (need raw object for resourceVersion)
+      let existingResourceVersion: string | undefined;
+      try {
+        const existingResponse = await this.k8sCustomApi.getNamespacedCustomObject(
+          FLEET_GROUP,
+          FLEET_VERSION,
+          FLEET_NAMESPACE,
+          GITREPO_PLURAL,
+          name
+        );
+        const existingBody = existingResponse.body as Record<string, unknown>;
+        const existingMetadata = existingBody.metadata as Record<string, unknown> | undefined;
+        existingResourceVersion = existingMetadata?.resourceVersion as string | undefined;
+      } catch (error) {
+        if (!isNotFoundError(error)) {
+          throw error;
+        }
+        // Resource doesn't exist, will create new one
+      }
 
-      if (existing) {
-        // Update existing resource
+      const gitRepoResource: Record<string, unknown> = {
+        apiVersion: `${FLEET_GROUP}/${FLEET_VERSION}`,
+        kind: 'GitRepo',
+        metadata: {
+          name,
+          namespace: FLEET_NAMESPACE,
+        },
+        spec: gitRepoSpec,
+      };
+
+      if (existingResourceVersion) {
+        // Update existing resource - must include resourceVersion for optimistic concurrency
         this.log(`Updating existing GitRepo: ${name}`);
+        (gitRepoResource.metadata as Record<string, unknown>).resourceVersion = existingResourceVersion;
         const response = await this.k8sCustomApi.replaceNamespacedCustomObject(
           FLEET_GROUP,
           FLEET_VERSION,
