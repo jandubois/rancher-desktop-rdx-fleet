@@ -31,7 +31,7 @@ gitReposRouter.get('/', async (_req, res) => {
     res.json({ items: gitRepos });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GitRepos] Error listing GitRepos:', message);
+    console.log('[GitRepos] Error listing GitRepos:', message);
     res.status(500).json({ error: message });
   }
 });
@@ -60,7 +60,7 @@ gitReposRouter.get('/:name', async (req, res) => {
     res.json(gitRepo);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GitRepos] Error getting GitRepo:', message);
+    console.log('[GitRepos] Error getting GitRepo:', message);
     res.status(500).json({ error: message });
   }
 });
@@ -113,7 +113,7 @@ gitReposRouter.post('/', async (req, res) => {
     res.json(gitRepo);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GitRepos] Error applying GitRepo:', message);
+    console.log('[GitRepos] Error applying GitRepo:', message);
     res.status(500).json({ error: message });
   }
 });
@@ -137,7 +137,7 @@ gitReposRouter.delete('/:name', async (req, res) => {
     res.json({ success: true, message: `GitRepo '${name}' deleted` });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GitRepos] Error deleting GitRepo:', message);
+    console.log('[GitRepos] Error deleting GitRepo:', message);
     res.status(500).json({ error: message });
   }
 });
@@ -161,7 +161,7 @@ gitReposRouter.post('/:name/delete', async (req, res) => {
     res.json({ success: true, message: `GitRepo '${name}' deleted` });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('[GitRepos] Error deleting GitRepo:', message);
+    console.log('[GitRepos] Error deleting GitRepo:', message);
     res.status(500).json({ error: message });
   }
 });
