@@ -30,11 +30,13 @@ Mark each todo as `in_progress` when you start it and `completed` when done. Do 
 
 This PR command uses parallelization to reduce total time:
 
-1. **npm install**: Runs in background while code review happens (Step 2)
+1. **npm install**: Runs in background for both UI and backend while code review happens (Step 2)
 2. **lint + test + build**: Run in parallel (Step 8)
-   - lint (~10s)
-   - test (~60s)
-   - build (~8s)
+   - UI lint (~10s)
+   - UI test (~60s)
+   - UI build (~8s)
+   - Backend test (~6s)
+   - Backend build (~2s)
 
 **Note**: E2E tests are run in CI after the PR is submitted, not during this command.
 
@@ -126,6 +128,10 @@ After cleanup, the commit history should tell a clean story of what was implemen
 npm --prefix extension/ui install --prefer-offline --no-audit 2>/dev/null || npm --prefix extension/ui install
 ```
 
+```bash
+npm --prefix extension/backend install --prefer-offline --no-audit 2>/dev/null || npm --prefix extension/backend install
+```
+
 This uses cached packages when possible (`--prefer-offline`) and skips audit for speed. Falls back to full install if cache fails.
 
 **Continue with code review steps (3-8) while npm install runs in the background.**
@@ -158,6 +164,8 @@ Common patterns for this project:
 - `extension/ui/src/utils/foo.ts` → Should have tests in `extension/ui/src/utils/foo.test.ts`
 - `extension/ui/src/hooks/useBar.ts` → Should have tests in `extension/ui/src/hooks/useBar.test.ts`
 - `extension/ui/src/components/Baz.tsx` → Should have tests in `extension/ui/src/components/Baz.test.tsx`
+- `extension/backend/src/services/foo.ts` → Should have tests in `extension/backend/src/services/foo.test.ts`
+- `extension/backend/src/routes/bar.ts` → Should have tests in `extension/backend/src/routes/bar.test.ts`
 - New features → Need new test cases
 - Bug fixes → Should add regression tests
 - Refactoring → Existing tests should still pass and may need updates
@@ -332,21 +340,35 @@ If docs need updates, make the changes and commit before proceeding.
 
 **NOTE: Use `--prefix` to avoid working directory issues. Never use `cd extension/ui &&`.**
 
-Execute these three operations simultaneously in a single message:
+Execute these operations simultaneously in a single message:
 
-1. **Lint** (Bash call):
+### UI (3 Bash calls):
+
+1. **UI Lint** (Bash call):
 ```bash
 npm --prefix extension/ui run lint
 ```
 
-2. **Unit Tests** (Bash call):
+2. **UI Unit Tests** (Bash call):
 ```bash
 npm --prefix extension/ui test
 ```
 
-3. **Build** (Bash call):
+3. **UI Build** (Bash call):
 ```bash
 npm --prefix extension/ui run build
+```
+
+### Backend (2 Bash calls):
+
+4. **Backend Unit Tests** (Bash call):
+```bash
+npm --prefix extension/backend test
+```
+
+5. **Backend Build** (Bash call):
+```bash
+npm --prefix extension/backend run build
 ```
 
 If any step fails, fix the issues and commit before proceeding.
