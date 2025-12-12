@@ -161,7 +161,7 @@ buildRouter.post('/push/check', (req: Request, res: Response) => {
  * POST /api/build/push
  *
  * Request body: { imageName: string }
- * Response: PushResult
+ * Response: PushResult (always 200, check success field for result)
  */
 buildRouter.post('/push', async (req: Request, res: Response) => {
   const { imageName } = req.body as { imageName?: string };
@@ -172,15 +172,13 @@ buildRouter.post('/push', async (req: Request, res: Response) => {
 
   try {
     const result = await buildService.pushImage(imageName);
-
-    if (result.success) {
-      res.json(result);
-    } else {
-      res.status(500).json(result);
-    }
+    // Always return 200 so the frontend can read the error details
+    // The success field indicates whether the push succeeded
+    res.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    res.status(500).json({
+    // Return 200 with success=false so error details are preserved
+    res.json({
       success: false,
       imageName,
       output: '',

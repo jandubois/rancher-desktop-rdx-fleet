@@ -7,6 +7,9 @@
 
 import Dockerode from 'dockerode';
 import * as tar from 'tar-stream';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { PassThrough, Readable } from 'stream';
 
 /** Build request from the UI */
@@ -55,6 +58,102 @@ export interface PushResult {
 export interface PushProgress {
   type: 'progress' | 'error' | 'complete';
   message: string;
+}
+
+// ============================================================
+// Docker auth utilities
+// ============================================================
+
+interface DockerAuthConfig {
+  username?: string;
+  password?: string;
+  serveraddress?: string;
+}
+
+interface DockerConfig {
+  auths?: {
+    [registry: string]: {
+      auth?: string;
+    };
+  };
+}
+
+/**
+ * Extract the registry from an image name.
+ * Returns 'https://index.docker.io/v1/' for Docker Hub images.
+ */
+function getRegistryFromImage(imageName: string): string {
+  // Remove tag if present
+  const [nameWithoutTag] = imageName.split(':');
+  const parts = nameWithoutTag.split('/');
+
+  // If it looks like a registry (contains a dot or colon, or is localhost)
+  if (parts.length > 1) {
+    const firstPart = parts[0];
+    if (firstPart.includes('.') || firstPart.includes(':') || firstPart === 'localhost') {
+      return `https://${firstPart}`;
+    }
+  }
+
+  // Default to Docker Hub
+  return 'https://index.docker.io/v1/';
+}
+
+/**
+ * Read Docker auth config from ~/.docker/config.json
+ * Returns auth config for the specified registry, or undefined if not found.
+ */
+function getDockerAuth(imageName: string): DockerAuthConfig | undefined {
+  const configPaths = [
+    path.join(os.homedir(), '.docker', 'config.json'),
+    '/root/.docker/config.json', // Common in Docker containers
+  ];
+
+  for (const configPath of configPaths) {
+    try {
+      if (!fs.existsSync(configPath)) {
+        continue;
+      }
+
+      const configData = fs.readFileSync(configPath, 'utf-8');
+      const config: DockerConfig = JSON.parse(configData);
+
+      if (!config.auths) {
+        continue;
+      }
+
+      const registry = getRegistryFromImage(imageName);
+
+      // Try exact match first
+      let authEntry = config.auths[registry];
+
+      // Try without https://
+      if (!authEntry) {
+        const registryWithoutProtocol = registry.replace(/^https?:\/\//, '');
+        authEntry = config.auths[registryWithoutProtocol];
+      }
+
+      // For Docker Hub, also try docker.io
+      if (!authEntry && registry === 'https://index.docker.io/v1/') {
+        authEntry = config.auths['docker.io'] || config.auths['https://docker.io'];
+      }
+
+      if (authEntry?.auth) {
+        // auth is base64 encoded "username:password"
+        const decoded = Buffer.from(authEntry.auth, 'base64').toString('utf-8');
+        const [username, password] = decoded.split(':');
+        return {
+          username,
+          password,
+          serveraddress: registry,
+        };
+      }
+    } catch {
+      // Continue to next config path
+    }
+  }
+
+  return undefined;
 }
 
 // ============================================================
@@ -380,10 +479,20 @@ export class BuildService {
       onProgress?.({ type: 'progress', message: 'Preparing to push...' });
       const image = this.docker.getImage(imageName);
 
-      // Start the push
+      // Get auth config from Docker config file
+      const authConfig = getDockerAuth(imageName);
+      if (authConfig) {
+        this.log(`Found auth config for registry: ${authConfig.serveraddress}`);
+        onProgress?.({ type: 'progress', message: `Using credentials for ${authConfig.serveraddress}` });
+      } else {
+        this.log('No auth config found, attempting push without credentials');
+        onProgress?.({ type: 'progress', message: 'No stored credentials found, attempting anonymous push...' });
+      }
+
+      // Start the push with auth config if available
       onProgress?.({ type: 'progress', message: `Pushing ${imageName}...` });
 
-      const pushStream = await image.push({});
+      const pushStream = await image.push({ authconfig: authConfig });
 
       // Process the push output stream
       await new Promise<void>((resolve, reject) => {

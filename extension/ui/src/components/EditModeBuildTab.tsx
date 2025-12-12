@@ -2,6 +2,7 @@
  * EditModeBuildTab - Build or download extension as Docker image or ZIP.
  */
 
+import { useRef, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -11,6 +12,17 @@ import Alert from '@mui/material/Alert';
 import DownloadIcon from '@mui/icons-material/Download';
 import BuildIcon from '@mui/icons-material/Build';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+
+/** Hook to auto-scroll an element to the bottom when content changes */
+function useAutoScroll(content: string | null) {
+  const ref = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    if (ref.current && content) {
+      ref.current.scrollTop = ref.current.scrollHeight;
+    }
+  }, [content]);
+  return ref;
+}
 
 /**
  * Check if an image name is pushable to a registry.
@@ -76,6 +88,13 @@ export function EditModeBuildTab({
   onPush,
 }: EditModeBuildTabProps) {
   const canPush = buildSuccess && isPushableImageName(imageName);
+
+  // Auto-scroll refs for output areas
+  const buildOutputRef = useAutoScroll(buildOutput);
+  const buildErrorRef = useAutoScroll(buildError);
+  const pushOutputRef = useAutoScroll(pushOutput);
+  const pushErrorRef = useAutoScroll(pushError);
+
   return (
     <>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -145,6 +164,7 @@ export function EditModeBuildTab({
       {buildOutput && (
         <Alert severity="info" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
+            ref={buildOutputRef}
             component="pre"
             sx={{
               m: 0,
@@ -168,6 +188,7 @@ export function EditModeBuildTab({
       {buildError && (
         <Alert severity="error" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
+            ref={buildErrorRef}
             component="pre"
             sx={{
               m: 0,
@@ -191,6 +212,7 @@ export function EditModeBuildTab({
       {pushOutput && (
         <Alert severity="success" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
+            ref={pushOutputRef}
             component="pre"
             sx={{
               m: 0,
@@ -214,6 +236,7 @@ export function EditModeBuildTab({
       {pushError && (
         <Alert severity="error" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
+            ref={pushErrorRef}
             component="pre"
             sx={{
               m: 0,
