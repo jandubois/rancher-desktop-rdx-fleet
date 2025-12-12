@@ -29,6 +29,7 @@ import {
   ImportResult,
 } from '../utils/extensionBuilder';
 import { backendService } from '../services/BackendService';
+import { getDockerCredentials, getRegistryHost } from '../services/DockerCredentialsService';
 import type { IconState } from './EditableHeaderIcon';
 import { EditModeLoadTab } from './EditModeLoadTab';
 import { EditModeBuildTab } from './EditModeBuildTab';
@@ -649,7 +650,18 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     setPushError(null);
 
     try {
-      const result = await backendService.pushImage(imageName);
+      // Get credentials from Docker credential helper
+      const registry = getRegistryHost(imageName);
+      setPushOutput(`Getting credentials for ${registry}...`);
+
+      const credentials = await getDockerCredentials(imageName);
+      if (credentials) {
+        setPushOutput(`Authenticating as ${credentials.username}...`);
+      } else {
+        setPushOutput(`No credentials found for ${registry}, attempting anonymous push...`);
+      }
+
+      const result = await backendService.pushImage(imageName, credentials);
 
       if (result.success) {
         setPushOutput(

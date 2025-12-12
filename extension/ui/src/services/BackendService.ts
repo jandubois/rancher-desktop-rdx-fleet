@@ -343,13 +343,14 @@ export class BackendService {
    * Push a custom extension image to a registry.
    *
    * @param imageName - The image name to push
+   * @param auth - Optional authentication credentials
    * @returns Push result with success status and output
    */
-  async pushImage(imageName: string): Promise<PushResult> {
+  async pushImage(imageName: string, auth?: { username: string; password: string }): Promise<PushResult> {
     if (!this.vmService) {
       throw new Error('vm.service not available');
     }
-    return await this.vmService.post('/api/build/push', { imageName }) as PushResult;
+    return await this.vmService.post('/api/build/push', { imageName, auth }) as PushResult;
   }
 
   // ============================================

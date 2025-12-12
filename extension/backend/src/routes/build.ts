@@ -11,7 +11,7 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { buildService, BuildRequest, BuildProgress, PushProgress, isPushableImageName } from '../services/build.js';
+import { buildService, BuildRequest, BuildProgress, PushProgress, isPushableImageName, DockerAuthConfig } from '../services/build.js';
 
 export const buildRouter = Router();
 
@@ -160,18 +160,30 @@ buildRouter.post('/push/check', (req: Request, res: Response) => {
  *
  * POST /api/build/push
  *
- * Request body: { imageName: string }
+ * Request body: { imageName: string, auth?: { username: string, password: string } }
  * Response: PushResult (always 200, check success field for result)
  */
 buildRouter.post('/push', async (req: Request, res: Response) => {
-  const { imageName } = req.body as { imageName?: string };
+  const { imageName, auth } = req.body as {
+    imageName?: string;
+    auth?: { username: string; password: string };
+  };
 
   if (!imageName) {
     return res.status(400).json({ error: 'imageName is required' });
   }
 
+  // Convert auth to DockerAuthConfig if provided
+  let authConfig: DockerAuthConfig | undefined;
+  if (auth?.username && auth?.password) {
+    authConfig = {
+      username: auth.username,
+      password: auth.password,
+    };
+  }
+
   try {
-    const result = await buildService.pushImage(imageName);
+    const result = await buildService.pushImage(imageName, authConfig);
     // Always return 200 so the frontend can read the error details
     // The success field indicates whether the push succeeded
     res.json(result);
@@ -192,14 +204,26 @@ buildRouter.post('/push', async (req: Request, res: Response) => {
  *
  * POST /api/build/push/stream
  *
- * Request body: { imageName: string }
+ * Request body: { imageName: string, auth?: { username: string, password: string } }
  * Response: Server-Sent Events stream
  */
 buildRouter.post('/push/stream', async (req: Request, res: Response) => {
-  const { imageName } = req.body as { imageName?: string };
+  const { imageName, auth } = req.body as {
+    imageName?: string;
+    auth?: { username: string; password: string };
+  };
 
   if (!imageName) {
     return res.status(400).json({ error: 'imageName is required' });
+  }
+
+  // Convert auth to DockerAuthConfig if provided
+  let authConfig: DockerAuthConfig | undefined;
+  if (auth?.username && auth?.password) {
+    authConfig = {
+      username: auth.username,
+      password: auth.password,
+    };
   }
 
   // Set up SSE headers
@@ -215,7 +239,7 @@ buildRouter.post('/push/stream', async (req: Request, res: Response) => {
   };
 
   try {
-    const result = await buildService.pushImage(imageName, (progress: PushProgress) => {
+    const result = await buildService.pushImage(imageName, authConfig, (progress: PushProgress) => {
       sendEvent(progress.type, {
         message: progress.message,
       });

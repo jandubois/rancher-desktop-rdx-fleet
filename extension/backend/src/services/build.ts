@@ -7,9 +7,6 @@
 
 import Dockerode from 'dockerode';
 import * as tar from 'tar-stream';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
 import { PassThrough, Readable } from 'stream';
 
 /** Build request from the UI */
@@ -64,29 +61,18 @@ export interface PushProgress {
 // Docker auth utilities
 // ============================================================
 
-interface DockerAuthConfig {
+/** Docker auth config for pushing images */
+export interface DockerAuthConfig {
   username?: string;
   password?: string;
   serveraddress?: string;
 }
 
-interface DockerConfig {
-  auths?: {
-    [registry: string]: {
-      auth?: string;
-    };
-  };
-  credsStore?: string;
-  credHelpers?: {
-    [registry: string]: string;
-  };
-}
-
 /**
- * Extract the registry from an image name.
+ * Extract the registry server address from an image name.
  * Returns 'https://index.docker.io/v1/' for Docker Hub images.
  */
-function getRegistryFromImage(imageName: string): string {
+export function getRegistryFromImage(imageName: string): string {
   // Remove tag if present
   const [nameWithoutTag] = imageName.split(':');
   const parts = nameWithoutTag.split('/');
@@ -101,134 +87,6 @@ function getRegistryFromImage(imageName: string): string {
 
   // Default to Docker Hub
   return 'https://index.docker.io/v1/';
-}
-
-/**
- * Get the registry hostname for credential helper lookup.
- */
-function getRegistryHost(imageName: string): string {
-  const [nameWithoutTag] = imageName.split(':');
-  const parts = nameWithoutTag.split('/');
-
-  if (parts.length > 1) {
-    const firstPart = parts[0];
-    if (firstPart.includes('.') || firstPart.includes(':') || firstPart === 'localhost') {
-      return firstPart;
-    }
-  }
-
-  // Docker Hub
-  return 'docker.io';
-}
-
-/**
- * Call a Docker credential helper to get credentials.
- * Credential helpers are executables named docker-credential-<helper>.
- */
-function getCredentialsFromHelper(helper: string, registry: string): DockerAuthConfig | undefined {
-  const { execSync } = require('child_process');
-  const helperName = `docker-credential-${helper}`;
-
-  try {
-    // The credential helper protocol: send registry URL on stdin, get JSON on stdout
-    const result = execSync(`echo "${registry}" | ${helperName} get`, {
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-      timeout: 5000,
-    });
-
-    const creds = JSON.parse(result);
-    if (creds.Username && creds.Secret) {
-      return {
-        username: creds.Username,
-        password: creds.Secret,
-        serveraddress: creds.ServerURL || registry,
-      };
-    }
-  } catch {
-    // Helper not found or failed - this is normal if not logged in
-  }
-
-  return undefined;
-}
-
-/**
- * Read Docker auth config from ~/.docker/config.json
- * Supports both direct auth storage and credential helpers.
- * Returns auth config for the specified registry, or undefined if not found.
- */
-function getDockerAuth(imageName: string): DockerAuthConfig | undefined {
-  const configPaths = [
-    path.join(os.homedir(), '.docker', 'config.json'),
-    '/root/.docker/config.json', // Common in Docker containers
-  ];
-
-  const registry = getRegistryFromImage(imageName);
-  const registryHost = getRegistryHost(imageName);
-
-  for (const configPath of configPaths) {
-    try {
-      if (!fs.existsSync(configPath)) {
-        continue;
-      }
-
-      const configData = fs.readFileSync(configPath, 'utf-8');
-      const config: DockerConfig = JSON.parse(configData);
-
-      // First, check for registry-specific credential helper
-      if (config.credHelpers) {
-        const helper = config.credHelpers[registryHost] ||
-                      config.credHelpers[registry] ||
-                      config.credHelpers[registry.replace(/^https?:\/\//, '')];
-        if (helper) {
-          const creds = getCredentialsFromHelper(helper, registry);
-          if (creds) {
-            return creds;
-          }
-        }
-      }
-
-      // Second, check for default credential store
-      if (config.credsStore) {
-        const creds = getCredentialsFromHelper(config.credsStore, registry);
-        if (creds) {
-          return creds;
-        }
-      }
-
-      // Finally, fall back to direct auth in config (legacy)
-      if (config.auths) {
-        // Try exact match first
-        let authEntry = config.auths[registry];
-
-        // Try without https://
-        if (!authEntry) {
-          const registryWithoutProtocol = registry.replace(/^https?:\/\//, '');
-          authEntry = config.auths[registryWithoutProtocol];
-        }
-
-        // For Docker Hub, also try docker.io
-        if (!authEntry && registry === 'https://index.docker.io/v1/') {
-          authEntry = config.auths['docker.io'] || config.auths['https://docker.io'];
-        }
-
-        if (authEntry?.auth) {
-          // auth is base64 encoded "username:password"
-          const decoded = Buffer.from(authEntry.auth, 'base64').toString('utf-8');
-          const [username, password] = decoded.split(':');
-          return {
-            username,
-            password,
-            serveraddress: registry,
-          };
-        }
-      }
-    } catch {
-      // Continue to next config path
-    }
-  }
-
-  return undefined;
 }
 
 // ============================================================
@@ -526,11 +384,13 @@ export class BuildService {
    * Push a Docker image to a registry.
    *
    * @param imageName - The image name to push (including tag)
+   * @param authConfig - Optional authentication credentials for the registry
    * @param onProgress - Optional callback for progress updates
    * @returns Push result with success status and output
    */
   async pushImage(
     imageName: string,
+    authConfig?: DockerAuthConfig,
     onProgress?: (progress: PushProgress) => void
   ): Promise<PushResult> {
     this.log(`Starting push for image: ${imageName}`);
@@ -554,14 +414,13 @@ export class BuildService {
       onProgress?.({ type: 'progress', message: 'Preparing to push...' });
       const image = this.docker.getImage(imageName);
 
-      // Get auth config from Docker config file
-      const authConfig = getDockerAuth(imageName);
-      if (authConfig) {
-        this.log(`Found auth config for registry: ${authConfig.serveraddress}`);
-        onProgress?.({ type: 'progress', message: `Using credentials for ${authConfig.serveraddress}` });
+      // Log auth status
+      if (authConfig?.username) {
+        this.log(`Using provided credentials for user: ${authConfig.username}`);
+        onProgress?.({ type: 'progress', message: `Authenticating as ${authConfig.username}...` });
       } else {
-        this.log('No auth config found, attempting push without credentials');
-        onProgress?.({ type: 'progress', message: 'No stored credentials found, attempting anonymous push...' });
+        this.log('No credentials provided, attempting anonymous push');
+        onProgress?.({ type: 'progress', message: 'No credentials provided, attempting anonymous push...' });
       }
 
       // Start the push with auth config if available
