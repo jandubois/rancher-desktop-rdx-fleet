@@ -76,6 +76,10 @@ interface DockerConfig {
       auth?: string;
     };
   };
+  credsStore?: string;
+  credHelpers?: {
+    [registry: string]: string;
+  };
 }
 
 /**
@@ -100,7 +104,57 @@ function getRegistryFromImage(imageName: string): string {
 }
 
 /**
+ * Get the registry hostname for credential helper lookup.
+ */
+function getRegistryHost(imageName: string): string {
+  const [nameWithoutTag] = imageName.split(':');
+  const parts = nameWithoutTag.split('/');
+
+  if (parts.length > 1) {
+    const firstPart = parts[0];
+    if (firstPart.includes('.') || firstPart.includes(':') || firstPart === 'localhost') {
+      return firstPart;
+    }
+  }
+
+  // Docker Hub
+  return 'docker.io';
+}
+
+/**
+ * Call a Docker credential helper to get credentials.
+ * Credential helpers are executables named docker-credential-<helper>.
+ */
+function getCredentialsFromHelper(helper: string, registry: string): DockerAuthConfig | undefined {
+  const { execSync } = require('child_process');
+  const helperName = `docker-credential-${helper}`;
+
+  try {
+    // The credential helper protocol: send registry URL on stdin, get JSON on stdout
+    const result = execSync(`echo "${registry}" | ${helperName} get`, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+      timeout: 5000,
+    });
+
+    const creds = JSON.parse(result);
+    if (creds.Username && creds.Secret) {
+      return {
+        username: creds.Username,
+        password: creds.Secret,
+        serveraddress: creds.ServerURL || registry,
+      };
+    }
+  } catch {
+    // Helper not found or failed - this is normal if not logged in
+  }
+
+  return undefined;
+}
+
+/**
  * Read Docker auth config from ~/.docker/config.json
+ * Supports both direct auth storage and credential helpers.
  * Returns auth config for the specified registry, or undefined if not found.
  */
 function getDockerAuth(imageName: string): DockerAuthConfig | undefined {
@@ -108,6 +162,9 @@ function getDockerAuth(imageName: string): DockerAuthConfig | undefined {
     path.join(os.homedir(), '.docker', 'config.json'),
     '/root/.docker/config.json', // Common in Docker containers
   ];
+
+  const registry = getRegistryFromImage(imageName);
+  const registryHost = getRegistryHost(imageName);
 
   for (const configPath of configPaths) {
     try {
@@ -118,35 +175,53 @@ function getDockerAuth(imageName: string): DockerAuthConfig | undefined {
       const configData = fs.readFileSync(configPath, 'utf-8');
       const config: DockerConfig = JSON.parse(configData);
 
-      if (!config.auths) {
-        continue;
+      // First, check for registry-specific credential helper
+      if (config.credHelpers) {
+        const helper = config.credHelpers[registryHost] ||
+                      config.credHelpers[registry] ||
+                      config.credHelpers[registry.replace(/^https?:\/\//, '')];
+        if (helper) {
+          const creds = getCredentialsFromHelper(helper, registry);
+          if (creds) {
+            return creds;
+          }
+        }
       }
 
-      const registry = getRegistryFromImage(imageName);
-
-      // Try exact match first
-      let authEntry = config.auths[registry];
-
-      // Try without https://
-      if (!authEntry) {
-        const registryWithoutProtocol = registry.replace(/^https?:\/\//, '');
-        authEntry = config.auths[registryWithoutProtocol];
+      // Second, check for default credential store
+      if (config.credsStore) {
+        const creds = getCredentialsFromHelper(config.credsStore, registry);
+        if (creds) {
+          return creds;
+        }
       }
 
-      // For Docker Hub, also try docker.io
-      if (!authEntry && registry === 'https://index.docker.io/v1/') {
-        authEntry = config.auths['docker.io'] || config.auths['https://docker.io'];
-      }
+      // Finally, fall back to direct auth in config (legacy)
+      if (config.auths) {
+        // Try exact match first
+        let authEntry = config.auths[registry];
 
-      if (authEntry?.auth) {
-        // auth is base64 encoded "username:password"
-        const decoded = Buffer.from(authEntry.auth, 'base64').toString('utf-8');
-        const [username, password] = decoded.split(':');
-        return {
-          username,
-          password,
-          serveraddress: registry,
-        };
+        // Try without https://
+        if (!authEntry) {
+          const registryWithoutProtocol = registry.replace(/^https?:\/\//, '');
+          authEntry = config.auths[registryWithoutProtocol];
+        }
+
+        // For Docker Hub, also try docker.io
+        if (!authEntry && registry === 'https://index.docker.io/v1/') {
+          authEntry = config.auths['docker.io'] || config.auths['https://docker.io'];
+        }
+
+        if (authEntry?.auth) {
+          // auth is base64 encoded "username:password"
+          const decoded = Buffer.from(authEntry.auth, 'base64').toString('utf-8');
+          const [username, password] = decoded.split(':');
+          return {
+            username,
+            password,
+            serveraddress: registry,
+          };
+        }
       }
     } catch {
       // Continue to next config path
