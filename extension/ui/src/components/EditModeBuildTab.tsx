@@ -24,16 +24,6 @@ function useAutoScroll(content: string | null) {
   return ref;
 }
 
-/**
- * Check if an image name is pushable to a registry.
- * Returns true if the image has an org/repo format or includes a registry.
- * Simple names like "my-extension" (which map to "library/my-extension") are not pushable.
- */
-function isPushableImageName(imageName: string): boolean {
-  // Just check if there's a slash anywhere - handles org/repo and registry:port/repo
-  return imageName.includes('/');
-}
-
 export interface EditModeBuildTabProps {
   /** Base image for building (auto-detected from current running extension) */
   baseImage: string;
@@ -87,7 +77,8 @@ export function EditModeBuildTab({
   onBuild,
   onPush,
 }: EditModeBuildTabProps) {
-  const canPush = buildSuccess && isPushableImageName(imageName);
+  // Push requires org/repo format or registry - simple names like "my-extension" aren't pushable
+  const canPush = buildSuccess && imageName.includes('/');
 
   // Auto-scroll refs for output areas
   const buildOutputRef = useAutoScroll(buildOutput);
