@@ -45,6 +45,22 @@ Do NOT run Glob or Grep to explore. The documentation tells you where files are.
 - No backend service - all via kubectl/helm CLI
 - Host binaries delegate to `~/.rd/bin/kubectl` and `~/.rd/bin/helm`
 
+### Running Host Commands via rd-exec
+
+The extension SDK's `ddClient.extension.host?.cli.exec()` only runs binaries bundled in the extension's `host/` directory. To run **arbitrary host commands**, use `rd-exec`:
+
+```typescript
+const result = await ddClient.extension.host?.cli.exec('rd-exec', ['/bin/sh', '-c', 'your command']);
+```
+
+**Key points:**
+- `rd-exec` is included as a host binary in this extension
+- Runs commands on the **host machine** (not the VM)
+- `~/.rd/bin` is automatically in PATH (credential helpers, kubectl, helm, etc.)
+- Use for: reading host files, invoking Docker credential helpers, any host-side operations
+
+**Contrast:** `rdctl shell` runs inside the VM; `rd-exec` runs on the host.
+
 ## Card Types
 
 Implemented: `gitrepo`, `markdown`, `html`, `image`, `video`, `link`, `divider`, `placeholder`, `auth-github`, `auth-appco`
