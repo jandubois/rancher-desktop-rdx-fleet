@@ -410,12 +410,10 @@ class GitService {
         timeout: 60000, // 60 seconds
       });
 
-      let stdout = '';
       let stderr = '';
 
-      proc.stdout?.on('data', (data) => {
-        stdout += data.toString();
-      });
+      // Consume stdout to prevent buffer overflow (data not needed)
+      proc.stdout?.resume();
 
       proc.stderr?.on('data', (data) => {
         stderr += data.toString();

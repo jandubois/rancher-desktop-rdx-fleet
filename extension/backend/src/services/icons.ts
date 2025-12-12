@@ -145,7 +145,7 @@ export class IconsService {
         try {
           await container.remove({ force: true });
           this.log(`Removed temporary container for ${imageName}`);
-        } catch (err) {
+        } catch {
           // Ignore cleanup errors
         }
       }
@@ -177,6 +177,7 @@ export class IconsService {
             const data = Buffer.concat(chunks);
             this.log(`Read ${data.length} bytes from ${header.name}`);
             // Log first few bytes to help identify the file content
+            // eslint-disable-next-line no-control-regex -- intentionally replacing control characters
             const preview = data.slice(0, 100).toString('utf-8').replace(/[\x00-\x1F]/g, '.');
             this.log(`Content preview: ${preview}...`);
             next();
