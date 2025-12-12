@@ -81,27 +81,41 @@ function getRegistryUrl(imageName: string): string {
 }
 
 /**
- * Read Docker config from the host machine.
- * Uses shell expansion to resolve ~ to the user's home directory.
+ * Run a command on the host using rd-exec.
+ * rd-exec runs commands on the host with ~/.rd/bin in PATH.
  */
-async function readDockerConfig(): Promise<DockerConfig | null> {
-  await debugLog('Reading Docker config from ~/.docker/config.json');
-
+async function rdExec(command: string): Promise<{ stdout: string; stderr: string } | null> {
   try {
-    // Read ~/.docker/config.json via host CLI
-    // Use shell to expand ~ to the user's home directory
-    const result = await ddClient.extension.host?.cli.exec('sh', [
-      '-c',
-      'cat ~/.docker/config.json',
-    ]);
-
-    await debugLog('Docker config read result', {
+    // Use rd-exec to run commands on the host
+    // rd-exec is available through the extension host CLI
+    const result = await ddClient.extension.host?.cli.exec('rd-exec', ['/bin/sh', '-c', command]);
+    await debugLog('rd-exec result', {
+      command,
       hasStdout: !!result?.stdout,
       stdoutLength: result?.stdout?.length,
       stderr: result?.stderr,
     });
+    return { stdout: result?.stdout || '', stderr: result?.stderr || '' };
+  } catch (error) {
+    await debugLog('rd-exec failed', {
+      command,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
 
-    if (result?.stdout) {
+/**
+ * Read Docker config from the host machine.
+ * Uses rd-exec to read ~/.docker/config.json
+ */
+async function readDockerConfig(): Promise<DockerConfig | null> {
+  await debugLog('Reading Docker config from ~/.docker/config.json');
+
+  const result = await rdExec('cat ~/.docker/config.json');
+
+  if (result?.stdout) {
+    try {
       const config = JSON.parse(result.stdout) as DockerConfig;
       await debugLog('Docker config parsed', {
         hasAuths: !!config.auths,
@@ -110,11 +124,11 @@ async function readDockerConfig(): Promise<DockerConfig | null> {
         credHelpers: config.credHelpers ? Object.keys(config.credHelpers) : [],
       });
       return config;
+    } catch (error) {
+      await debugLog('Failed to parse Docker config', {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
-  } catch (error) {
-    await debugLog('Failed to read Docker config', {
-      error: error instanceof Error ? error.message : String(error),
-    });
   }
 
   return null;
@@ -126,9 +140,7 @@ async function readDockerConfig(): Promise<DockerConfig | null> {
  * Credential helpers are executables named docker-credential-<helper>.
  * Protocol: write registry URL to stdin, read JSON from stdout.
  *
- * Searches for the helper in:
- * - Standard PATH locations
- * - ~/.rd/bin (where Rancher Desktop installs tools)
+ * Uses rdExec to run the helper with ~/.rd/bin in PATH.
  */
 async function invokeCredentialHelper(
   helper: string,
@@ -138,38 +150,35 @@ async function invokeCredentialHelper(
 
   await debugLog('Invoking credential helper', { helper, helperName, registry });
 
-  try {
-    // The credential helper protocol: send registry URL on stdin, get JSON on stdout
-    // Use shell to pipe the registry to the helper
-    // Add ~/.rd/bin to PATH since credential helpers may be installed there
-    const cmd = `export PATH="$HOME/.rd/bin:$PATH" && echo "${registry}" | ${helperName} get`;
-    await debugLog('Executing command', { cmd });
+  // Use rdExec to run the credential helper with ~/.rd/bin in PATH
+  const result = await rdExec(`echo "${registry}" | ${helperName} get 2>/dev/null || echo "{}"`);
 
-    const result = await ddClient.extension.host?.cli.exec('sh', ['-c', cmd]);
+  await debugLog('Credential helper result', {
+    hasStdout: !!result?.stdout,
+    stdoutLength: result?.stdout?.length,
+    stderr: result?.stderr,
+  });
 
-    await debugLog('Credential helper result', {
-      hasStdout: !!result?.stdout,
-      stdoutLength: result?.stdout?.length,
-      stderr: result?.stderr,
-    });
-
-    if (result?.stdout) {
-      const creds = JSON.parse(result.stdout) as CredentialHelperResult;
-      await debugLog('Credential helper returned credentials', {
-        hasUsername: !!creds.Username,
-        hasSecret: !!creds.Secret,
-        serverURL: creds.ServerURL,
-      });
-      if (creds.Username && creds.Secret) {
-        return creds;
+  if (result?.stdout) {
+    const trimmed = result.stdout.trim();
+    if (trimmed && trimmed !== '{}') {
+      try {
+        const creds = JSON.parse(trimmed) as CredentialHelperResult;
+        await debugLog('Credential helper returned credentials', {
+          hasUsername: !!creds.Username,
+          hasSecret: !!creds.Secret,
+          serverURL: creds.ServerURL,
+        });
+        if (creds.Username && creds.Secret) {
+          return creds;
+        }
+      } catch (error) {
+        await debugLog('Failed to parse credential helper output', {
+          output: trimmed,
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
-  } catch (error) {
-    await debugLog('Credential helper failed', {
-      helper,
-      registry,
-      error: error instanceof Error ? error.message : String(error),
-    });
   }
 
   return null;
