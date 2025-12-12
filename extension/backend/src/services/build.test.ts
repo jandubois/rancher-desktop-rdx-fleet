@@ -11,8 +11,9 @@ import { Readable } from 'stream';
 import {
   generateDockerfile,
   createBuildContext,
+  isPushableImageName,
   BuildRequest,
-} from './build';
+} from './build.js';
 
 describe('generateDockerfile', () => {
   const baseRequest: BuildRequest = {
@@ -260,5 +261,39 @@ describe('createBuildContext', () => {
     // Should be extractable without error
     const contents = await extractTarContents(buffer);
     expect(contents.size).toBeGreaterThan(0);
+  });
+});
+
+describe('isPushableImageName', () => {
+  it('should return false for simple names without org', () => {
+    expect(isPushableImageName('my-extension')).toBe(false);
+    expect(isPushableImageName('my-extension:latest')).toBe(false);
+    expect(isPushableImageName('my-extension:dev')).toBe(false);
+  });
+
+  it('should return true for names with org/repo format', () => {
+    expect(isPushableImageName('myorg/my-extension')).toBe(true);
+    expect(isPushableImageName('myorg/my-extension:latest')).toBe(true);
+    expect(isPushableImageName('company/project')).toBe(true);
+    expect(isPushableImageName('company/project:v1.0.0')).toBe(true);
+  });
+
+  it('should return true for names with registry', () => {
+    expect(isPushableImageName('ghcr.io/myorg/my-extension')).toBe(true);
+    expect(isPushableImageName('ghcr.io/myorg/my-extension:latest')).toBe(true);
+    expect(isPushableImageName('registry.example.com/my-extension')).toBe(true);
+    expect(isPushableImageName('registry.example.com:5000/my-extension')).toBe(true);
+    expect(isPushableImageName('localhost:5000/my-extension:dev')).toBe(true);
+  });
+
+  it('should return true for names with registry and org', () => {
+    expect(isPushableImageName('docker.io/library/nginx')).toBe(true);
+    expect(isPushableImageName('quay.io/myorg/myrepo:tag')).toBe(true);
+  });
+
+  it('should handle edge cases', () => {
+    expect(isPushableImageName('')).toBe(false);
+    expect(isPushableImageName('/')).toBe(true); // Has slash, technically pushable
+    expect(isPushableImageName('a/b')).toBe(true);
   });
 });

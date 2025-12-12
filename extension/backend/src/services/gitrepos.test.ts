@@ -14,7 +14,7 @@ import {
   FLEET_GROUP,
   FLEET_VERSION,
   GITREPO_PLURAL,
-} from './gitrepos';
+} from './gitrepos.js';
 
 describe('GitRepo constants', () => {
   it('should export correct Fleet constants', () => {

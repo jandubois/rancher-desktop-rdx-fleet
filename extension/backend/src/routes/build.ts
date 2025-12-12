@@ -1,14 +1,17 @@
 /**
- * Build Routes - Build custom extension images via Docker API.
+ * Build Routes - Build and push custom extension images via Docker API.
  *
  * Handles:
  * - POST /api/build - Build a custom extension image
  * - POST /api/build/stream - Build with Server-Sent Events for progress
  * - GET /api/build/logs - Get build service debug logs
+ * - POST /api/build/push/check - Check if an image name is pushable
+ * - POST /api/build/push - Push an image to a registry
+ * - POST /api/build/push/stream - Push with Server-Sent Events for progress
  */
 
 import { Router, Request, Response } from 'express';
-import { buildService, BuildRequest, BuildProgress } from '../services/build.js';
+import { buildService, BuildRequest, BuildProgress, PushProgress, isPushableImageName } from '../services/build.js';
 
 export const buildRouter = Router();
 
@@ -125,4 +128,113 @@ buildRouter.get('/logs', (_req: Request, res: Response) => {
   res.json({
     logs: buildService.getDebugLog(),
   });
+});
+
+/**
+ * Check if an image name is pushable to a registry.
+ *
+ * POST /api/build/push/check
+ *
+ * Request body: { imageName: string }
+ * Response: { pushable: boolean, reason?: string }
+ */
+buildRouter.post('/push/check', (req: Request, res: Response) => {
+  const { imageName } = req.body as { imageName?: string };
+
+  if (!imageName) {
+    return res.status(400).json({ error: 'imageName is required' });
+  }
+
+  const pushable = isPushableImageName(imageName);
+  const response: { pushable: boolean; reason?: string } = { pushable };
+
+  if (!pushable) {
+    response.reason = 'Image name must include an org/repo format (e.g., "myorg/my-extension") or a registry (e.g., "ghcr.io/myorg/my-extension"). Simple names like "my-extension" map to "library/my-extension" which cannot be pushed.';
+  }
+
+  res.json(response);
+});
+
+/**
+ * Push an image to a registry.
+ *
+ * POST /api/build/push
+ *
+ * Request body: { imageName: string }
+ * Response: PushResult
+ */
+buildRouter.post('/push', async (req: Request, res: Response) => {
+  const { imageName } = req.body as { imageName?: string };
+
+  if (!imageName) {
+    return res.status(400).json({ error: 'imageName is required' });
+  }
+
+  try {
+    const result = await buildService.pushImage(imageName);
+
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({
+      success: false,
+      imageName,
+      output: '',
+      error: message,
+    });
+  }
+});
+
+/**
+ * Push with Server-Sent Events for real-time progress.
+ *
+ * POST /api/build/push/stream
+ *
+ * Request body: { imageName: string }
+ * Response: Server-Sent Events stream
+ */
+buildRouter.post('/push/stream', async (req: Request, res: Response) => {
+  const { imageName } = req.body as { imageName?: string };
+
+  if (!imageName) {
+    return res.status(400).json({ error: 'imageName is required' });
+  }
+
+  // Set up SSE headers
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  // Send progress events
+  const sendEvent = (event: string, data: unknown) => {
+    res.write(`event: ${event}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  try {
+    const result = await buildService.pushImage(imageName, (progress: PushProgress) => {
+      sendEvent(progress.type, {
+        message: progress.message,
+      });
+    });
+
+    // Send final result
+    sendEvent('complete', result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    sendEvent('error', { message });
+    sendEvent('complete', {
+      success: false,
+      imageName,
+      output: '',
+      error: message,
+    });
+  }
+
+  res.end();
 });

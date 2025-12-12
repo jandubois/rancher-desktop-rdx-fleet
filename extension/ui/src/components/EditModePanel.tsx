@@ -28,6 +28,7 @@ import {
   FleetExtensionImage,
   ImportResult,
 } from '../utils/extensionBuilder';
+import { backendService } from '../services/BackendService';
 import type { IconState } from './EditableHeaderIcon';
 import { EditModeLoadTab } from './EditModeLoadTab';
 import { EditModeBuildTab } from './EditModeBuildTab';
@@ -233,6 +234,12 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
   const [building, setBuilding] = useState(false);
   const [buildOutput, setBuildOutput] = useState<string | null>(null);
   const [buildError, setBuildError] = useState<string | null>(null);
+  const [buildSuccess, setBuildSuccess] = useState(false);
+
+  // Push state
+  const [pushing, setPushing] = useState(false);
+  const [pushOutput, setPushOutput] = useState<string | null>(null);
+  const [pushError, setPushError] = useState<string | null>(null);
 
   // Validation warnings
   const [imageNameWarning, setImageNameWarning] = useState<string | null>(null);
@@ -348,6 +355,14 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
 
     validateBuildConfiguration();
   }, [imageName, manifest.app?.name, fleetImages, onTitleWarningChange]);
+
+  // Reset build success when image name changes (push button should disappear
+  // because the built image no longer matches the current image name)
+  useEffect(() => {
+    setBuildSuccess(false);
+    setPushOutput(null);
+    setPushError(null);
+  }, [imageName]);
 
   // Get color from icon only (ignores header background setting)
   const getIconColor = async (): Promise<ExtractedColor> => {
@@ -589,6 +604,10 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     setBuilding(true);
     setBuildOutput(null);
     setBuildError(null);
+    setBuildSuccess(false);
+    // Reset push state when starting a new build
+    setPushOutput(null);
+    setPushError(null);
 
     try {
       const result = await buildExtension(
@@ -598,6 +617,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       );
 
       if (result.success) {
+        setBuildSuccess(true);
         setBuildOutput(
           `Build successful!\n\n` +
           `Image: ${result.imageName}\n\n` +
@@ -609,15 +629,44 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
         // and triggers the "image already exists" warning if building again
         await refreshFleetImages();
       } else {
+        setBuildSuccess(false);
         setBuildError(result.error || 'Build failed');
         if (result.output) {
           setBuildOutput(result.output);
         }
       }
     } catch (err) {
+      setBuildSuccess(false);
       setBuildError(err instanceof Error ? err.message : 'Build failed');
     } finally {
       setBuilding(false);
+    }
+  };
+
+  const handlePush = async () => {
+    setPushing(true);
+    setPushOutput(null);
+    setPushError(null);
+
+    try {
+      const result = await backendService.pushImage(imageName);
+
+      if (result.success) {
+        setPushOutput(
+          `Push successful!\n\n` +
+          `Image: ${result.imageName}\n\n` +
+          (result.output ? `Push output:\n${result.output}` : '')
+        );
+      } else {
+        setPushError(result.error || 'Push failed');
+        if (result.output) {
+          setPushOutput(result.output);
+        }
+      }
+    } catch (err) {
+      setPushError(err instanceof Error ? err.message : 'Push failed');
+    } finally {
+      setPushing(false);
     }
   };
 
@@ -801,9 +850,14 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 buildError={buildError}
                 imageNameWarning={imageNameWarning}
                 titleWarning={titleWarning}
+                buildSuccess={buildSuccess}
+                pushing={pushing}
+                pushOutput={pushOutput}
+                pushError={pushError}
                 onImageNameChange={setImageName}
                 onDownload={handleDownload}
                 onBuild={handleBuild}
+                onPush={handlePush}
               />
             </TabPanel>
 

@@ -12,7 +12,7 @@ import {
   extractVersionFromImage,
   determineFleetStatus,
   FleetStatus,
-} from './fleet';
+} from './fleet.js';
 
 describe('isNotFoundError', () => {
   it('should detect 404 errors', () => {

@@ -10,6 +10,17 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import DownloadIcon from '@mui/icons-material/Download';
 import BuildIcon from '@mui/icons-material/Build';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+
+/**
+ * Check if an image name is pushable to a registry.
+ * Returns true if the image has an org/repo format or includes a registry.
+ * Simple names like "my-extension" (which map to "library/my-extension") are not pushable.
+ */
+export function isPushableImageName(imageName: string): boolean {
+  // Just check if there's a slash anywhere - handles org/repo and registry:port/repo
+  return imageName.includes('/');
+}
 
 export interface EditModeBuildTabProps {
   /** Base image for building (auto-detected from current running extension) */
@@ -28,12 +39,22 @@ export interface EditModeBuildTabProps {
   imageNameWarning?: string | null;
   /** Validation warning for title */
   titleWarning?: string | null;
+  /** Whether the last build was successful */
+  buildSuccess: boolean;
+  /** Whether push is in progress */
+  pushing: boolean;
+  /** Push output message */
+  pushOutput: string | null;
+  /** Push error message */
+  pushError: string | null;
   /** Callback when image name changes */
   onImageNameChange: (value: string) => void;
   /** Callback to download as ZIP */
   onDownload: () => void;
   /** Callback to build Docker image */
   onBuild: () => void;
+  /** Callback to push Docker image */
+  onPush: () => void;
 }
 
 export function EditModeBuildTab({
@@ -45,10 +66,16 @@ export function EditModeBuildTab({
   buildError,
   imageNameWarning,
   titleWarning,
+  buildSuccess,
+  pushing,
+  pushOutput,
+  pushError,
   onImageNameChange,
   onDownload,
   onBuild,
+  onPush,
 }: EditModeBuildTabProps) {
+  const canPush = buildSuccess && isPushableImageName(imageName);
   return (
     <>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -101,6 +128,17 @@ export function EditModeBuildTab({
         >
           {building ? 'Building...' : 'Build Image'}
         </Button>
+        {canPush && (
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={pushing ? <CircularProgress size={16} color="inherit" /> : <CloudUploadIcon />}
+            onClick={onPush}
+            disabled={pushing}
+          >
+            {pushing ? 'Pushing...' : 'Push to Registry'}
+          </Button>
+        )}
       </Box>
 
       {/* Build output */}
@@ -145,6 +183,52 @@ export function EditModeBuildTab({
             }}
           >
             {buildError}
+          </Box>
+        </Alert>
+      )}
+
+      {/* Push output */}
+      {pushOutput && (
+        <Alert severity="success" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
+          <Box
+            component="pre"
+            sx={{
+              m: 0,
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              maxHeight: 300,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            }}
+          >
+            {pushOutput}
+          </Box>
+        </Alert>
+      )}
+
+      {/* Push error */}
+      {pushError && (
+        <Alert severity="error" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
+          <Box
+            component="pre"
+            sx={{
+              m: 0,
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              maxHeight: 200,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            }}
+          >
+            {pushError}
           </Box>
         </Alert>
       )}

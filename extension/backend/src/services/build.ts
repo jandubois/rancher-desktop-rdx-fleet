@@ -43,9 +43,54 @@ export interface BuildResult {
   error?: string;
 }
 
+/** Push result */
+export interface PushResult {
+  success: boolean;
+  imageName: string;
+  output: string;
+  error?: string;
+}
+
+/** Push progress event */
+export interface PushProgress {
+  type: 'progress' | 'error' | 'complete';
+  message: string;
+}
+
 // ============================================================
 // Exported utility functions for testing
 // ============================================================
+
+/**
+ * Check if an image name is pushable to a registry.
+ *
+ * Returns true if:
+ * - The image contains a registry (e.g., "ghcr.io/org/repo", "registry.example.com/repo")
+ * - The image has an org/repo format (e.g., "myorg/my-extension")
+ *
+ * Returns false if:
+ * - It's just a simple name like "my-extension" (maps to "library/my-extension" on Docker Hub)
+ *
+ * @param imageName - The image name to check (may include tag)
+ * @returns true if the image can be pushed
+ */
+export function isPushableImageName(imageName: string): boolean {
+  // Docker image naming: [registry[:port]/][namespace/]repository[:tag]
+  // A tag is only the part after the last colon that comes after all slashes
+  // Example: registry.example.com:5000/my-extension:dev
+  //   - registry.example.com:5000 is the registry with port
+  //   - my-extension is the repository
+  //   - dev is the tag
+
+  // First check if there's a slash - if not, it's definitely a simple name
+  if (!imageName.includes('/')) {
+    return false;
+  }
+
+  // Has at least one slash - could be "org/repo" or "registry/org/repo"
+  // Either way, it's pushable as long as it's not just a simple name
+  return true;
+}
 
 /**
  * Generate Dockerfile content for the custom extension.
@@ -297,6 +342,108 @@ export class BuildService {
       return {
         success: false,
         imageName: request.imageName,
+        output: output.join('\n'),
+        error: errorMessage,
+      };
+    }
+  }
+
+  /**
+   * Push a Docker image to a registry.
+   *
+   * @param imageName - The image name to push (including tag)
+   * @param onProgress - Optional callback for progress updates
+   * @returns Push result with success status and output
+   */
+  async pushImage(
+    imageName: string,
+    onProgress?: (progress: PushProgress) => void
+  ): Promise<PushResult> {
+    this.log(`Starting push for image: ${imageName}`);
+
+    // Check if the image name is pushable
+    if (!isPushableImageName(imageName)) {
+      const error = `Image name "${imageName}" cannot be pushed. Use a name with an org/repo format (e.g., "myorg/my-extension") or include a registry (e.g., "ghcr.io/myorg/my-extension").`;
+      this.log(`Push rejected: ${error}`);
+      return {
+        success: false,
+        imageName,
+        output: '',
+        error,
+      };
+    }
+
+    const output: string[] = [];
+
+    try {
+      // Get the image
+      onProgress?.({ type: 'progress', message: 'Preparing to push...' });
+      const image = this.docker.getImage(imageName);
+
+      // Start the push
+      onProgress?.({ type: 'progress', message: `Pushing ${imageName}...` });
+
+      const pushStream = await image.push({});
+
+      // Process the push output stream
+      await new Promise<void>((resolve, reject) => {
+        this.docker.modem.followProgress(
+          pushStream,
+          (err: Error | null, result: Array<{ error?: string; errorDetail?: { message: string } }>) => {
+            if (err) {
+              this.log(`Push error: ${err.message}`);
+              reject(err);
+            } else {
+              // Check for errors in the final result
+              const errorResult = result.find(r => r.error);
+              if (errorResult) {
+                const errorMsg = errorResult.errorDetail?.message || errorResult.error || 'Unknown push error';
+                this.log(`Push failed: ${errorMsg}`);
+                reject(new Error(errorMsg));
+              } else {
+                this.log('Push completed successfully');
+                resolve();
+              }
+            }
+          },
+          (event: { status?: string; progress?: string; error?: string; id?: string }) => {
+            // Progress callback - called for each push step
+            if (event.status) {
+              const statusLine = event.id
+                ? `${event.id}: ${event.status}${event.progress ? ' ' + event.progress : ''}`
+                : event.status;
+              output.push(statusLine);
+              onProgress?.({
+                type: 'progress',
+                message: statusLine,
+              });
+            } else if (event.error) {
+              output.push(`ERROR: ${event.error}`);
+              onProgress?.({
+                type: 'error',
+                message: event.error,
+              });
+            }
+          }
+        );
+      });
+
+      onProgress?.({ type: 'complete', message: `Push complete: ${imageName}` });
+
+      return {
+        success: true,
+        imageName,
+        output: output.join('\n'),
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.log(`Push failed: ${errorMessage}`);
+
+      onProgress?.({ type: 'error', message: errorMessage });
+
+      return {
+        success: false,
+        imageName,
         output: output.join('\n'),
         error: errorMessage,
       };
