@@ -45,30 +45,19 @@ The `auth-git` card type is defined but not implemented. This enables private re
 
 Improve the visual extension builder experience.
 
-**Current State**: Basic edit mode works with drag-and-drop card reordering and card deletion.
+**Current State**: Edit mode is largely complete with:
+- ✅ App name editing (inline in header)
+- ✅ Color palette editing with auto-generation from icon colors (Edit tab)
+- ✅ Logo/icon upload with drag & drop (`IconUpload` component)
+- ✅ Card settings panels for each card type
+- ✅ "Add Card" button-based type picker (replaced dropdown)
 
 **Remaining Work**:
-- [ ] Global Config card (app name, description, primary color, logo upload)
-- [ ] Card settings panel for type-specific configuration
-- [ ] Better "Add Card" type picker UI (currently just a dropdown)
-- [ ] Logo/icon upload with drag & drop
+- [ ] App description editing field in Edit tab (currently only settable via import)
 
 ---
 
-## Priority 4: Extension Builder Export
-
-Enable users to package customized extensions for distribution.
-
-**Current State**: Extension can be customized via manifest.yaml, but there's no UI to export the configuration.
-
-**Remaining Work**:
-- [ ] "Download Build Files" button - generates ZIP with Dockerfile + manifest.yaml + assets
-- [ ] "Build Extension Now" button - direct Docker build via ddClient API with progress
-- [ ] Import from existing extension image (extract manifest/assets)
-
----
-
-## Priority 5: Fleet Robustness
+## Priority 4: Fleet Robustness
 
 Handle edge cases in cluster lifecycle.
 
@@ -81,7 +70,7 @@ Handle edge cases in cluster lifecycle.
 
 ---
 
-## Priority 6: Backend Integration Tests
+## Priority 5: Backend Integration Tests
 
 Unit tests cover exported functions; integration tests require external dependencies.
 
@@ -89,6 +78,18 @@ Unit tests cover exported functions; integration tests require external dependen
 - [ ] Integration tests for `GitRepoService` K8s operations
 - [ ] Integration tests for `FleetService` K8s operations
 - [ ] Integration tests for `GitService.discoverPaths()` with real git repos
+
+---
+
+## Recently Completed
+
+**Extension Builder Export** (formerly Priority 4):
+- ✅ "Download Build Files" button - generates ZIP with Dockerfile + manifest.yaml + assets
+- ✅ "Build Extension Now" button - Docker build via backend API with progress
+- ✅ Import from existing extension image (extract manifest/assets)
+- ✅ Import from ZIP file
+
+See `extension/ui/src/utils/extensionBuilder.ts` and the `EditMode*Tab.tsx` components.
 
 ---
 
