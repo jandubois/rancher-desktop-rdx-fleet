@@ -9,7 +9,7 @@ import { describe, it, expect } from '@jest/globals';
 import {
   getMimeType,
   matchesTarEntry,
-} from './icons';
+} from './icons.js';
 
 describe('getMimeType', () => {
   it('should return image/svg+xml for .svg files', () => {

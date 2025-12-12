@@ -12,7 +12,7 @@ import {
   generateDockerfile,
   createBuildContext,
   BuildRequest,
-} from './build';
+} from './build.js';
 
 describe('generateDockerfile', () => {
   const baseRequest: BuildRequest = {

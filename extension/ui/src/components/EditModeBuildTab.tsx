@@ -2,6 +2,7 @@
  * EditModeBuildTab - Build or download extension as Docker image or ZIP.
  */
 
+import { useRef, useEffect } from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
@@ -10,6 +11,18 @@ import CircularProgress from '@mui/material/CircularProgress';
 import Alert from '@mui/material/Alert';
 import DownloadIcon from '@mui/icons-material/Download';
 import BuildIcon from '@mui/icons-material/Build';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+
+/** Hook to auto-scroll an element to the bottom when content changes */
+function useAutoScroll(content: string | null) {
+  const ref = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    if (ref.current && content) {
+      ref.current.scrollTop = ref.current.scrollHeight;
+    }
+  }, [content]);
+  return ref;
+}
 
 export interface EditModeBuildTabProps {
   /** Base image for building (auto-detected from current running extension) */
@@ -28,12 +41,22 @@ export interface EditModeBuildTabProps {
   imageNameWarning?: string | null;
   /** Validation warning for title */
   titleWarning?: string | null;
+  /** Whether the last build was successful */
+  buildSuccess: boolean;
+  /** Whether push is in progress */
+  pushing: boolean;
+  /** Push output message */
+  pushOutput: string | null;
+  /** Push error message */
+  pushError: string | null;
   /** Callback when image name changes */
   onImageNameChange: (value: string) => void;
   /** Callback to download as ZIP */
   onDownload: () => void;
   /** Callback to build Docker image */
   onBuild: () => void;
+  /** Callback to push Docker image */
+  onPush: () => void;
 }
 
 export function EditModeBuildTab({
@@ -45,10 +68,24 @@ export function EditModeBuildTab({
   buildError,
   imageNameWarning,
   titleWarning,
+  buildSuccess,
+  pushing,
+  pushOutput,
+  pushError,
   onImageNameChange,
   onDownload,
   onBuild,
+  onPush,
 }: EditModeBuildTabProps) {
+  // Push requires org/repo format or registry - simple names like "my-extension" aren't pushable
+  const canPush = buildSuccess && imageName.includes('/');
+
+  // Auto-scroll refs for output areas
+  const buildOutputRef = useAutoScroll(buildOutput);
+  const buildErrorRef = useAutoScroll(buildError);
+  const pushOutputRef = useAutoScroll(pushOutput);
+  const pushErrorRef = useAutoScroll(pushError);
+
   return (
     <>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -101,12 +138,24 @@ export function EditModeBuildTab({
         >
           {building ? 'Building...' : 'Build Image'}
         </Button>
+        {canPush && (
+          <Button
+            variant="outlined"
+            color="secondary"
+            startIcon={pushing ? <CircularProgress size={16} color="inherit" /> : <CloudUploadIcon />}
+            onClick={onPush}
+            disabled={pushing}
+          >
+            {pushing ? 'Pushing...' : 'Push to Registry'}
+          </Button>
+        )}
       </Box>
 
       {/* Build output */}
       {buildOutput && (
         <Alert severity="info" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
+            ref={buildOutputRef}
             component="pre"
             sx={{
               m: 0,
@@ -130,6 +179,7 @@ export function EditModeBuildTab({
       {buildError && (
         <Alert severity="error" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
           <Box
+            ref={buildErrorRef}
             component="pre"
             sx={{
               m: 0,
@@ -145,6 +195,54 @@ export function EditModeBuildTab({
             }}
           >
             {buildError}
+          </Box>
+        </Alert>
+      )}
+
+      {/* Push output */}
+      {pushOutput && (
+        <Alert severity="success" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
+          <Box
+            ref={pushOutputRef}
+            component="pre"
+            sx={{
+              m: 0,
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              maxHeight: 300,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            }}
+          >
+            {pushOutput}
+          </Box>
+        </Alert>
+      )}
+
+      {/* Push error */}
+      {pushError && (
+        <Alert severity="error" sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}>
+          <Box
+            ref={pushErrorRef}
+            component="pre"
+            sx={{
+              m: 0,
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '0.8rem',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              maxHeight: 200,
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            }}
+          >
+            {pushError}
           </Box>
         </Alert>
       )}

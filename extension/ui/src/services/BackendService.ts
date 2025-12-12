@@ -326,6 +326,33 @@ export class BackendService {
     return await this.vmService.post('/api/build', request) as BuildResult;
   }
 
+  /**
+   * Check if an image name is pushable to a registry.
+   *
+   * @param imageName - The image name to check
+   * @returns Pushability check result
+   */
+  async checkPushable(imageName: string): Promise<PushableCheckResult> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/build/push/check', { imageName }) as PushableCheckResult;
+  }
+
+  /**
+   * Push a custom extension image to a registry.
+   *
+   * @param imageName - The image name to push
+   * @param auth - Optional authentication credentials
+   * @returns Push result with success status and output
+   */
+  async pushImage(imageName: string, auth?: { username: string; password: string }): Promise<PushResult> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/build/push', { imageName, auth }) as PushResult;
+  }
+
   // ============================================
   // Icon Operations (via backend Docker API)
   // ============================================
@@ -607,6 +634,20 @@ export interface BuildResult {
   imageName: string;
   output: string;
   error?: string;
+}
+
+/** Push result from the backend */
+export interface PushResult {
+  success: boolean;
+  imageName: string;
+  output: string;
+  error?: string;
+}
+
+/** Pushability check result */
+export interface PushableCheckResult {
+  pushable: boolean;
+  reason?: string;
 }
 
 // ============================================

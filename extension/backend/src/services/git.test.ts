@@ -17,7 +17,7 @@ import {
   sanitizeUrl,
   findFleetFiles,
   PathInfo,
-} from './git';
+} from './git.js';
 
 describe('extractDependsOn', () => {
   it('should extract inline array dependencies with double quotes', () => {
