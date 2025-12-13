@@ -27,6 +27,7 @@ import {
   DetectionResult,
   FleetExtensionImage,
   ImportResult,
+  GitRepoConfig,
 } from '../utils/extensionBuilder';
 import { backendService } from '../services/BackendService';
 import { getDockerCredentials, getRegistryHost } from '../services/DockerCredentialsService';
@@ -72,6 +73,8 @@ interface EditModePanelProps {
   activeTab?: number;
   /** Callback when active tab changes */
   onActiveTabChange?: (tab: number) => void;
+  /** Current GitRepo configurations to store as defaults in built extension */
+  gitRepoConfigs?: GitRepoConfig[];
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -99,7 +102,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange, gitRepoConfigs }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -588,6 +591,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     baseImage: baseImage || undefined,
     iconState,
     iconHeight,
+    gitRepoConfigs,
   });
 
   const handleDownload = async () => {

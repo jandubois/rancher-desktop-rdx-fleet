@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { backendService } from '../services/BackendService';
 import { getErrorMessage } from '../utils';
 import { GitRepo, FleetState } from '../types';
+import { CardDefinition, GitRepoCardSettings } from '../manifest';
 
 const STORAGE_KEY = 'fleet-gitrepo-configs';
 
@@ -24,6 +25,8 @@ interface RepoConfig {
 interface UseGitRepoManagementOptions {
   fleetState: FleetState;
   onReposLoaded?: (repos: GitRepo[]) => void;
+  /** Manifest cards to extract default values from (for custom extensions) */
+  manifestCards?: CardDefinition[];
 }
 
 interface AddGitRepoResult {
@@ -46,8 +49,43 @@ interface UseGitRepoManagementResult {
   clearAllGitRepos: () => Promise<void>;
 }
 
-/** Load repo configs from localStorage */
-function loadRepoConfigs(): RepoConfig[] {
+/**
+ * Extract default repo configs from gitrepo cards in the manifest.
+ * Used when localStorage is empty to initialize from manifest defaults.
+ */
+function extractDefaultsFromManifest(manifestCards?: CardDefinition[]): RepoConfig[] {
+  if (!manifestCards) return [];
+
+  const configs: RepoConfig[] = [];
+  let configIndex = 0;
+
+  for (const card of manifestCards) {
+    if (card.type === 'gitrepo' && card.settings) {
+      const settings = card.settings as GitRepoCardSettings;
+      const repoUrl = settings.repo_url?.default;
+      const branch = settings.branch?.default;
+      const paths = settings.paths?.default;
+
+      // Only create a config if repo_url default is set
+      if (typeof repoUrl === 'string' && repoUrl) {
+        const config: RepoConfig = {
+          // Generate a unique name based on card id or index
+          name: card.id || `repo-${configIndex++}`,
+          repo: repoUrl,
+          branch: typeof branch === 'string' ? branch : undefined,
+          paths: Array.isArray(paths) ? paths : [],
+        };
+        configs.push(config);
+        debugLog('extractDefaultsFromManifest: found default config', config);
+      }
+    }
+  }
+
+  return configs;
+}
+
+/** Load repo configs from localStorage, falling back to manifest defaults */
+function loadRepoConfigs(manifestCards?: CardDefinition[]): RepoConfig[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     debugLog('loadRepoConfigs: loading from localStorage', { hasData: !!stored, rawData: stored });
@@ -59,6 +97,16 @@ function loadRepoConfigs(): RepoConfig[] {
   } catch (err) {
     console.error('Failed to load repo configs from localStorage:', err);
   }
+
+  // localStorage is empty - try to extract defaults from manifest
+  const defaults = extractDefaultsFromManifest(manifestCards);
+  if (defaults.length > 0) {
+    debugLog('loadRepoConfigs: initialized from manifest defaults', defaults);
+    // Save the defaults to localStorage so they persist
+    saveRepoConfigs(defaults);
+    return defaults;
+  }
+
   debugLog('loadRepoConfigs: no configs found, returning empty array');
   return [];
 }
@@ -79,20 +127,42 @@ function saveRepoConfigs(configs: RepoConfig[]): void {
  * are only created when paths are selected (paths.length > 0). When all paths
  * are deselected, the Kubernetes resource is deleted but the config remains
  * in localStorage so users can re-select paths without re-adding the repo.
+ *
+ * For custom extensions, default values from gitrepo cards in the manifest
+ * are used to initialize localStorage when it's empty.
  */
 export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseGitRepoManagementResult {
-  const { fleetState, onReposLoaded } = options;
+  const { fleetState, onReposLoaded, manifestCards } = options;
   const [repoConfigs, setRepoConfigs] = useState<RepoConfig[]>(() => loadRepoConfigs());
   const [k8sRepos, setK8sRepos] = useState<GitRepo[]>([]);
   const [loadingRepos, setLoadingRepos] = useState(false);
   const [repoError, setRepoError] = useState<string | null>(null);
   const [updatingRepo, setUpdatingRepo] = useState<string | null>(null);
+  const hasInitializedFromManifest = useRef(false);
 
   const onReposLoadedRef = useRef(onReposLoaded);
 
   useEffect(() => {
     onReposLoadedRef.current = onReposLoaded;
   }, [onReposLoaded]);
+
+  // Initialize from manifest defaults if localStorage is empty or has no repos
+  // This runs once when manifestCards are first available
+  useEffect(() => {
+    if (hasInitializedFromManifest.current) return;
+    if (!manifestCards || manifestCards.length === 0) return;
+
+    // Check if we already have repo configs
+    if (repoConfigs.length > 0) return; // Already have configs, don't override
+
+    // Extract defaults from manifest
+    const defaults = extractDefaultsFromManifest(manifestCards);
+    if (defaults.length > 0) {
+      debugLog('useGitRepoManagement: initializing from manifest defaults', defaults);
+      setRepoConfigs(defaults);
+      hasInitializedFromManifest.current = true;
+    }
+  }, [manifestCards, repoConfigs.length]);
 
   // Persist repo configs to localStorage whenever they change
   useEffect(() => {

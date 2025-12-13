@@ -1,6 +1,6 @@
 import yaml from 'js-yaml';
 import JSZip from 'jszip';
-import { Manifest, CardDefinition, ImageCardSettings } from '../manifest';
+import { Manifest, CardDefinition, ImageCardSettings, GitRepoCardSettings } from '../manifest';
 import type { BundledImage } from '../manifest';
 import { ddClient } from '../lib/ddClient';
 import { backendService, IconResult } from '../services/BackendService';
@@ -39,6 +39,14 @@ export interface ImportResult {
   error?: string;
 }
 
+// GitRepo configuration to be stored in the manifest
+export interface GitRepoConfig {
+  name: string;
+  repo: string;
+  branch?: string;
+  paths: string[];
+}
+
 // Extension build configuration
 export interface ExtensionConfig {
   name: string;
@@ -48,6 +56,7 @@ export interface ExtensionConfig {
   baseImage?: string;
   iconState?: IconState;  // null = default, CustomIcon = custom, 'deleted' = no icon
   iconHeight?: number;    // Custom icon height in pixels
+  gitRepoConfigs?: GitRepoConfig[];  // Current GitRepo configurations to store as defaults
 }
 
 // Build result
@@ -402,11 +411,17 @@ function collectBundledImages(cards: CardDefinition[]): CollectedBundledImage[] 
 
 // Create a manifest for export, stripping bundledImage data from image cards
 // Returns a deep clone with bundledImage removed (data is stored separately)
+// Also injects GitRepo default values from gitRepoConfigs
 function createExportManifest(config: ExtensionConfig): Manifest {
   // Filter out placeholder cards and reorder based on cardOrder
+  // Note: cardOrder may contain dynamic gitrepo IDs (like 'gitrepo-my-repo') that
+  // don't exist in config.cards (which only has manifest cards like 'default-gitrepo')
   const orderedCards = config.cardOrder
     .map(id => config.cards.find(c => c.id === id))
     .filter((c): c is CardDefinition => c !== undefined && c.type !== 'placeholder');
+
+  // Track which gitRepoConfigs we've used (for multiple gitrepo cards)
+  let gitRepoConfigIndex = 0;
 
   const exportCards = orderedCards.map(card => {
     const exportCard: CardDefinition = {
@@ -425,13 +440,87 @@ function createExportManifest(config: ExtensionConfig): Manifest {
           src: imageSettings.src,
           ...(imageSettings.alt && { alt: imageSettings.alt }),
         };
+      } else if (card.type === 'gitrepo' && config.gitRepoConfigs && config.gitRepoConfigs.length > gitRepoConfigIndex) {
+        // For gitrepo cards, inject default values from gitRepoConfigs
+        const gitRepoConfig = config.gitRepoConfigs[gitRepoConfigIndex++];
+        const existingSettings = (card.settings || {}) as GitRepoCardSettings;
+
+        const gitRepoSettings: GitRepoCardSettings = {
+          ...existingSettings,
+          repo_url: {
+            ...existingSettings.repo_url,
+            default: gitRepoConfig.repo,
+          },
+          ...(gitRepoConfig.branch && {
+            branch: {
+              ...existingSettings.branch,
+              default: gitRepoConfig.branch,
+            },
+          }),
+          ...(gitRepoConfig.paths && gitRepoConfig.paths.length > 0 && {
+            paths: {
+              ...existingSettings.paths,
+              default: gitRepoConfig.paths,
+            },
+          }),
+        };
+        exportCard.settings = gitRepoSettings;
       } else {
         exportCard.settings = card.settings;
       }
+    } else if (card.type === 'gitrepo' && config.gitRepoConfigs && config.gitRepoConfigs.length > gitRepoConfigIndex) {
+      // gitrepo card without existing settings - create settings with defaults
+      const gitRepoConfig = config.gitRepoConfigs[gitRepoConfigIndex++];
+      const gitRepoSettings: GitRepoCardSettings = {
+        repo_url: {
+          default: gitRepoConfig.repo,
+        },
+        ...(gitRepoConfig.branch && {
+          branch: {
+            default: gitRepoConfig.branch,
+          },
+        }),
+        ...(gitRepoConfig.paths && gitRepoConfig.paths.length > 0 && {
+          paths: {
+            default: gitRepoConfig.paths,
+          },
+        }),
+      };
+      exportCard.settings = gitRepoSettings;
     }
 
     return exportCard;
   });
+
+  // If there are remaining gitRepoConfigs that weren't matched to gitrepo cards in the manifest,
+  // create new gitrepo card entries for them. This handles the case where:
+  // 1. The manifest's gitrepo card was deleted or not in the card order
+  // 2. Dynamic gitrepo cards (like 'gitrepo-my-repo') exist but aren't in manifestCards
+  if (config.gitRepoConfigs && gitRepoConfigIndex < config.gitRepoConfigs.length) {
+    for (let i = gitRepoConfigIndex; i < config.gitRepoConfigs.length; i++) {
+      const gitRepoConfig = config.gitRepoConfigs[i];
+      const gitRepoCard: CardDefinition = {
+        id: `gitrepo-${gitRepoConfig.name}`,
+        type: 'gitrepo',
+        settings: {
+          repo_url: {
+            default: gitRepoConfig.repo,
+          },
+          ...(gitRepoConfig.branch && {
+            branch: {
+              default: gitRepoConfig.branch,
+            },
+          }),
+          ...(gitRepoConfig.paths && gitRepoConfig.paths.length > 0 && {
+            paths: {
+              default: gitRepoConfig.paths,
+            },
+          }),
+        },
+      };
+      exportCards.push(gitRepoCard);
+    }
+  }
 
   return {
     version: config.manifest.version || '1.0',
