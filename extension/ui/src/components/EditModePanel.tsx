@@ -75,6 +75,8 @@ interface EditModePanelProps {
   onActiveTabChange?: (tab: number) => void;
   /** Current GitRepo configurations to store as defaults in built extension */
   gitRepoConfigs?: GitRepoConfig[];
+  /** Callback to clear all GitRepos when switching extensions */
+  onClearAllGitRepos?: () => Promise<void>;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -102,7 +104,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange, gitRepoConfigs }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange, gitRepoConfigs, onClearAllGitRepos }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -906,6 +908,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 loadingImages={loadingImages}
                 onRefreshImages={refreshFleetImages}
                 ownHeaderBackground={resolvedPalette?.header?.background}
+                onClearAllGitRepos={onClearAllGitRepos}
               />
             </TabPanel>
           </Box>
