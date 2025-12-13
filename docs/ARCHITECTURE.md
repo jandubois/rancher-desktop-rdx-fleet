@@ -333,6 +333,35 @@ class GitReposService {
 }
 ```
 
+#### Automatic GitRepo Sync
+
+The backend automatically syncs GitRepo resources when extension ownership changes. This ensures that when switching between custom extensions, the correct GitRepos are deployed without manual intervention.
+
+**Trigger Points:**
+- Backend startup (if this extension is the designated owner)
+- Ownership transfer via ConfigMap watch
+- Frontend loading manifest from ZIP/image file
+
+**Sync Flow:**
+1. Check/claim ownership via ConfigMap in `fleet-local` namespace
+2. Delete all existing GitRepos (clean slate)
+3. Create GitRepos from manifest defaults (or frontend-provided defaults)
+
+**Key Functions in `routes/init.ts`:**
+```typescript
+// Core sync function - accepts defaults or reads from manifest
+async function syncGitRepos(
+  defaults?: GitRepoDefault[],
+  options?: { maxWaitMs?: number; skipIfAlreadySynced?: boolean }
+): Promise<SyncGitReposResult>;
+
+// Convenience wrapper for backend startup/ownership change
+async function syncGitReposFromManifest(): Promise<void>;
+```
+
+**ConfigMap Watch (`services/ownership.ts`):**
+The backend watches the ownership ConfigMap for changes. When ownership transfers to this extension, it automatically triggers GitRepo sync to deploy the correct bundles.
+
 ### Runtime Environment
 
 The backend runs in a Docker container with:
