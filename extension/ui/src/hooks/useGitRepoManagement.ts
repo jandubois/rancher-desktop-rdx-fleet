@@ -164,9 +164,6 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     }
   }, [manifestCards, repoConfigs.length]);
 
-  // Track whether we've synced manifest defaults with K8s
-  const hasSyncedToK8s = useRef(false);
-
   // Persist repo configs to localStorage whenever they change
   useEffect(() => {
     saveRepoConfigs(repoConfigs);
@@ -220,56 +217,8 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     onReposLoadedRef.current?.(gitRepos);
   }, [gitRepos]);
 
-  // Sync manifest defaults to K8s when Fleet is ready
-  // This creates K8s GitRepo resources for repos that have pre-selected paths from the manifest
-  useEffect(() => {
-    // Only run once
-    if (hasSyncedToK8s.current) return;
-    // Wait for Fleet to be running
-    if (fleetState.status !== 'running') return;
-    // Need repo configs to sync
-    if (repoConfigs.length === 0) return;
-
-    // Find repos that have paths selected but don't exist in K8s yet
-    const reposToCreate = repoConfigs.filter(config => {
-      const hasPaths = config.paths && config.paths.length > 0;
-      const existsInK8s = k8sRepos.some(k8s => k8s.name === config.name);
-      return hasPaths && !existsInK8s;
-    });
-
-    if (reposToCreate.length === 0) {
-      // Nothing to sync, mark as done
-      hasSyncedToK8s.current = true;
-      return;
-    }
-
-    debugLog('syncManifestDefaultsToK8s: creating K8s resources for repos with pre-selected paths', {
-      reposToCreate: reposToCreate.map(r => ({ name: r.name, paths: r.paths })),
-    });
-
-    // Create K8s resources for each repo
-    const createRepos = async () => {
-      for (const config of reposToCreate) {
-        try {
-          debugLog('syncManifestDefaultsToK8s: creating GitRepo', { name: config.name, paths: config.paths });
-          await backendService.applyGitRepo({
-            name: config.name,
-            repo: config.repo,
-            branch: config.branch,
-            paths: config.paths,
-          });
-        } catch (err) {
-          console.error(`Failed to create K8s GitRepo ${config.name}:`, err);
-          // Continue with other repos even if one fails
-        }
-      }
-      // Refresh K8s state after creating repos
-      await fetchGitRepos();
-      hasSyncedToK8s.current = true;
-    };
-
-    createRepos();
-  }, [fleetState.status, repoConfigs, k8sRepos, fetchGitRepos]);
+  // Note: K8s GitRepo creation from manifest defaults is handled by the backend
+  // when it claims ownership. See init.ts syncGitReposFromManifest().
 
   // Update GitRepo paths - creates/deletes K8s resource as needed
   const updateGitRepoPaths = useCallback(async (repo: GitRepo, newPaths: string[]) => {
