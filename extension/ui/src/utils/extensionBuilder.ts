@@ -414,6 +414,8 @@ function collectBundledImages(cards: CardDefinition[]): CollectedBundledImage[] 
 // Also injects GitRepo default values from gitRepoConfigs
 function createExportManifest(config: ExtensionConfig): Manifest {
   // Filter out placeholder cards and reorder based on cardOrder
+  // Note: cardOrder may contain dynamic gitrepo IDs (like 'gitrepo-my-repo') that
+  // don't exist in config.cards (which only has manifest cards like 'default-gitrepo')
   const orderedCards = config.cardOrder
     .map(id => config.cards.find(c => c.id === id))
     .filter((c): c is CardDefinition => c !== undefined && c.type !== 'placeholder');
@@ -489,6 +491,36 @@ function createExportManifest(config: ExtensionConfig): Manifest {
 
     return exportCard;
   });
+
+  // If there are remaining gitRepoConfigs that weren't matched to gitrepo cards in the manifest,
+  // create new gitrepo card entries for them. This handles the case where:
+  // 1. The manifest's gitrepo card was deleted or not in the card order
+  // 2. Dynamic gitrepo cards (like 'gitrepo-my-repo') exist but aren't in manifestCards
+  if (config.gitRepoConfigs && gitRepoConfigIndex < config.gitRepoConfigs.length) {
+    for (let i = gitRepoConfigIndex; i < config.gitRepoConfigs.length; i++) {
+      const gitRepoConfig = config.gitRepoConfigs[i];
+      const gitRepoCard: CardDefinition = {
+        id: `gitrepo-${gitRepoConfig.name}`,
+        type: 'gitrepo',
+        settings: {
+          repo_url: {
+            default: gitRepoConfig.repo,
+          },
+          ...(gitRepoConfig.branch && {
+            branch: {
+              default: gitRepoConfig.branch,
+            },
+          }),
+          ...(gitRepoConfig.paths && gitRepoConfig.paths.length > 0 && {
+            paths: {
+              default: gitRepoConfig.paths,
+            },
+          }),
+        },
+      };
+      exportCards.push(gitRepoCard);
+    }
+  }
 
   return {
     version: config.manifest.version || '1.0',
