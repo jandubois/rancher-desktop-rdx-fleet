@@ -341,6 +341,48 @@ export class OwnershipService {
   }
 
   /**
+   * Check if we are the current designated owner based on ConfigMap.
+   * Unlike checkOwnership, this doesn't require the extensions list.
+   * Used at backend startup to determine if we should sync GitRepos.
+   *
+   * @returns true if we are the owner (and reclaims with our container ID)
+   */
+  async isCurrentOwner(): Promise<boolean> {
+    this.log('Checking if we are the current owner...');
+
+    if (!this.isReady()) {
+      this.log('Kubernetes client not initialized, cannot check ownership');
+      return false;
+    }
+
+    try {
+      const configMap = await this.getOwnershipConfigMap();
+
+      if (!configMap) {
+        this.log('No ownership ConfigMap found, we are not the owner');
+        return false;
+      }
+
+      const currentOwner = configMap.ownerExtensionName;
+      this.log(`ConfigMap owner: ${currentOwner}, our identity: ${this.ownExtensionName}`);
+
+      if (currentOwner === this.ownExtensionName) {
+        // We are the designated owner, reclaim with our container ID
+        this.log('We are the designated owner, reclaiming with our container ID');
+        await this.claimOwnership();
+        return true;
+      }
+
+      this.log('We are not the owner');
+      return false;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.log(`Error checking ownership: ${msg}`);
+      return false;
+    }
+  }
+
+  /**
    * Main ownership check algorithm (race-condition safe).
    *
    * @param installedExtensions - List of installed Fleet extensions from rdctl
@@ -490,6 +532,144 @@ export class OwnershipService {
 
   private sleep(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Watch the ownership ConfigMap for changes.
+   * Calls the callback when we become the owner.
+   *
+   * @param onBecomeOwner - Callback to run when we become the owner
+   * @returns A function to stop watching
+   */
+  async watchOwnership(onBecomeOwner: () => void): Promise<() => void> {
+    if (!this.kubeconfig) {
+      this.log('Cannot watch ownership: kubeconfig not available');
+      return () => {};
+    }
+
+    let isWatching = true;
+    let abortController: AbortController | null = null;
+    let isSyncing = false;
+    let lastSeenOwner = '';
+    let lastSeenContainerId = '';
+
+    const startWatch = async () => {
+      if (!isWatching) return;
+
+      try {
+        const kc = new k8s.KubeConfig();
+        kc.loadFromString(this.kubeconfig!);
+        const watch = new k8s.Watch(kc);
+
+        abortController = new AbortController();
+        const { signal } = abortController;
+
+        this.log('Starting ownership ConfigMap watch...');
+
+        await watch.watch(
+          `/api/v1/namespaces/${NAMESPACE}/configmaps`,
+          { fieldSelector: `metadata.name=${CONFIGMAP_NAME}` },
+          (type: string, obj: k8s.V1ConfigMap) => {
+            if (!isWatching) return;
+
+            const eventType = type.toUpperCase();
+            const ownerExtension = obj.data?.ownerExtensionName || '';
+            const ownerContainerId = obj.data?.ownerContainerId || '';
+
+            // Check if this is a new ownership change we haven't processed
+            const isNewOwnershipChange = ownerExtension !== lastSeenOwner ||
+              (ownerExtension === this.ownExtensionName &&
+               lastSeenContainerId !== '' &&
+               ownerContainerId === '');
+
+            // Update tracking
+            lastSeenOwner = ownerExtension;
+            lastSeenContainerId = ownerContainerId;
+
+            // Skip if not a relevant event
+            if (eventType !== 'ADDED' && eventType !== 'MODIFIED') {
+              return;
+            }
+
+            // Skip if not our extension
+            if (ownerExtension !== this.ownExtensionName) {
+              return;
+            }
+
+            // Skip if we're already syncing
+            if (isSyncing) {
+              this.log('Watch event: already syncing, skipping');
+              return;
+            }
+
+            // Skip if ConfigMap already has our container ID (we already claimed)
+            if (ownerContainerId === this.ownContainerId) {
+              this.log('Watch event: already claimed with our container ID, skipping');
+              return;
+            }
+
+            // Only trigger on actual ownership transfer (empty container ID means transfer)
+            if (ownerContainerId !== '' && !isNewOwnershipChange) {
+              this.log(`Watch event: container ID set by someone else (${ownerContainerId}), skipping`);
+              return;
+            }
+
+            this.log(`Watch event: ownership transferred to us, triggering sync...`);
+            isSyncing = true;
+
+            // Reclaim with our container ID and trigger callback
+            this.claimOwnership().then(() => {
+              return onBecomeOwner();
+            }).catch((err) => {
+              this.log(`Error during ownership claim/sync: ${err}`);
+            }).finally(() => {
+              // Small delay before allowing next sync to prevent rapid re-triggering
+              setTimeout(() => {
+                isSyncing = false;
+              }, 2000);
+            });
+          },
+          (err) => {
+            if (!isWatching) return;
+            if (signal?.aborted) return;
+
+            if (err) {
+              this.log(`Watch error: ${err}`);
+            } else {
+              this.log('Watch closed unexpectedly');
+            }
+
+            // Restart watch after a delay
+            setTimeout(() => {
+              if (isWatching) {
+                this.log('Restarting ownership watch...');
+                startWatch();
+              }
+            }, 5000);
+          }
+        );
+      } catch (err) {
+        if (!isWatching) return;
+        this.log(`Failed to start watch: ${err}`);
+        // Retry after a delay
+        setTimeout(() => {
+          if (isWatching) startWatch();
+        }, 5000);
+      }
+    };
+
+    // Start watching
+    startWatch();
+
+    // Return stop function
+    return () => {
+      isWatching = false;
+      if (abortController) {
+        abortController.abort();
+        abortController = null;
+      }
+      this.log('Ownership watch stopped');
+    };
   }
 }
 

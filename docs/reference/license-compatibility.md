@@ -98,6 +98,7 @@ Source: `extension/backend/package.json`
 | @kubernetes/client-node | Apache-2.0 | Yes | Kubernetes API client |
 | dockerode | Apache-2.0 | Yes | Docker API client |
 | express | MIT | Yes | Web framework |
+| js-yaml | MIT | Yes | YAML parsing for manifest |
 
 ### Backend Dev Dependencies
 
@@ -106,6 +107,7 @@ Source: `extension/backend/package.json`
 | @types/dockerode | MIT | Yes |
 | @types/express | MIT | Yes |
 | @types/jest | MIT | Yes |
+| @types/js-yaml | MIT | Yes |
 | @types/node | MIT | Yes |
 | jest | MIT | Yes |
 | ts-jest | MIT | Yes |

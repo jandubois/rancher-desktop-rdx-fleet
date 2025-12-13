@@ -970,6 +970,7 @@ function App() {
               activeTab={activeEditTab}
               onActiveTabChange={setActiveEditTab}
               gitRepoConfigs={gitRepoConfigs}
+              onClearAllGitRepos={clearAllGitRepos}
             />
           )}
 

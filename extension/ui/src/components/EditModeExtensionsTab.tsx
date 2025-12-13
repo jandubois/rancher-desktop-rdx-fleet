@@ -82,12 +82,14 @@ export interface EditModeExtensionsTabProps {
   onRefreshImages: () => void;
   /** Our own extension's header background color (from palette) */
   ownHeaderBackground?: string;
+  /** Callback to clear all GitRepos when switching extensions */
+  onClearAllGitRepos?: () => Promise<void>;
 }
 
 /** Operation type for tracking which button is spinning */
 type OperationType = 'uninstall' | 'activate' | 'delete';
 
-export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages, loadingImages, onRefreshImages, ownHeaderBackground }: EditModeExtensionsTabProps) {
+export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages, loadingImages, onRefreshImages, ownHeaderBackground, onClearAllGitRepos }: EditModeExtensionsTabProps) {
   const [recheckingOwnership, setRecheckingOwnership] = useState(false);
   const [operatingImage, setOperatingImage] = useState<{ image: string; op: OperationType } | null>(null);
   const [operationError, setOperationError] = useState<string | null>(null);
@@ -319,6 +321,12 @@ export function EditModeExtensionsTab({ status, loading, onRefresh, fleetImages,
 
         // Refresh extension list after install
         await refreshInstalledExtensions();
+      }
+
+      // Clear all GitRepos before switching - the new extension will initialize from its manifest
+      if (onClearAllGitRepos) {
+        console.log('[ExtensionsTab] Clearing all GitRepos before switching extensions...');
+        await onClearAllGitRepos();
       }
 
       // Transfer ownership using the full image name as the canonical identifier

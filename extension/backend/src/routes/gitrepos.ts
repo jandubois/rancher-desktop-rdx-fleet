@@ -5,11 +5,14 @@
  * - GET /api/gitrepos - List all GitRepos
  * - GET /api/gitrepos/:name - Get a specific GitRepo
  * - POST /api/gitrepos - Create or update a GitRepo
+ * - POST /api/gitrepos/sync-defaults - Sync GitRepos from frontend-provided defaults
  * - DELETE /api/gitrepos/:name - Delete a GitRepo
  */
 
 import { Router } from 'express';
 import { gitRepoService } from '../services/gitrepos.js';
+import { ownershipService } from '../services/ownership.js';
+import { syncGitRepos, type GitRepoDefault } from './init.js';
 
 export const gitReposRouter = Router();
 
@@ -114,6 +117,86 @@ gitReposRouter.post('/', async (req, res) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.log('[GitRepos] Error applying GitRepo:', message);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * Sync GitRepos from frontend-provided defaults.
+ * Used when loading an extension from ZIP/image whose manifest has defaults
+ * that need to be synced, even when ownership doesn't change.
+ *
+ * POST /api/gitrepos/sync-defaults
+ * Body: { defaults: GitRepoDefault[] }
+ */
+gitReposRouter.post('/sync-defaults', async (req, res) => {
+  console.log('[GitRepos] POST /api/gitrepos/sync-defaults received');
+
+  try {
+    if (!gitRepoService.isReady()) {
+      return res.status(503).json({
+        error: 'Service not ready',
+        message: 'Kubernetes client not initialized. Wait for backend initialization.',
+      });
+    }
+
+    // Verify we're the owner before allowing sync
+    const isOwner = await ownershipService.isCurrentOwner();
+    if (!isOwner) {
+      console.log('[GitRepos] sync-defaults: Not the owner, rejecting request');
+      return res.status(403).json({
+        error: 'Not authorized',
+        message: 'Only the active extension owner can sync GitRepo defaults',
+      });
+    }
+
+    const { defaults } = req.body;
+
+    // Validate defaults array
+    if (!defaults || !Array.isArray(defaults)) {
+      return res.status(400).json({
+        error: 'Invalid request',
+        message: 'defaults must be an array of GitRepoDefault objects',
+      });
+    }
+
+    // Validate each default item
+    for (let i = 0; i < defaults.length; i++) {
+      const item = defaults[i] as GitRepoDefault;
+      if (!item.name || typeof item.name !== 'string') {
+        return res.status(400).json({
+          error: 'Invalid request',
+          message: `defaults[${i}].name is required and must be a string`,
+        });
+      }
+      if (!item.repo || typeof item.repo !== 'string') {
+        return res.status(400).json({
+          error: 'Invalid request',
+          message: `defaults[${i}].repo is required and must be a string`,
+        });
+      }
+      if (!Array.isArray(item.paths)) {
+        return res.status(400).json({
+          error: 'Invalid request',
+          message: `defaults[${i}].paths is required and must be an array`,
+        });
+      }
+    }
+
+    // Use the shared syncGitRepos function with shorter timeout for API calls
+    const result = await syncGitRepos(defaults as GitRepoDefault[], { maxWaitMs: 30000 });
+
+    if (!result.success && result.message.includes('Fleet')) {
+      return res.status(503).json({
+        error: 'Fleet not ready',
+        message: result.message,
+      });
+    }
+
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.log('[GitRepos] Error in sync-defaults:', message);
     res.status(500).json({ error: message });
   }
 });

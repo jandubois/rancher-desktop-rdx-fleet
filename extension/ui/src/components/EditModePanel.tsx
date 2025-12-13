@@ -75,6 +75,8 @@ interface EditModePanelProps {
   onActiveTabChange?: (tab: number) => void;
   /** Current GitRepo configurations to store as defaults in built extension */
   gitRepoConfigs?: GitRepoConfig[];
+  /** Callback to clear all GitRepos when switching extensions */
+  onClearAllGitRepos?: () => Promise<void>;
 }
 
 // Validate hex color (3, 4, 6, or 8 digit hex with #)
@@ -102,7 +104,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange, gitRepoConfigs }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange, gitRepoConfigs, onClearAllGitRepos }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -686,7 +688,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
     }
   };
 
-  const handleImportResult = (result: ImportResult, sourceName: string) => {
+  const handleImportResult = async (result: ImportResult, sourceName: string) => {
     if (result.success && result.manifest) {
       setImportError(null);
       setImportSuccess(`Configuration loaded from ${sourceName}`);
@@ -718,6 +720,51 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       if (onConfigLoaded) {
         onConfigLoaded(result.manifest);
       }
+
+      // Sync GitRepo defaults from loaded manifest to Kubernetes
+      // This ensures bundles are deployed when loading from ZIP/image
+      if (result.manifest.cards) {
+        const gitRepoDefaults: Array<{
+          name: string;
+          repo: string;
+          branch?: string;
+          paths: string[];
+        }> = [];
+
+        let cardIndex = 0;
+        for (const card of result.manifest.cards) {
+          if (card.type === 'gitrepo' && card.settings) {
+            const settings = card.settings as {
+              repo_url?: { default?: string };
+              branch?: { default?: string };
+              paths?: { default?: string[] };
+            };
+            const repoUrl = settings.repo_url?.default;
+            if (repoUrl) {
+              gitRepoDefaults.push({
+                name: card.id || `gitrepo-${cardIndex}`,
+                repo: repoUrl,
+                branch: settings.branch?.default,
+                paths: settings.paths?.default || [],
+              });
+            }
+            cardIndex++;
+          }
+        }
+
+        // Sync to Kubernetes (this will delete existing repos and create new ones)
+        try {
+          console.log('[EditModePanel] Syncing GitRepo defaults to K8s:', gitRepoDefaults);
+          const syncResult = await backendService.syncGitRepoDefaults(gitRepoDefaults);
+          console.log('[EditModePanel] GitRepo sync result:', syncResult);
+          if (!syncResult.success || syncResult.failed.length > 0) {
+            console.warn('[EditModePanel] Some GitRepos failed to sync:', syncResult.failed);
+          }
+        } catch (err) {
+          // Log but don't fail the import - the UI loaded successfully
+          console.error('[EditModePanel] Failed to sync GitRepo defaults:', err);
+        }
+      }
     } else {
       setImportSuccess(null);
       setImportError(result.error || 'Failed to load configuration');
@@ -733,7 +780,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
 
     try {
       const result = await importConfigFromImage(selectedImage);
-      handleImportResult(result, selectedImage);
+      await handleImportResult(result, selectedImage);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Failed to load from image');
     } finally {
@@ -751,7 +798,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
 
     try {
       const result = await importConfigFromZip(file);
-      handleImportResult(result, file.name);
+      await handleImportResult(result, file.name);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Failed to load from ZIP');
     } finally {
@@ -906,6 +953,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
                 loadingImages={loadingImages}
                 onRefreshImages={refreshFleetImages}
                 ownHeaderBackground={resolvedPalette?.header?.background}
+                onClearAllGitRepos={onClearAllGitRepos}
               />
             </TabPanel>
           </Box>

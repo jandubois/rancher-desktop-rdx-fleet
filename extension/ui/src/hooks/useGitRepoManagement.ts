@@ -217,6 +217,9 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     onReposLoadedRef.current?.(gitRepos);
   }, [gitRepos]);
 
+  // Note: K8s GitRepo creation from manifest defaults is handled by the backend
+  // when it claims ownership. See init.ts syncGitReposFromManifest().
+
   // Update GitRepo paths - creates/deletes K8s resource as needed
   const updateGitRepoPaths = useCallback(async (repo: GitRepo, newPaths: string[]) => {
     debugLog('updateGitRepoPaths called', { repoName: repo.name, newPaths, currentPaths: repo.paths });
