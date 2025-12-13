@@ -549,6 +549,9 @@ export class OwnershipService {
 
     let isWatching = true;
     let abortController: AbortController | null = null;
+    let isSyncing = false;
+    let lastSeenOwner = '';
+    let lastSeenContainerId = '';
 
     const startWatch = async () => {
       if (!isWatching) return;
@@ -571,19 +574,60 @@ export class OwnershipService {
 
             const eventType = type.toUpperCase();
             const ownerExtension = obj.data?.ownerExtensionName || '';
-            this.log(`Watch event: ${eventType} - owner: ${ownerExtension}`);
+            const ownerContainerId = obj.data?.ownerContainerId || '';
 
-            if (eventType === 'ADDED' || eventType === 'MODIFIED') {
-              if (ownerExtension === this.ownExtensionName) {
-                this.log('Ownership changed to us, triggering callback...');
-                // Reclaim with our container ID
-                this.claimOwnership().then(() => {
-                  onBecomeOwner();
-                }).catch((err) => {
-                  this.log(`Error reclaiming ownership: ${err}`);
-                });
-              }
+            // Check if this is a new ownership change we haven't processed
+            const isNewOwnershipChange = ownerExtension !== lastSeenOwner ||
+              (ownerExtension === this.ownExtensionName &&
+               lastSeenContainerId !== '' &&
+               ownerContainerId === '');
+
+            // Update tracking
+            lastSeenOwner = ownerExtension;
+            lastSeenContainerId = ownerContainerId;
+
+            // Skip if not a relevant event
+            if (eventType !== 'ADDED' && eventType !== 'MODIFIED') {
+              return;
             }
+
+            // Skip if not our extension
+            if (ownerExtension !== this.ownExtensionName) {
+              return;
+            }
+
+            // Skip if we're already syncing
+            if (isSyncing) {
+              this.log('Watch event: already syncing, skipping');
+              return;
+            }
+
+            // Skip if ConfigMap already has our container ID (we already claimed)
+            if (ownerContainerId === this.ownContainerId) {
+              this.log('Watch event: already claimed with our container ID, skipping');
+              return;
+            }
+
+            // Only trigger on actual ownership transfer (empty container ID means transfer)
+            if (ownerContainerId !== '' && !isNewOwnershipChange) {
+              this.log(`Watch event: container ID set by someone else (${ownerContainerId}), skipping`);
+              return;
+            }
+
+            this.log(`Watch event: ownership transferred to us, triggering sync...`);
+            isSyncing = true;
+
+            // Reclaim with our container ID and trigger callback
+            this.claimOwnership().then(() => {
+              return onBecomeOwner();
+            }).catch((err) => {
+              this.log(`Error during ownership claim/sync: ${err}`);
+            }).finally(() => {
+              // Small delay before allowing next sync to prevent rapid re-triggering
+              setTimeout(() => {
+                isSyncing = false;
+              }, 2000);
+            });
           },
           (err) => {
             if (!isWatching) return;
