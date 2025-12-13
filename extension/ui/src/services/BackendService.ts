@@ -447,6 +447,33 @@ export class BackendService {
     await this.vmService.post(`/api/gitrepos/${encodeURIComponent(name)}/delete`, {});
   }
 
+  /**
+   * Sync GitRepo defaults from loaded manifest to Kubernetes.
+   * This deletes all existing GitRepos and creates new ones from the provided defaults.
+   * Used when loading an extension configuration from ZIP or image.
+   */
+  async syncGitRepoDefaults(defaults: Array<{
+    name: string;
+    repo: string;
+    branch?: string;
+    paths: string[];
+  }>): Promise<{
+    success: boolean;
+    created: string[];
+    failed: Array<{ name: string; error: string }>;
+    message: string;
+  }> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.post('/api/gitrepos/sync-defaults', { defaults }) as {
+      success: boolean;
+      created: string[];
+      failed: Array<{ name: string; error: string }>;
+      message: string;
+    };
+  }
+
   // ============================================
   // Registry Secret Operations (via backend Kubernetes client)
   // ============================================

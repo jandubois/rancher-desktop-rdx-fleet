@@ -39,25 +39,49 @@ function log(message: string): void {
   }
 }
 
-// Track whether we've synced GitRepos from manifest
+// Track whether we've synced GitRepos from manifest (for backend startup/ownership change)
 let hasSyncedGitReposFromManifest = false;
 
+/** GitRepo default configuration */
+export interface GitRepoDefault {
+  name: string;
+  repo: string;
+  branch?: string;
+  paths: string[];
+}
+
+/** Result of syncing GitRepo defaults */
+export interface SyncGitReposResult {
+  success: boolean;
+  created: string[];
+  failed: Array<{ name: string; error: string }>;
+  message: string;
+}
+
 /**
- * Sync GitRepos from manifest defaults to Kubernetes.
- * Called after this extension claims ownership.
- * Waits for Fleet to be ready before creating GitRepo resources.
+ * Core function to sync GitRepos to Kubernetes.
+ * Deletes all existing GitRepos and creates new ones from provided defaults.
+ *
+ * @param defaults - GitRepo defaults to create. If undefined, reads from manifest.
+ * @param options - Optional settings for waiting and timeout
+ * @returns Result with created/failed repos
  */
-export async function syncGitReposFromManifest(): Promise<void> {
-  // Only sync once
-  if (hasSyncedGitReposFromManifest) {
-    log('GitRepos already synced from manifest, skipping');
-    return;
+export async function syncGitRepos(
+  defaults?: GitRepoDefault[],
+  options?: { maxWaitMs?: number; skipIfAlreadySynced?: boolean }
+): Promise<SyncGitReposResult> {
+  const maxWaitMs = options?.maxWaitMs ?? 120000; // Default 2 minutes
+  const skipIfAlreadySynced = options?.skipIfAlreadySynced ?? false;
+
+  // Skip if already synced (only for backend startup/ownership change scenarios)
+  if (skipIfAlreadySynced && hasSyncedGitReposFromManifest) {
+    log('GitRepos already synced, skipping');
+    return { success: true, created: [], failed: [], message: 'Already synced' };
   }
 
-  log('Starting GitRepo sync from manifest...');
+  log('Starting GitRepo sync...');
 
   // Wait for Fleet to be running (poll with timeout)
-  const maxWaitMs = 120000; // 2 minutes
   const pollIntervalMs = 2000;
   const startTime = Date.now();
 
@@ -69,8 +93,9 @@ export async function syncGitReposFromManifest(): Promise<void> {
     }
 
     if (fleetState.status === 'error') {
-      log(`Fleet is in error state: ${fleetState.error}, aborting GitRepo sync`);
-      return;
+      const msg = `Fleet is in error state: ${fleetState.error}`;
+      log(msg);
+      return { success: false, created: [], failed: [], message: msg };
     }
 
     const elapsed = Math.round((Date.now() - startTime) / 1000);
@@ -81,19 +106,19 @@ export async function syncGitReposFromManifest(): Promise<void> {
   // Check if we timed out
   const fleetState = fleetService.getState();
   if (fleetState.status !== 'running') {
-    log(`Timed out waiting for Fleet (status: ${fleetState.status}), aborting GitRepo sync`);
-    return;
+    const msg = `Timed out waiting for Fleet (status: ${fleetState.status})`;
+    log(msg);
+    return { success: false, created: [], failed: [], message: msg };
   }
 
   // Check if GitRepo service is ready
   if (!gitRepoService.isReady()) {
-    log('GitRepo service not ready, aborting GitRepo sync');
-    return;
+    const msg = 'GitRepo service not ready';
+    log(msg);
+    return { success: false, created: [], failed: [], message: msg };
   }
 
-  // Delete all existing GitRepos first (clean slate for new extension)
-  // This ensures old extension's GitRepos are removed when switching
-  // This must happen even if we have no defaults to create
+  // Delete all existing GitRepos first (clean slate)
   try {
     const existingRepos = await gitRepoService.listGitRepos();
     if (existingRepos.length > 0) {
@@ -114,18 +139,24 @@ export async function syncGitReposFromManifest(): Promise<void> {
     // Continue anyway - we'll try to create our repos
   }
 
-  // Check if manifest has any GitRepo defaults to create
-  const defaults = manifestService.extractGitRepoDefaults();
-  if (defaults.length === 0) {
-    log('No GitRepo defaults found in manifest, sync complete (only cleanup was done)');
-    hasSyncedGitReposFromManifest = true;
-    return;
+  // Get defaults: use provided defaults or extract from manifest
+  const repoDefaults = defaults ?? manifestService.extractGitRepoDefaults();
+
+  if (repoDefaults.length === 0) {
+    log('No GitRepo defaults, sync complete (only cleanup was done)');
+    if (skipIfAlreadySynced) {
+      hasSyncedGitReposFromManifest = true;
+    }
+    return { success: true, created: [], failed: [], message: 'Cleanup complete (no defaults)' };
   }
 
-  log(`Found ${defaults.length} GitRepo defaults in manifest, creating...`);
+  log(`Creating ${repoDefaults.length} GitRepos...`);
 
-  // Create GitRepos from manifest defaults
-  for (const config of defaults) {
+  const created: string[] = [];
+  const failed: Array<{ name: string; error: string }> = [];
+
+  // Create GitRepos from defaults
+  for (const config of repoDefaults) {
     try {
       log(`Creating GitRepo: ${config.name} -> ${config.repo} (${config.paths.length} paths)`);
       await gitRepoService.applyGitRepo({
@@ -135,15 +166,33 @@ export async function syncGitReposFromManifest(): Promise<void> {
         paths: config.paths,
       });
       log(`Successfully created GitRepo: ${config.name}`);
+      created.push(config.name);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       log(`Failed to create GitRepo ${config.name}: ${msg}`);
+      failed.push({ name: config.name, error: msg });
       // Continue with other repos
     }
   }
 
-  hasSyncedGitReposFromManifest = true;
-  log('GitRepo sync from manifest complete');
+  if (skipIfAlreadySynced) {
+    hasSyncedGitReposFromManifest = true;
+  }
+
+  const message = `Synced ${created.length} GitRepos${failed.length > 0 ? `, ${failed.length} failed` : ''}`;
+  log(`GitRepo sync complete: ${message}`);
+
+  return { success: failed.length === 0, created, failed, message };
+}
+
+/**
+ * Sync GitRepos from manifest defaults to Kubernetes.
+ * Called after this extension claims ownership.
+ * Waits for Fleet to be ready before creating GitRepo resources.
+ * Only syncs once per ownership claim (uses skipIfAlreadySynced flag).
+ */
+export async function syncGitReposFromManifest(): Promise<void> {
+  await syncGitRepos(undefined, { skipIfAlreadySynced: true });
 }
 
 /**
