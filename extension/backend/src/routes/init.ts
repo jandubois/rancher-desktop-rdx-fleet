@@ -47,7 +47,7 @@ let hasSyncedGitReposFromManifest = false;
  * Called after this extension claims ownership.
  * Waits for Fleet to be ready before creating GitRepo resources.
  */
-async function syncGitReposFromManifest(): Promise<void> {
+export async function syncGitReposFromManifest(): Promise<void> {
   // Only sync once
   if (hasSyncedGitReposFromManifest) {
     log('GitRepos already synced from manifest, skipping');

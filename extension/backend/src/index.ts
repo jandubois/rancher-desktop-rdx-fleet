@@ -16,6 +16,7 @@ import { fleetService } from './services/fleet.js';
 import { ownershipService } from './services/ownership.js';
 import { gitRepoService } from './services/gitrepos.js';
 import { secretsService } from './services/secrets.js';
+import { syncGitReposFromManifest, resetGitRepoSyncFlag } from './routes/init.js';
 
 const app = express();
 // k3s kubeconfig mounted from VM (container runs as root to read it)
@@ -162,6 +163,35 @@ app.listen(SOCKET_PATH, async () => {
 
         if (state.status === 'running') {
           console.log(`Fleet auto-install complete. Status: ${state.status}`);
+
+          // Check if we are the designated owner and sync GitRepos from manifest
+          try {
+            const isOwner = await ownershipService.isCurrentOwner();
+            if (isOwner) {
+              console.log('We are the owner, syncing GitRepos from manifest...');
+              await syncGitReposFromManifest();
+            } else {
+              console.log('We are not the owner, skipping GitRepo sync');
+            }
+          } catch (err) {
+            console.error('Error during ownership check/sync:', err);
+          }
+
+          // Start watching for ownership changes
+          // When ownership is transferred to us, sync GitRepos from manifest
+          ownershipService.watchOwnership(async () => {
+            console.log('Ownership transferred to us, syncing GitRepos...');
+            // Reset the sync flag so we sync again for the new ownership
+            resetGitRepoSyncFlag();
+            try {
+              await syncGitReposFromManifest();
+            } catch (err) {
+              console.error('Error syncing GitRepos after ownership change:', err);
+            }
+          }).catch(err => {
+            console.error('Failed to start ownership watch:', err);
+          });
+
           return; // Success!
         }
 
