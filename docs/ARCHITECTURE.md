@@ -60,7 +60,7 @@ The extension follows a **three-tier architecture**:
 │            ▼                 ▼                 ▼                            │
 │  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
 │  │ Backend Service │  │   Host Scripts  │  │   Direct HTTP   │              │
-│  │ (Express.js)    │  │   (CLI tools)   │  │   (GitHub API)  │              │
+│  │ (Express.js)    │  │   (CLI tools)   │  │   (External)    │              │
 │  │                 │  │                 │  │                 │              │
 │  │ Unix Socket     │  │ Host Execution  │  │ fetch()         │              │
 │  └────────┬────────┘  └────────┬────────┘  └─────────────────┘              │
@@ -126,13 +126,13 @@ extension/ui/src/
 │   ├── useDependencyResolver.ts # Bundle dependency resolution
 │   ├── useBackendInit.ts       # Backend connection initialization
 │   ├── useBackendStatus.ts     # Backend health monitoring
-│   ├── usePathDiscovery.ts     # GitHub path discovery
+│   ├── usePathDiscovery.ts     # Git path discovery (via backend)
 │   └── usePalette.ts           # Color palette generation
 │
 ├── services/                   # Service layer (external APIs)
 │   ├── BackendService.ts       # REST client for backend API
 │   ├── CommandExecutor.ts      # Host CLI abstraction
-│   ├── GitHubService.ts        # GitHub API client
+│   ├── GitHubService.ts        # GitHub auth, rate limits, bundle utilities
 │   ├── CredentialService.ts    # Credential helper operations
 │   ├── AppCoService.ts         # SUSE AppCo API
 │   ├── KubernetesService.ts    # kubectl operations (deprecated)
@@ -279,6 +279,12 @@ extension/backend/src/
 | `/api/gitrepos` | GET | List all GitRepos |
 | `/api/gitrepos` | POST | Create/update a GitRepo |
 | `/api/gitrepos/:name` | DELETE | Delete a GitRepo |
+| `/api/git/discover` | POST | Discover Fleet bundle paths (via shallow clone) |
+| `/api/git/debug/logs` | GET | Get git service debug logs |
+| `/api/ownership` | GET | Get extension ownership status |
+| `/api/ownership/transfer` | POST | Transfer ownership to another extension |
+| `/api/ownership/check` | POST | Re-run ownership check |
+| `/api/debug/log` | POST | Log debug info from UI to backend |
 | `/api/secrets/*` | * | Registry secret management |
 | `/api/build` | POST | Build custom extension image |
 | `/api/icons` | POST | Extract icons from images |
@@ -332,6 +338,30 @@ class GitReposService {
   async getGitRepoStatus(name: string): Promise<GitRepoStatus>;
 }
 ```
+
+#### GitService (`services/git.ts`)
+
+Discovers Fleet bundle paths via shallow Git clones:
+
+```typescript
+class GitService {
+  // Discover Fleet bundle paths in a repository
+  async discoverPaths(request: DiscoverRequest): Promise<DiscoverResult>;
+
+  // Perform a shallow git clone to temp directory
+  async shallowClone(repoUrl: string, branch?: string, credentials?: GitCredentials): Promise<CloneResult>;
+
+  // Scan cloned repo for fleet.yaml files
+  async scanForFleetPaths(cloneDir: string): Promise<PathInfo[]>;
+}
+```
+
+**Key Features:**
+- Provider-agnostic (works with GitHub, GitLab, Bitbucket, self-hosted)
+- No API rate limits (uses git clone)
+- Supports private repos with credentials
+- Uses shallow clones (`--depth 1`) for minimal data transfer
+- Automatic cleanup of temp directories
 
 #### Automatic GitRepo Sync
 
@@ -458,7 +488,8 @@ class CommandExecutor {
 | Credential storage | Host | Access to host keychain |
 | GitHub CLI (gh) | Host | Access to host gh installation |
 | Helm registry auth | Host | Access to host Helm config |
-| GitHub API calls | Frontend | Direct HTTP, no special access needed |
+| Path discovery | Backend | Shallow git clone (provider-agnostic) |
+| GitHub API calls | Frontend | Direct HTTP for auth/rate-limit checks |
 
 ---
 
@@ -555,7 +586,9 @@ User clicks "Add Repository"
 └─────────────────┘
 ```
 
-### Path Discovery (GitHub)
+### Path Discovery
+
+Path discovery works with any Git provider (GitHub, GitLab, Bitbucket, self-hosted, etc.) using shallow clones via the backend service. This approach has no API rate limits and supports private repos with credentials.
 
 ```
 User enters repository URL
@@ -568,24 +601,36 @@ User enters repository URL
          │
          ▼
 ┌─────────────────┐
-│ GitHubService   │  fetchGitHubPaths()
+│ BackendService  │  backendService.discoverPaths()
+│ .discoverPaths()│
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ fetch() →       │  GET /repos/:owner/:repo/git/trees/:sha
-│ GitHub API      │  Recursive tree lookup
+│ Backend Route   │  POST /api/git/discover
+│ (git.ts)        │
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Parse tree      │  Find fleet.yaml files
-│ Find paths      │  Extract dependsOn
+│ GitService      │  Shallow clone to temp dir
+│ .discoverPaths()│  git clone --depth 1
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ PathInfo[]      │  { path, hasDependencies, dependencies }
+│ Scan directory  │  Find fleet.yaml files
+│ Parse YAML      │  Extract dependsOn
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ PathInfo[]      │  { path, dependsOn }
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ Cleanup         │  Remove temp directory
 └─────────────────┘
 ```
 
