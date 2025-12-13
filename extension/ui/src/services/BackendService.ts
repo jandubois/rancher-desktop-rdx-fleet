@@ -382,6 +382,17 @@ export class BackendService {
     }
   }
 
+  /**
+   * Get the current extension's icon from local filesystem.
+   * The backend can read files directly since it runs inside the extension container.
+   */
+  async getLocalIcon(): Promise<{ iconPath: string | null; data: string | null; mimeType: string | null; isDefault?: boolean }> {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return await this.vmService.get('/api/icons/local') as { iconPath: string | null; data: string | null; mimeType: string | null; isDefault?: boolean };
+  }
+
   // ============================================
   // GitRepo Operations (via backend Kubernetes client)
   // ============================================

@@ -31,6 +31,7 @@ import {
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, GitRepoCardSettings, CardType } from './manifest';
 import { GitRepo } from './types';
 import { loadExtensionState, saveExtensionState, PersistedExtensionState, EditModeSnapshot, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
+import { backendService } from './services/BackendService';
 
 // Get initial state from localStorage (synchronous for lazy useState)
 function getInitialState(): PersistedExtensionState | null {
@@ -282,6 +283,34 @@ function App() {
         initialLoadComplete.current = true;
       });
     }
+
+    // ALWAYS load icon from current extension's local filesystem
+    // The local filesystem is the source of truth - if the extension was rebuilt
+    // with a new icon, we need to load it even if there's cached state
+    const loadIconFromLocalFiles = async () => {
+      try {
+        const result = await backendService.getLocalIcon();
+
+        // If it's the default icon or no icon, clear any cached custom icon
+        if (!result.data || result.isDefault) {
+          console.log('Using default fleet icon');
+          setIconState(null);
+          return;
+        }
+
+        const filename = result.iconPath?.split('/').pop() || 'icon.png';
+        setIconState({
+          data: result.data,
+          filename,
+          mimeType: result.mimeType || 'image/png',
+        });
+        console.log('Loaded custom icon from local files:', filename);
+      } catch (err) {
+        console.warn('Failed to load icon from local files:', err);
+      }
+    };
+
+    loadIconFromLocalFiles();
   }, []);
 
   // Auto-save state to localStorage when key state changes

@@ -99,7 +99,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange }: EditModePanelProps) {
+export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeight, resolvedPalette, onConfigLoaded, onPaletteChange, onIconStateChange, backendStatus, backendLoading, onBackendRefresh, onTitleWarningChange, activeTab: activeTabProp, onActiveTabChange }: EditModePanelProps) {
   // Color field definitions
   const colorFields: ColorFieldConfig[] = [
     { id: 'header-bg', label: 'Header Background', group: 'header', property: 'background', defaultValue: defaultPalette.header.background },
@@ -690,6 +690,25 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       // Restore bundled images to image cards if present
       if (result.images && result.images.size > 0 && result.manifest.cards) {
         restoreBundledImages(result.manifest.cards, result.images);
+      }
+
+      // Restore icon state from imported icons
+      if (onIconStateChange && result.icons && result.icons.size > 0) {
+        // Get the first icon (there should only be one custom icon)
+        const [iconPath, iconData] = result.icons.entries().next().value as [string, string];
+        const filename = iconPath.split('/').pop() || 'icon.png';
+        const ext = filename.split('.').pop()?.toLowerCase() || 'png';
+        const mimeType = ext === 'svg' ? 'image/svg+xml'
+          : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+          : ext === 'gif' ? 'image/gif'
+          : ext === 'webp' ? 'image/webp'
+          : 'image/png';
+
+        onIconStateChange({
+          data: iconData,
+          filename,
+          mimeType,
+        });
       }
 
       if (onConfigLoaded) {

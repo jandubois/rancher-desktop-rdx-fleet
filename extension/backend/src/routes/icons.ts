@@ -3,11 +3,14 @@
  *
  * Handles:
  * - GET /api/icons - Get all Fleet extension images with their icons
+ * - GET /api/icons/local - Get the current extension's icon from local filesystem
  * - POST /api/icons/extract - Extract icon from a specific image
  * - GET /api/icons/logs - Get debug logs
  */
 
 import { Router, Request, Response } from 'express';
+import { promises as fs } from 'fs';
+import * as path from 'path';
 import { iconsService } from '../services/icons.js';
 
 export const iconsRouter = Router();
@@ -29,6 +32,56 @@ iconsRouter.get('/', async (_req: Request, res: Response) => {
     res.json({ images });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * Get the current extension's icon from local filesystem.
+ * Since the backend runs inside the extension container, it can read
+ * /metadata.json and /icons/ directly without Docker extraction.
+ *
+ * GET /api/icons/local
+ *
+ * Response: { iconPath: string, data: string, mimeType: string } or { error: string }
+ */
+iconsRouter.get('/local', async (_req: Request, res: Response) => {
+  try {
+    // Read metadata.json from local filesystem
+    const metadataPath = '/metadata.json';
+    const metadataContent = await fs.readFile(metadataPath, 'utf-8');
+    const metadata = JSON.parse(metadataContent);
+    const iconPath = metadata.icon as string | undefined;
+
+    if (!iconPath) {
+      return res.json({ iconPath: null, data: null, mimeType: null });
+    }
+
+    // Check if it's the default fleet icon
+    if (iconPath.includes('fleet-icon')) {
+      return res.json({ iconPath, data: null, mimeType: null, isDefault: true });
+    }
+
+    // Read the icon file
+    const iconData = await fs.readFile(iconPath);
+    const base64Data = iconData.toString('base64');
+
+    // Determine MIME type from extension
+    const ext = path.extname(iconPath).toLowerCase().slice(1);
+    const mimeType = ext === 'svg' ? 'image/svg+xml'
+      : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+      : ext === 'gif' ? 'image/gif'
+      : ext === 'webp' ? 'image/webp'
+      : 'image/png';
+
+    res.json({
+      iconPath,
+      data: base64Data,
+      mimeType,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[Icons] Failed to read local icon:', message);
     res.status(500).json({ error: message });
   }
 });
