@@ -18,6 +18,7 @@ import { dockerService } from '../services/docker.js';
 import { fleetService } from '../services/fleet.js';
 import { gitRepoService } from '../services/gitrepos.js';
 import { secretsService } from '../services/secrets.js';
+import { manifestService } from '../services/manifest.js';
 
 export const initRouter = Router();
 
@@ -36,6 +37,112 @@ function log(message: string): void {
   if (initializationLog.length > 100) {
     initializationLog = initializationLog.slice(-100);
   }
+}
+
+// Track whether we've synced GitRepos from manifest
+let hasSyncedGitReposFromManifest = false;
+
+/**
+ * Sync GitRepos from manifest defaults to Kubernetes.
+ * Called after this extension claims ownership.
+ * Waits for Fleet to be ready before creating GitRepo resources.
+ */
+async function syncGitReposFromManifest(): Promise<void> {
+  // Only sync once
+  if (hasSyncedGitReposFromManifest) {
+    log('GitRepos already synced from manifest, skipping');
+    return;
+  }
+
+  // Check if manifest has any GitRepo defaults
+  const defaults = manifestService.extractGitRepoDefaults();
+  if (defaults.length === 0) {
+    log('No GitRepo defaults found in manifest');
+    hasSyncedGitReposFromManifest = true;
+    return;
+  }
+
+  log(`Found ${defaults.length} GitRepo defaults in manifest, waiting for Fleet to be ready...`);
+
+  // Wait for Fleet to be running (poll with timeout)
+  const maxWaitMs = 120000; // 2 minutes
+  const pollIntervalMs = 2000;
+  const startTime = Date.now();
+
+  while (Date.now() - startTime < maxWaitMs) {
+    const fleetState = fleetService.getState();
+    if (fleetState.status === 'running') {
+      log('Fleet is running, creating GitRepos from manifest defaults...');
+      break;
+    }
+
+    if (fleetState.status === 'error') {
+      log(`Fleet is in error state: ${fleetState.error}, aborting GitRepo sync`);
+      return;
+    }
+
+    const elapsed = Math.round((Date.now() - startTime) / 1000);
+    log(`Waiting for Fleet... (${elapsed}s elapsed, status: ${fleetState.status})`);
+    await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
+  }
+
+  // Check if we timed out
+  const fleetState = fleetService.getState();
+  if (fleetState.status !== 'running') {
+    log(`Timed out waiting for Fleet (status: ${fleetState.status}), aborting GitRepo sync`);
+    return;
+  }
+
+  // Check if GitRepo service is ready
+  if (!gitRepoService.isReady()) {
+    log('GitRepo service not ready, aborting GitRepo sync');
+    return;
+  }
+
+  // Get existing GitRepos to avoid duplicates
+  let existingRepos: string[] = [];
+  try {
+    const repos = await gitRepoService.listGitRepos();
+    existingRepos = repos.map(r => r.name);
+    log(`Found ${existingRepos.length} existing GitRepos in cluster`);
+  } catch (err) {
+    log(`Failed to list existing GitRepos: ${err}`);
+    // Continue anyway - worst case we'll try to create and get an error
+  }
+
+  // Create GitRepos from manifest defaults
+  for (const config of defaults) {
+    if (existingRepos.includes(config.name)) {
+      log(`GitRepo ${config.name} already exists, skipping`);
+      continue;
+    }
+
+    try {
+      log(`Creating GitRepo: ${config.name} -> ${config.repo} (${config.paths.length} paths)`);
+      await gitRepoService.applyGitRepo({
+        name: config.name,
+        repo: config.repo,
+        branch: config.branch,
+        paths: config.paths,
+      });
+      log(`Successfully created GitRepo: ${config.name}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      log(`Failed to create GitRepo ${config.name}: ${msg}`);
+      // Continue with other repos
+    }
+  }
+
+  hasSyncedGitReposFromManifest = true;
+  log('GitRepo sync from manifest complete');
+}
+
+/**
+ * Reset the sync flag when ownership changes.
+ * Called when this extension loses ownership or when explicitly reset.
+ */
+export function resetGitRepoSyncFlag(): void {
+  hasSyncedGitReposFromManifest = false;
 }
 
 /**
@@ -153,6 +260,14 @@ initRouter.post('/', async (req, res) => {
         (extensionName) => dockerService.isExtensionRunning(extensionName)
       );
       log(`Ownership check complete: ${lastOwnershipStatus.status} - ${lastOwnershipStatus.message}`);
+
+      // If we claimed ownership, sync GitRepos from manifest defaults
+      if (lastOwnershipStatus.isOwner) {
+        // Run async - don't block the init response
+        syncGitReposFromManifest().catch(err => {
+          log(`Error syncing GitRepos from manifest: ${err}`);
+        });
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       log(`ERROR during ownership check: ${msg}`);
