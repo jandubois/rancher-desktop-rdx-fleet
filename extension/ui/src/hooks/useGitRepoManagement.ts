@@ -146,15 +146,14 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
     onReposLoadedRef.current = onReposLoaded;
   }, [onReposLoaded]);
 
-  // Initialize from manifest defaults if localStorage is empty
+  // Initialize from manifest defaults if localStorage is empty or has no repos
   // This runs once when manifestCards are first available
   useEffect(() => {
     if (hasInitializedFromManifest.current) return;
     if (!manifestCards || manifestCards.length === 0) return;
 
-    // Check if localStorage is empty
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return; // Already have data in localStorage
+    // Check if we already have repo configs
+    if (repoConfigs.length > 0) return; // Already have configs, don't override
 
     // Extract defaults from manifest
     const defaults = extractDefaultsFromManifest(manifestCards);
@@ -163,7 +162,7 @@ export function useGitRepoManagement(options: UseGitRepoManagementOptions): UseG
       setRepoConfigs(defaults);
       hasInitializedFromManifest.current = true;
     }
-  }, [manifestCards]);
+  }, [manifestCards, repoConfigs.length]);
 
   // Persist repo configs to localStorage whenever they change
   useEffect(() => {
