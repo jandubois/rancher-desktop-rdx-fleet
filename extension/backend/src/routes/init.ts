@@ -54,15 +54,7 @@ export async function syncGitReposFromManifest(): Promise<void> {
     return;
   }
 
-  // Check if manifest has any GitRepo defaults
-  const defaults = manifestService.extractGitRepoDefaults();
-  if (defaults.length === 0) {
-    log('No GitRepo defaults found in manifest');
-    hasSyncedGitReposFromManifest = true;
-    return;
-  }
-
-  log(`Found ${defaults.length} GitRepo defaults in manifest, waiting for Fleet to be ready...`);
+  log('Starting GitRepo sync from manifest...');
 
   // Wait for Fleet to be running (poll with timeout)
   const maxWaitMs = 120000; // 2 minutes
@@ -72,7 +64,7 @@ export async function syncGitReposFromManifest(): Promise<void> {
   while (Date.now() - startTime < maxWaitMs) {
     const fleetState = fleetService.getState();
     if (fleetState.status === 'running') {
-      log('Fleet is running, creating GitRepos from manifest defaults...');
+      log('Fleet is running, proceeding with GitRepo sync...');
       break;
     }
 
@@ -99,24 +91,41 @@ export async function syncGitReposFromManifest(): Promise<void> {
     return;
   }
 
-  // Get existing GitRepos to avoid duplicates
-  let existingRepos: string[] = [];
+  // Delete all existing GitRepos first (clean slate for new extension)
+  // This ensures old extension's GitRepos are removed when switching
+  // This must happen even if we have no defaults to create
   try {
-    const repos = await gitRepoService.listGitRepos();
-    existingRepos = repos.map(r => r.name);
-    log(`Found ${existingRepos.length} existing GitRepos in cluster`);
+    const existingRepos = await gitRepoService.listGitRepos();
+    if (existingRepos.length > 0) {
+      log(`Deleting ${existingRepos.length} existing GitRepos before sync...`);
+      for (const repo of existingRepos) {
+        try {
+          await gitRepoService.deleteGitRepo(repo.name);
+          log(`Deleted GitRepo: ${repo.name}`);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          log(`Failed to delete GitRepo ${repo.name}: ${msg}`);
+          // Continue with other deletions
+        }
+      }
+    }
   } catch (err) {
     log(`Failed to list existing GitRepos: ${err}`);
-    // Continue anyway - worst case we'll try to create and get an error
+    // Continue anyway - we'll try to create our repos
   }
+
+  // Check if manifest has any GitRepo defaults to create
+  const defaults = manifestService.extractGitRepoDefaults();
+  if (defaults.length === 0) {
+    log('No GitRepo defaults found in manifest, sync complete (only cleanup was done)');
+    hasSyncedGitReposFromManifest = true;
+    return;
+  }
+
+  log(`Found ${defaults.length} GitRepo defaults in manifest, creating...`);
 
   // Create GitRepos from manifest defaults
   for (const config of defaults) {
-    if (existingRepos.includes(config.name)) {
-      log(`GitRepo ${config.name} already exists, skipping`);
-      continue;
-    }
-
     try {
       log(`Creating GitRepo: ${config.name} -> ${config.repo} (${config.paths.length} paths)`);
       await gitRepoService.applyGitRepo({
