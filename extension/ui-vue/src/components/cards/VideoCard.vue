@@ -7,8 +7,14 @@ import CardWrapper from './CardWrapper.vue';
 import type { VideoCardSettings } from '../../types/manifest';
 
 const props = defineProps<{
+  id: string;
   title?: string;
   settings?: VideoCardSettings;
+}>();
+
+const emit = defineEmits<{
+  duplicate: [];
+  delete: [];
 }>();
 
 // Convert YouTube URLs to embed format
@@ -30,7 +36,14 @@ const videoTitle = computed(() => props.settings?.title ?? props.title ?? 'Video
 </script>
 
 <template>
-  <CardWrapper :title="title" no-padding>
+  <CardWrapper
+    :title="title"
+    :card-id="id"
+    no-padding
+    duplicatable
+    @duplicate="emit('duplicate')"
+    @delete="emit('delete')"
+  >
     <div v-if="embedUrl" class="video-container">
       <iframe
         :src="embedUrl"

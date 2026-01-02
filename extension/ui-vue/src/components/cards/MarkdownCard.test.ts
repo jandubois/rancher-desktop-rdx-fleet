@@ -12,7 +12,7 @@ vi.mock('./CardWrapper.vue', () => ({
   default: {
     name: 'CardWrapper',
     template: '<div class="mock-card-wrapper"><slot /></div>',
-    props: ['title'],
+    props: ['title', 'cardId', 'duplicatable'],
   },
 }));
 
@@ -33,6 +33,7 @@ describe('MarkdownCard', () => {
   it('should render markdown content', () => {
     const wrapper = mount(MarkdownCard, {
       props: {
+        id: 'test-markdown',
         title: 'Test Card',
         settings: {
           content: '# Hello World',
@@ -47,6 +48,7 @@ describe('MarkdownCard', () => {
   it('should pass content to markdown renderer', () => {
     const wrapper = mount(MarkdownCard, {
       props: {
+        id: 'test-markdown',
         settings: {
           content: '**Bold text**',
         },
@@ -60,6 +62,7 @@ describe('MarkdownCard', () => {
   it('should handle empty content', () => {
     const wrapper = mount(MarkdownCard, {
       props: {
+        id: 'test-markdown',
         settings: {},
       },
     });
@@ -69,7 +72,9 @@ describe('MarkdownCard', () => {
   });
 
   it('should handle undefined settings', () => {
-    const wrapper = mount(MarkdownCard);
+    const wrapper = mount(MarkdownCard, {
+      props: { id: 'test-markdown' },
+    });
 
     expect(wrapper.find('.markdown-content').exists()).toBe(true);
   });
@@ -77,6 +82,7 @@ describe('MarkdownCard', () => {
   it('should pass title to CardWrapper', () => {
     const wrapper = mount(MarkdownCard, {
       props: {
+        id: 'test-markdown',
         title: 'My Markdown Card',
       },
     });

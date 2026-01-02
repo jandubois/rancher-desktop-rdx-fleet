@@ -7,8 +7,14 @@ import CardWrapper from './CardWrapper.vue';
 import type { ImageCardSettings } from '../../types/manifest';
 
 const props = defineProps<{
+  id: string;
   title?: string;
   settings?: ImageCardSettings;
+}>();
+
+const emit = defineEmits<{
+  duplicate: [];
+  delete: [];
 }>();
 
 const imageSrc = computed(() => {
@@ -25,7 +31,14 @@ const altText = computed(() => props.settings?.alt ?? props.title ?? 'Image');
 </script>
 
 <template>
-  <CardWrapper :title="title" no-padding>
+  <CardWrapper
+    :title="title"
+    :card-id="id"
+    no-padding
+    duplicatable
+    @duplicate="emit('duplicate')"
+    @delete="emit('delete')"
+  >
     <v-img
       v-if="imageSrc"
       :src="imageSrc"

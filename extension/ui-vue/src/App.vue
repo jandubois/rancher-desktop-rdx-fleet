@@ -36,11 +36,37 @@ const {
   showFleetStatus,
   allowEditMode,
   editMode,
+  manifest,
 } = storeToRefs(manifestStore);
 
 // Local state
 const drawer = ref(false);
 const isDragging = ref(false);
+const confirmResetOpen = ref(false);
+const editableTitle = ref('');
+
+// Initialize editable title when entering edit mode
+watch(editMode, (isEditing) => {
+  if (isEditing) {
+    // Save snapshot and initialize editable title
+    manifestStore.saveSnapshot();
+    editableTitle.value = manifest.value.app?.name || 'Fleet GitOps';
+    drawer.value = true;
+  }
+});
+
+// Update title in manifest when editable title changes
+watch(editableTitle, (newTitle) => {
+  if (editMode.value && newTitle !== manifest.value.app?.name) {
+    manifestStore.setManifest({
+      ...manifest.value,
+      app: {
+        ...manifest.value.app,
+        name: newTitle,
+      },
+    });
+  }
+});
 
 // Computed styles from palette
 const headerStyle = computed(() => ({
@@ -80,7 +106,38 @@ function handleDelete(cardId: string) {
 }
 
 function toggleEditMode() {
-  manifestStore.setEditMode(!editMode.value);
+  if (editMode.value) {
+    // Already in edit mode, apply changes
+    handleApply();
+  } else {
+    // Enter edit mode
+    manifestStore.setEditMode(true);
+  }
+}
+
+// Apply changes and exit edit mode
+function handleApply() {
+  manifestStore.clearSnapshot();
+  manifestStore.setEditMode(false);
+}
+
+// Cancel changes and restore snapshot
+function handleCancel() {
+  manifestStore.restoreSnapshot();
+  manifestStore.clearSnapshot();
+  manifestStore.setEditMode(false);
+}
+
+// Open reset confirmation dialog
+function openResetDialog() {
+  confirmResetOpen.value = true;
+}
+
+// Handle reset to defaults
+function handleResetToDefaults() {
+  confirmResetOpen.value = false;
+  manifestStore.reset();
+  editableTitle.value = 'Fleet GitOps';
 }
 
 // Switch to React version
@@ -117,12 +174,54 @@ watch(editMode, (isEditing) => {
           alt="Logo"
           class="ml-4"
         />
+        <!-- Editable title in edit mode -->
+        <v-text-field
+          v-else-if="editMode"
+          v-model="editableTitle"
+          variant="plain"
+          density="compact"
+          hide-details
+          class="editable-title ml-2"
+          placeholder="Enter title..."
+        />
         <v-app-bar-title v-else class="ml-2">
           {{ appName }}
         </v-app-bar-title>
       </template>
 
       <v-spacer />
+
+      <!-- Edit mode action buttons -->
+      <template v-if="editMode">
+        <v-btn
+          size="small"
+          color="warning"
+          variant="flat"
+          class="mr-1"
+          @click="openResetDialog"
+        >
+          <v-icon icon="mdi-restore" start />
+          Reset
+        </v-btn>
+        <v-btn
+          size="small"
+          color="error"
+          variant="flat"
+          class="mr-1"
+          @click="handleCancel"
+        >
+          Cancel
+        </v-btn>
+        <v-btn
+          size="small"
+          color="success"
+          variant="flat"
+          class="mr-2"
+          @click="handleApply"
+        >
+          Apply
+        </v-btn>
+      </template>
 
       <!-- Vue framework indicator -->
       <v-icon
@@ -132,11 +231,10 @@ watch(editMode, (isEditing) => {
         aria-label="Vue"
       />
 
-      <!-- Edit mode toggle -->
+      <!-- Edit mode toggle (only when not in edit mode) -->
       <v-btn
-        v-if="allowEditMode"
-        :icon="editMode ? 'mdi-check' : 'mdi-pencil'"
-        :color="editMode ? 'success' : undefined"
+        v-if="allowEditMode && !editMode"
+        icon="mdi-pencil"
         variant="text"
         @click="toggleEditMode"
       />
@@ -276,6 +374,22 @@ watch(editMode, (isEditing) => {
     <v-footer app class="text-caption text-grey justify-center">
       Fleet GitOps Extension (Vue)
     </v-footer>
+
+    <!-- Reset Confirmation Dialog -->
+    <v-dialog v-model="confirmResetOpen" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6">Reset to Defaults</v-card-title>
+        <v-card-text>
+          This will reset all configuration to the default values and remove all configured Git repositories.
+          Any unsaved changes will be lost.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="confirmResetOpen = false">Cancel</v-btn>
+          <v-btn color="warning" variant="flat" @click="handleResetToDefaults">Reset</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -331,5 +445,20 @@ html, body {
 .framework-indicator {
   opacity: 0.5;
   margin-right: 8px;
+}
+
+.editable-title {
+  max-width: 300px;
+}
+
+.editable-title :deep(.v-field__input) {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: inherit;
+  padding: 0;
+}
+
+.editable-title :deep(.v-field) {
+  color: inherit;
 }
 </style>

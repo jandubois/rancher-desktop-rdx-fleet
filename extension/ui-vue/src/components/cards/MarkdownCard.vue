@@ -9,15 +9,27 @@ import CardWrapper from './CardWrapper.vue';
 import type { MarkdownCardSettings } from '../../types/manifest';
 
 const props = defineProps<{
+  id: string;
   title?: string;
   settings?: MarkdownCardSettings;
+}>();
+
+const emit = defineEmits<{
+  duplicate: [];
+  delete: [];
 }>();
 
 const content = computed(() => props.settings?.content ?? '');
 </script>
 
 <template>
-  <CardWrapper :title="title">
+  <CardWrapper
+    :title="title"
+    :card-id="id"
+    duplicatable
+    @duplicate="emit('duplicate')"
+    @delete="emit('delete')"
+  >
     <div class="markdown-content">
       <VueMarkdown :source="content" />
     </div>

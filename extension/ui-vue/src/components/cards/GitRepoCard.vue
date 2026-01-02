@@ -94,7 +94,13 @@ async function saveRepo() {
 </script>
 
 <template>
-  <CardWrapper :title="title">
+  <CardWrapper
+    :title="title"
+    :card-id="id"
+    :duplicatable="canDuplicate"
+    @duplicate="emit('duplicate')"
+    @delete="emit('delete')"
+  >
     <!-- Loading state -->
     <div v-if="loading" class="loading-state">
       <v-progress-circular indeterminate size="24" />
@@ -123,27 +129,11 @@ async function saveRepo() {
         <RepoStatusChip :status="repoStatus" />
         <div class="repo-actions">
           <v-btn
-            v-if="canDuplicate"
-            icon="mdi-content-copy"
-            size="small"
-            variant="text"
-            title="Duplicate"
-            @click="emit('duplicate')"
-          />
-          <v-btn
             icon="mdi-pencil"
             size="small"
             variant="text"
-            title="Edit"
+            title="Edit repository"
             @click="isEditing = !isEditing"
-          />
-          <v-btn
-            icon="mdi-delete"
-            size="small"
-            variant="text"
-            color="error"
-            title="Delete"
-            @click="emit('delete')"
           />
         </div>
       </div>

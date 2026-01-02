@@ -12,7 +12,7 @@ vi.mock('./CardWrapper.vue', () => ({
   default: {
     name: 'CardWrapper',
     template: '<div class="mock-card-wrapper"><slot /></div>',
-    props: ['title', 'noPadding'],
+    props: ['title', 'noPadding', 'cardId', 'duplicatable'],
   },
 }));
 
@@ -24,6 +24,7 @@ describe('ImageCard', () => {
   it('should render image from URL', () => {
     const wrapper = mount(ImageCard, {
       props: {
+        id: 'test-image',
         title: 'Test Image',
         settings: {
           src: 'https://example.com/image.png',
@@ -38,6 +39,7 @@ describe('ImageCard', () => {
   it('should render image from bundled data', () => {
     const wrapper = mount(ImageCard, {
       props: {
+        id: 'test-image',
         settings: {
           bundledImage: {
             data: 'base64data',
@@ -54,6 +56,7 @@ describe('ImageCard', () => {
   it('should show empty state when no image is configured', () => {
     const wrapper = mount(ImageCard, {
       props: {
+        id: 'test-image',
         settings: {},
       },
     });
@@ -63,7 +66,9 @@ describe('ImageCard', () => {
   });
 
   it('should show empty state when settings is undefined', () => {
-    const wrapper = mount(ImageCard);
+    const wrapper = mount(ImageCard, {
+      props: { id: 'test-image' },
+    });
 
     expect(wrapper.find('.no-image').exists()).toBe(true);
   });
@@ -71,6 +76,7 @@ describe('ImageCard', () => {
   it('should use alt text from settings', () => {
     const wrapper = mount(ImageCard, {
       props: {
+        id: 'test-image',
         settings: {
           src: 'https://example.com/image.png',
           alt: 'Custom alt text',
@@ -85,6 +91,7 @@ describe('ImageCard', () => {
   it('should use title as alt text when alt is not provided', () => {
     const wrapper = mount(ImageCard, {
       props: {
+        id: 'test-image',
         title: 'Image Title',
         settings: {
           src: 'https://example.com/image.png',
@@ -99,6 +106,7 @@ describe('ImageCard', () => {
   it('should default to "Image" as alt text', () => {
     const wrapper = mount(ImageCard, {
       props: {
+        id: 'test-image',
         settings: {
           src: 'https://example.com/image.png',
         },
@@ -112,6 +120,7 @@ describe('ImageCard', () => {
   it('should prefer bundled image over URL', () => {
     const wrapper = mount(ImageCard, {
       props: {
+        id: 'test-image',
         settings: {
           src: 'https://example.com/image.png',
           bundledImage: {

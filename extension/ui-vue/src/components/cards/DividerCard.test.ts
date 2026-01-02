@@ -13,7 +13,9 @@ describe('DividerCard', () => {
   });
 
   it('should render a simple divider without label', () => {
-    const wrapper = mount(DividerCard);
+    const wrapper = mount(DividerCard, {
+      props: { id: 'test-divider' },
+    });
 
     expect(wrapper.find('.divider-card').exists()).toBe(true);
     expect(wrapper.find('.v-divider').exists()).toBe(true);
@@ -23,6 +25,7 @@ describe('DividerCard', () => {
   it('should render a labeled divider when label is provided', () => {
     const wrapper = mount(DividerCard, {
       props: {
+        id: 'test-divider',
         settings: {
           label: 'Section Break',
         },
@@ -34,7 +37,9 @@ describe('DividerCard', () => {
   });
 
   it('should apply default solid border style', () => {
-    const wrapper = mount(DividerCard);
+    const wrapper = mount(DividerCard, {
+      props: { id: 'test-divider' },
+    });
 
     const divider = wrapper.find('.v-divider');
     expect(divider.attributes('style')).toContain('border-style: solid');
@@ -43,6 +48,7 @@ describe('DividerCard', () => {
   it('should apply custom border style from settings', () => {
     const wrapper = mount(DividerCard, {
       props: {
+        id: 'test-divider',
         settings: {
           style: 'dashed',
         },
@@ -56,6 +62,7 @@ describe('DividerCard', () => {
   it('should render two dividers with label in between', () => {
     const wrapper = mount(DividerCard, {
       props: {
+        id: 'test-divider',
         settings: {
           label: 'Middle',
         },

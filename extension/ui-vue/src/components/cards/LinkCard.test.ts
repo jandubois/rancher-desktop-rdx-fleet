@@ -12,7 +12,7 @@ vi.mock('./CardWrapper.vue', () => ({
   default: {
     name: 'CardWrapper',
     template: '<div class="mock-card-wrapper"><slot /></div>',
-    props: ['title'],
+    props: ['title', 'cardId', 'duplicatable'],
   },
 }));
 
@@ -30,6 +30,7 @@ describe('LinkCard', () => {
     it('should render links as buttons by default', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           title: 'Links',
           settings: {
             links: [
@@ -46,6 +47,7 @@ describe('LinkCard', () => {
     it('should render multiple link buttons', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             variant: 'buttons',
             links: [
@@ -64,6 +66,7 @@ describe('LinkCard', () => {
     it('should display link labels', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             links: [
               { url: 'https://github.com', label: 'GitHub' },
@@ -78,6 +81,7 @@ describe('LinkCard', () => {
     it('should open link in new tab when button is clicked', async () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             links: [
               { url: 'https://example.com', label: 'Example' },
@@ -100,6 +104,7 @@ describe('LinkCard', () => {
     it('should render links as list items', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             variant: 'list',
             links: [
@@ -116,6 +121,7 @@ describe('LinkCard', () => {
     it('should set href on list items', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             variant: 'list',
             links: [
@@ -134,6 +140,7 @@ describe('LinkCard', () => {
     it('should map GitHub icon correctly', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             links: [
               { url: 'https://github.com', label: 'GitHub', icon: 'GitHub' },
@@ -149,6 +156,7 @@ describe('LinkCard', () => {
     it('should use default icon when not specified', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             links: [
               { url: 'https://example.com', label: 'Example' },
@@ -166,6 +174,7 @@ describe('LinkCard', () => {
     it('should show empty message when no links', () => {
       const wrapper = mount(LinkCard, {
         props: {
+          id: 'test-link',
           settings: {
             links: [],
           },
@@ -177,7 +186,9 @@ describe('LinkCard', () => {
     });
 
     it('should show empty message when settings is undefined', () => {
-      const wrapper = mount(LinkCard);
+      const wrapper = mount(LinkCard, {
+        props: { id: 'test-link' },
+      });
 
       expect(wrapper.find('.no-links').exists()).toBe(true);
     });

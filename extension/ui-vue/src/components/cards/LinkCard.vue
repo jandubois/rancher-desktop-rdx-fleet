@@ -7,8 +7,14 @@ import CardWrapper from './CardWrapper.vue';
 import type { LinkCardSettings, LinkItem } from '../../types/manifest';
 
 const props = defineProps<{
+  id: string;
   title?: string;
   settings?: LinkCardSettings;
+}>();
+
+const emit = defineEmits<{
+  duplicate: [];
+  delete: [];
 }>();
 
 const links = computed<LinkItem[]>(() => props.settings?.links ?? []);
@@ -39,7 +45,13 @@ function openLink(url: string) {
 </script>
 
 <template>
-  <CardWrapper :title="title">
+  <CardWrapper
+    :title="title"
+    :card-id="id"
+    duplicatable
+    @duplicate="emit('duplicate')"
+    @delete="emit('delete')"
+  >
     <!-- Button variant -->
     <div v-if="variant === 'buttons'" class="button-links">
       <v-btn
