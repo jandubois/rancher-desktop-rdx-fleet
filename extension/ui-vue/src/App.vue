@@ -106,7 +106,7 @@ watch(editMode, (isEditing) => {
 <template>
   <v-app :style="bodyStyle">
     <!-- App Bar / Header -->
-    <v-app-bar :style="headerStyle" flat>
+    <v-app-bar :style="headerStyle" flat class="app-header">
       <!-- Logo -->
       <template #prepend>
         <img
@@ -122,6 +122,14 @@ watch(editMode, (isEditing) => {
       </template>
 
       <v-spacer />
+
+      <!-- Vue framework indicator -->
+      <v-icon
+        icon="mdi-vuejs"
+        size="16"
+        class="framework-indicator"
+        aria-label="Vue"
+      />
 
       <!-- Edit mode toggle -->
       <v-btn
@@ -314,5 +322,10 @@ html, body {
 .empty-state {
   max-width: 400px;
   margin: 40px auto;
+}
+
+.framework-indicator {
+  opacity: 0.5;
+  margin-right: 8px;
 }
 </style>

@@ -827,6 +827,7 @@ function App() {
     <Box sx={{ minHeight: '100vh', bgcolor: palette.body.background, display: 'flex', flexDirection: 'column' }}>
       {/* Fixed Header - striped when extension is not controlling fleet */}
       <Box sx={{
+        position: 'relative',
         color: palette.header.text,
         py: 0.5,
         boxShadow: 1,
@@ -843,6 +844,27 @@ function App() {
           bgcolor: palette.header.background,
         }),
       }}>
+        {/* React framework indicator */}
+        <Box
+          component="svg"
+          viewBox="-11.5 -10.23174 23 20.46348"
+          sx={{
+            position: 'absolute',
+            bottom: 4,
+            right: 8,
+            width: 16,
+            height: 16,
+            opacity: 0.5,
+          }}
+          aria-label="React"
+        >
+          <circle cx="0" cy="0" r="2.05" fill={palette.header.text} />
+          <g stroke={palette.header.text} strokeWidth="1" fill="none">
+            <ellipse rx="11" ry="4.2" />
+            <ellipse rx="11" ry="4.2" transform="rotate(60)" />
+            <ellipse rx="11" ry="4.2" transform="rotate(120)" />
+          </g>
+        </Box>
         <Box sx={{ maxWidth: 900, margin: '0 auto', px: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <EditableHeaderIcon
