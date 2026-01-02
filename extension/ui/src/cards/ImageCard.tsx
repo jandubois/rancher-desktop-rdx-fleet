@@ -12,6 +12,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { CardProps } from './types';
 import { ImageCardSettings, BundledImage } from '../manifest/types';
 import { registerCard } from './registry';
+import { CardTitle } from './CardTitle';
 import { useFileUpload, DEFAULT_ACCEPTED_TYPES } from '../hooks/useFileUpload';
 
 // Larger max size for card images (2MB)
@@ -146,11 +147,7 @@ export const ImageCard: React.FC<CardProps<ImageCardSettings>> = ({
 
     return (
       <Box>
-        {definition.title && (
-          <Typography variant="h6" gutterBottom>
-            {definition.title}
-          </Typography>
-        )}
+        <CardTitle title={definition.title} />
 
         {/* Source mode toggle */}
         <Box sx={{ mb: 2 }}>
@@ -350,11 +347,7 @@ export const ImageCard: React.FC<CardProps<ImageCardSettings>> = ({
 
   return (
     <Box>
-      {definition.title && (
-        <Typography variant="h6" gutterBottom>
-          {definition.title}
-        </Typography>
-      )}
+      <CardTitle title={definition.title} />
       <Box
         component="img"
         src={displayUrl}

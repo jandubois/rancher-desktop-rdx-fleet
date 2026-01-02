@@ -18,6 +18,7 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { CardProps } from './types';
 import { LinkCardSettings, LinkItem } from '../manifest/types';
 import { registerCard } from './registry';
+import { CardTitle } from './CardTitle';
 
 export const LinkCard: React.FC<CardProps<LinkCardSettings>> = ({
   definition,
@@ -71,11 +72,7 @@ export const LinkCard: React.FC<CardProps<LinkCardSettings>> = ({
   if (editMode && onSettingsChange) {
     return (
       <Box>
-        {definition.title && (
-          <Typography variant="h6" gutterBottom>
-            {definition.title}
-          </Typography>
-        )}
+        <CardTitle title={definition.title} />
 
         <Box sx={{ mb: 2 }}>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -171,11 +168,7 @@ export const LinkCard: React.FC<CardProps<LinkCardSettings>> = ({
 
   return (
     <Box>
-      {definition.title && (
-        <Typography variant="h6" gutterBottom>
-          {definition.title}
-        </Typography>
-      )}
+      <CardTitle title={definition.title} />
 
       {variant === 'buttons' ? (
         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>

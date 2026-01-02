@@ -5,6 +5,7 @@ import TextField from '@mui/material/TextField';
 import { CardProps } from './types';
 import { VideoCardSettings } from '../manifest/types';
 import { registerCard } from './registry';
+import { CardTitle } from './CardTitle';
 
 // Convert YouTube/Vimeo URLs to embed URLs
 function getEmbedUrl(url: string): { type: 'embed' | 'video'; url: string } {
@@ -38,11 +39,7 @@ export const VideoCard: React.FC<CardProps<VideoCardSettings>> = ({
   if (editMode && onSettingsChange) {
     return (
       <Box>
-        {definition.title && (
-          <Typography variant="h6" gutterBottom>
-            {definition.title}
-          </Typography>
-        )}
+        <CardTitle title={definition.title} />
         <TextField
           fullWidth
           label="Video URL"
@@ -86,11 +83,7 @@ export const VideoCard: React.FC<CardProps<VideoCardSettings>> = ({
 
   return (
     <Box>
-      {definition.title && (
-        <Typography variant="h6" gutterBottom>
-          {definition.title}
-        </Typography>
-      )}
+      <CardTitle title={definition.title} />
       <VideoPlayer src={src} title={title} />
     </Box>
   );

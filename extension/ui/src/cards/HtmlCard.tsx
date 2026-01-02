@@ -5,6 +5,7 @@ import TextField from '@mui/material/TextField';
 import { CardProps } from './types';
 import { HtmlCardSettings } from '../manifest/types';
 import { registerCard } from './registry';
+import { CardTitle } from './CardTitle';
 
 /**
  * HtmlCard - Renders raw HTML content including <script> elements
@@ -127,11 +128,7 @@ ${htmlContent}
   if (editMode && onSettingsChange) {
     return (
       <Box>
-        {definition.title && (
-          <Typography variant="h6" gutterBottom>
-            {definition.title}
-          </Typography>
-        )}
+        <CardTitle title={definition.title} />
         <TextField
           multiline
           fullWidth
@@ -180,11 +177,7 @@ ${htmlContent}
 
   return (
     <Box>
-      {definition.title && (
-        <Typography variant="h6" gutterBottom>
-          {definition.title}
-        </Typography>
-      )}
+      <CardTitle title={definition.title} />
       <Box
         key={iframeKey}
         component="iframe"

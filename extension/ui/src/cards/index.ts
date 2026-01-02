@@ -1,5 +1,6 @@
 export * from './types';
 export { CardWrapper } from './CardWrapper';
+export { CardTitle } from './CardTitle';
 export {
   registerCard,
   getCardComponent,
