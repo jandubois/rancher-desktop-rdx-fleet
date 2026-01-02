@@ -30,7 +30,7 @@ import {
 // Local imports
 import { loadManifest, Manifest, DEFAULT_MANIFEST, CardDefinition, GitRepoCardSettings, CardType } from './manifest';
 import { GitRepo } from './types';
-import { loadExtensionState, saveExtensionState, PersistedExtensionState, EditModeSnapshot, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
+import { loadExtensionState, saveExtensionState, PersistedExtensionState, DEFAULT_ICON_HEIGHT } from './utils/extensionStateStorage';
 import { backendService } from './services/BackendService';
 import type { GitRepoConfig } from './utils';
 
@@ -326,7 +326,7 @@ function App() {
     };
 
     loadIconFromLocalFiles();
-  }, []);
+  }, [setIconState]);
 
   // Auto-save state to localStorage when key state changes
   useEffect(() => {
@@ -393,7 +393,7 @@ function App() {
     const gitRepoIds = gitRepos.map((r) => `gitrepo-${r.name}`);
 
     setCardOrder(['fleet-status', ...newManifestCardIds, ...gitRepoIds]);
-  }, [gitRepos]);
+  }, [gitRepos, setIconHeight]);
 
   // Handle extension title change in header
   const handleExtensionTitleChange = useCallback((title: string) => {
@@ -444,7 +444,7 @@ function App() {
         console.error('Failed to extract color from icon:', err);
       }
     }
-  }, [editMode]);
+  }, [editMode, setIconState]);
 
   // Open add repo dialog
   const openAddRepoDialog = useCallback(() => {
