@@ -15,6 +15,7 @@ import draggable from 'vuedraggable';
 import { useManifestStore } from './stores/manifest';
 import { useFleetStore } from './stores/fleet';
 import { useGitReposStore } from './stores/gitrepos';
+import { setUIFramework } from './utils/storage';
 
 import DynamicCard from './components/DynamicCard.vue';
 import FleetStatusCard from './components/cards/FleetStatusCard.vue';
@@ -51,11 +52,12 @@ const bodyStyle = computed(() => ({
   minHeight: '100vh',
 }));
 
-// Draggable cards model - uses v-model pattern
+// Draggable cards model - uses v-model pattern with cardOrder
 const draggableCards = computed({
   get: () => [...visibleCards.value],
   set: (newOrder: CardDefinition[]) => {
-    manifestStore.reorderCards(newOrder);
+    // Update cardOrder with the new IDs
+    manifestStore.reorderCards(newOrder.map(c => c.id));
   },
 });
 
@@ -78,6 +80,13 @@ function handleDelete(cardId: string) {
 
 function toggleEditMode() {
   manifestStore.setEditMode(!editMode.value);
+}
+
+// Switch to React version
+function switchToReact() {
+  setUIFramework('react');
+  // Reload the page to load the React version
+  window.location.reload();
 }
 
 // Initialize stores on mount
@@ -162,6 +171,25 @@ watch(editMode, (isEditing) => {
           >
             Drag cards to reorder them. Click the edit button on each card to modify its content.
           </v-alert>
+
+          <!-- Framework Toggle (only in edit mode) -->
+          <template v-if="editMode">
+            <v-divider class="my-4" />
+
+            <h3 class="text-subtitle-1 mb-2">UI Framework (Experimental)</h3>
+            <p class="text-body-2 text-grey mb-3">
+              You are currently using the Vue implementation.
+            </p>
+            <v-btn
+              color="primary"
+              variant="outlined"
+              block
+              @click="switchToReact"
+            >
+              <v-icon icon="mdi-react" start />
+              Switch to React
+            </v-btn>
+          </template>
 
           <v-divider class="my-4" />
 

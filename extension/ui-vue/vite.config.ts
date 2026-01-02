@@ -15,7 +15,8 @@ export default defineConfig({
   },
   base: './',
   build: {
-    outDir: 'build',
+    outDir: '../ui/build',  // Build into React's build directory
+    emptyOutDir: false,  // Don't clear the directory (React builds first)
   },
   server: {
     port: 3000,

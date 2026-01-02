@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fleet GitOps Extension</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 20px;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #fafafa;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .loading {
+        text-align: center;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="loading">Loading...</div>
+    <script>
+      // Check which framework to use (defaults to React)
+      const framework = localStorage.getItem('fleet-ui-framework') || 'react';
+      const targetPage = framework === 'vue' ? 'index-vue.html' : 'index-react.html';
+
+      // Redirect to the appropriate version
+      window.location.replace(targetPage);
+    </script>
+  </body>
+</html>

@@ -1,26 +1,50 @@
 /**
  * Manifest Store - Manages the extension manifest and cards.
- * Uses Pinia with Vue's reactivity system for state management.
+ * Uses the same localStorage format as React for seamless switching.
  */
 
 import { defineStore } from 'pinia';
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { Manifest, CardDefinition } from '../types/manifest';
 import { DEFAULT_MANIFEST } from '../types/manifest';
 import { resolvePalette, type ResolvedPalette } from '../types/palette';
-
-const STORAGE_KEY = 'fleet-extension-manifest';
+import {
+  loadExtensionState,
+  saveExtensionState,
+  clearExtensionState,
+  type PersistedExtensionState,
+  type IconState,
+  type EditModeSnapshot,
+  DEFAULT_ICON_HEIGHT,
+} from '../utils/storage';
 
 export const useManifestStore = defineStore('manifest', () => {
+  // Load initial state from localStorage (React-compatible format)
+  const initialState = loadExtensionState();
+
   // State - using Vue refs for reactivity
-  const manifest = ref<Manifest>(loadFromStorage() ?? DEFAULT_MANIFEST);
-  const editMode = ref(false);
+  const manifest = ref<Manifest>(initialState?.manifest ?? DEFAULT_MANIFEST);
+  const manifestCards = ref<CardDefinition[]>(initialState?.manifestCards ?? DEFAULT_MANIFEST.cards);
+  const cardOrder = ref<string[]>(initialState?.cardOrder ?? DEFAULT_MANIFEST.cards.map(c => c.id));
+  const dynamicCardTitles = ref<Record<string, string>>(initialState?.dynamicCardTitles ?? {});
+  const iconState = ref<IconState>(initialState?.iconState ?? null);
+  const iconHeight = ref<number>(initialState?.iconHeight ?? DEFAULT_ICON_HEIGHT);
+  const editMode = ref<boolean>(initialState?.editMode ?? false);
+  const editModeSnapshot = ref<EditModeSnapshot | null>(initialState?.editModeSnapshot ?? null);
+  const activeEditTab = ref<number>(initialState?.activeEditTab ?? 0);
 
   // Computed properties - Vue's reactive getters
-  const cards = computed(() => manifest.value.cards);
+  const cards = computed(() => manifestCards.value);
+
+  const orderedCards = computed(() => {
+    // Return cards in the order specified by cardOrder
+    return cardOrder.value
+      .map(id => manifestCards.value.find(c => c.id === id))
+      .filter((c): c is CardDefinition => c !== undefined);
+  });
 
   const visibleCards = computed(() =>
-    manifest.value.cards.filter(card => card.visible !== false)
+    orderedCards.value.filter(card => card.visible !== false)
   );
 
   const appName = computed(() => manifest.value.app?.name ?? 'Fleet GitOps');
@@ -29,7 +53,7 @@ export const useManifestStore = defineStore('manifest', () => {
 
   const headerLogo = computed(() => manifest.value.branding?.logo);
 
-  const iconHeight = computed(() => manifest.value.branding?.iconHeight ?? 40);
+  const computedIconHeight = computed(() => iconHeight.value);
 
   const primaryColor = computed(() => manifest.value.branding?.primary_color);
 
@@ -43,76 +67,167 @@ export const useManifestStore = defineStore('manifest', () => {
 
   const allowEditMode = computed(() => manifest.value.layout?.edit_mode === true);
 
+  // Save to localStorage whenever state changes
+  function saveState() {
+    const state: PersistedExtensionState = {
+      manifest: manifest.value,
+      manifestCards: manifestCards.value,
+      cardOrder: cardOrder.value,
+      dynamicCardTitles: dynamicCardTitles.value,
+      iconState: iconState.value,
+      iconHeight: iconHeight.value,
+      editMode: editMode.value,
+      editModeSnapshot: editModeSnapshot.value,
+      activeEditTab: activeEditTab.value,
+      timestamp: Date.now(),
+    };
+    saveExtensionState(state);
+  }
+
+  // Watch for changes and auto-save
+  watch(
+    [manifest, manifestCards, cardOrder, dynamicCardTitles, iconState, iconHeight, editMode, editModeSnapshot, activeEditTab],
+    () => {
+      saveState();
+    },
+    { deep: true }
+  );
+
   // Actions
-  function loadFromStorage(): Manifest | null {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function saveToStorage() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(manifest.value));
-    } catch (e) {
-      console.warn('Failed to save manifest to localStorage:', e);
-    }
-  }
-
   function setManifest(newManifest: Manifest) {
     manifest.value = newManifest;
-    saveToStorage();
+  }
+
+  function setManifestCards(cards: CardDefinition[]) {
+    manifestCards.value = cards;
   }
 
   function updateCard(cardId: string, updates: Partial<CardDefinition>) {
-    const index = manifest.value.cards.findIndex(c => c.id === cardId);
+    const index = manifestCards.value.findIndex(c => c.id === cardId);
     if (index !== -1) {
-      manifest.value.cards[index] = { ...manifest.value.cards[index], ...updates };
-      saveToStorage();
+      manifestCards.value[index] = { ...manifestCards.value[index], ...updates };
     }
   }
 
-  function addCard(card: CardDefinition) {
-    manifest.value.cards.push(card);
-    saveToStorage();
+  function addCard(card: CardDefinition, afterId?: string) {
+    manifestCards.value.push(card);
+    if (afterId) {
+      const afterIndex = cardOrder.value.indexOf(afterId);
+      if (afterIndex !== -1) {
+        cardOrder.value.splice(afterIndex + 1, 0, card.id);
+      } else {
+        cardOrder.value.push(card.id);
+      }
+    } else {
+      cardOrder.value.push(card.id);
+    }
   }
 
   function removeCard(cardId: string) {
-    const index = manifest.value.cards.findIndex(c => c.id === cardId);
-    if (index !== -1) {
-      manifest.value.cards.splice(index, 1);
-      saveToStorage();
+    const cardIndex = manifestCards.value.findIndex(c => c.id === cardId);
+    if (cardIndex !== -1) {
+      manifestCards.value.splice(cardIndex, 1);
+    }
+    const orderIndex = cardOrder.value.indexOf(cardId);
+    if (orderIndex !== -1) {
+      cardOrder.value.splice(orderIndex, 1);
+    }
+    // Clean up dynamic title if exists
+    if (dynamicCardTitles.value[cardId]) {
+      delete dynamicCardTitles.value[cardId];
     }
   }
 
-  function reorderCards(newOrder: CardDefinition[]) {
-    manifest.value.cards = newOrder;
-    saveToStorage();
+  function reorderCards(newOrder: string[]) {
+    cardOrder.value = newOrder;
+  }
+
+  function setCardTitle(cardId: string, title: string) {
+    dynamicCardTitles.value[cardId] = title;
+  }
+
+  function getCardTitle(cardId: string): string | undefined {
+    return dynamicCardTitles.value[cardId];
+  }
+
+  function setIconState(state: IconState) {
+    iconState.value = state;
+  }
+
+  function setIconHeight(height: number) {
+    iconHeight.value = height;
   }
 
   function setEditMode(value: boolean) {
     editMode.value = value;
   }
 
+  function setActiveEditTab(tab: number) {
+    activeEditTab.value = tab;
+  }
+
+  function createSnapshot(): EditModeSnapshot {
+    return {
+      manifest: JSON.parse(JSON.stringify(manifest.value)),
+      manifestCards: JSON.parse(JSON.stringify(manifestCards.value)),
+      cardOrder: [...cardOrder.value],
+      iconState: iconState.value,
+      iconHeight: iconHeight.value,
+      dynamicCardTitles: { ...dynamicCardTitles.value },
+    };
+  }
+
+  function saveSnapshot() {
+    editModeSnapshot.value = createSnapshot();
+  }
+
+  function restoreSnapshot() {
+    if (editModeSnapshot.value) {
+      manifest.value = editModeSnapshot.value.manifest;
+      manifestCards.value = editModeSnapshot.value.manifestCards;
+      cardOrder.value = editModeSnapshot.value.cardOrder;
+      iconState.value = editModeSnapshot.value.iconState;
+      iconHeight.value = editModeSnapshot.value.iconHeight;
+      dynamicCardTitles.value = editModeSnapshot.value.dynamicCardTitles;
+    }
+  }
+
+  function clearSnapshot() {
+    editModeSnapshot.value = null;
+  }
+
   function reset() {
     manifest.value = DEFAULT_MANIFEST;
-    localStorage.removeItem(STORAGE_KEY);
+    manifestCards.value = DEFAULT_MANIFEST.cards;
+    cardOrder.value = DEFAULT_MANIFEST.cards.map(c => c.id);
+    dynamicCardTitles.value = {};
+    iconState.value = null;
+    iconHeight.value = DEFAULT_ICON_HEIGHT;
+    editMode.value = false;
+    editModeSnapshot.value = null;
+    activeEditTab.value = 0;
+    clearExtensionState();
   }
 
   return {
     // State
     manifest,
+    manifestCards,
+    cardOrder,
+    dynamicCardTitles,
+    iconState,
+    iconHeight: computedIconHeight,
     editMode,
+    editModeSnapshot,
+    activeEditTab,
 
     // Computed
     cards,
+    orderedCards,
     visibleCards,
     appName,
     appIcon,
     headerLogo,
-    iconHeight,
     primaryColor,
     palette,
     showFleetStatus,
@@ -121,11 +236,20 @@ export const useManifestStore = defineStore('manifest', () => {
 
     // Actions
     setManifest,
+    setManifestCards,
     updateCard,
     addCard,
     removeCard,
     reorderCards,
+    setCardTitle,
+    getCardTitle,
+    setIconState,
+    setIconHeight,
     setEditMode,
+    setActiveEditTab,
+    saveSnapshot,
+    restoreSnapshot,
+    clearSnapshot,
     reset,
   };
 });

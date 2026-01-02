@@ -117,3 +117,36 @@ export function clearExtensionStateForImage(extensionImage: string): void {
     console.error('[ExtensionState] Failed to clear state for image:', e);
   }
 }
+
+// ============================================
+// Framework Selection
+// ============================================
+
+const FRAMEWORK_KEY = 'fleet-ui-framework';
+
+export type UIFramework = 'react' | 'vue';
+
+/**
+ * Get the current UI framework preference.
+ * Defaults to 'react' if not set.
+ */
+export function getUIFramework(): UIFramework {
+  try {
+    const stored = localStorage.getItem(FRAMEWORK_KEY);
+    if (stored === 'vue') return 'vue';
+  } catch (e) {
+    console.error('[UIFramework] Failed to get framework:', e);
+  }
+  return 'react';
+}
+
+/**
+ * Set the UI framework preference.
+ */
+export function setUIFramework(framework: UIFramework): void {
+  try {
+    localStorage.setItem(FRAMEWORK_KEY, framework);
+  } catch (e) {
+    console.error('[UIFramework] Failed to set framework:', e);
+  }
+}

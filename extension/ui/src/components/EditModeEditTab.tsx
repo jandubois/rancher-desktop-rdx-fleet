@@ -13,10 +13,12 @@ import MenuItem from '@mui/material/MenuItem';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
+import Alert from '@mui/material/Alert';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import RestoreIcon from '@mui/icons-material/Restore';
 import CheckIcon from '@mui/icons-material/Check';
 import { HARMONY_TYPES, type HarmonyType } from '../utils/paletteGenerator';
+import { getUIFramework, setUIFramework } from '../utils/extensionStateStorage';
 
 /** Configuration for a color field */
 export interface ColorFieldConfig {
@@ -404,6 +406,27 @@ export function EditModeEditTab({
             </Box>
           );
         })}
+      </Box>
+
+      {/* Framework Toggle Section (Experimental) */}
+      <Divider sx={{ my: 3 }} />
+      <Box>
+        <Typography variant="subtitle2" sx={{ mb: 1 }}>
+          UI Framework (Experimental)
+        </Typography>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          You are currently using the React implementation. An experimental Vue implementation is available for comparison.
+        </Alert>
+        <Button
+          variant="outlined"
+          onClick={() => {
+            setUIFramework('vue');
+            window.location.reload();
+          }}
+          disabled={getUIFramework() === 'vue'}
+        >
+          Switch to Vue
+        </Button>
       </Box>
     </>
   );
