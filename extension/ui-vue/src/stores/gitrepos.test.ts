@@ -128,7 +128,7 @@ describe('useGitReposStore', () => {
       mockListGitRepos.mockImplementation(() => new Promise(() => {})); // Never resolves
 
       const store = useGitReposStore();
-      const fetchPromise = store.fetchRepos();
+      const _fetchPromise = store.fetchRepos();
 
       expect(store.loading).toBe(true);
 
