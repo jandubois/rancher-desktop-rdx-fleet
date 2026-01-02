@@ -25,15 +25,17 @@ npm run build
 mv "$BUILD_DIR/index.html" "$BUILD_DIR/index-react.html"
 echo "  -> Renamed to index-react.html"
 
-# Build Vue version (outputs to the same build directory)
+# Build Vue version
 echo ""
 echo "Building Vue version..."
 cd "$UI_VUE_DIR"
 npm run build
 
-# Rename Vue's index.html to index-vue.html
-mv "$BUILD_DIR/index.html" "$BUILD_DIR/index-vue.html"
-echo "  -> Renamed to index-vue.html"
+# Copy Vue build assets to React build directory
+echo "  -> Copying Vue assets to build directory..."
+cp -r "$UI_VUE_DIR/build/assets/"* "$BUILD_DIR/assets/"
+cp "$UI_VUE_DIR/build/index.html" "$BUILD_DIR/index-vue.html"
+echo "  -> Created index-vue.html"
 
 # Copy loader as index.html
 echo ""

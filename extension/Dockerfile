@@ -1,10 +1,31 @@
-# Build UI
-FROM --platform=$BUILDPLATFORM node:22-alpine AS ui-builder
+# Build React UI
+FROM --platform=$BUILDPLATFORM node:22-alpine AS react-builder
 WORKDIR /app
 COPY ui/package*.json ./
 RUN npm ci
 COPY ui/ ./
 RUN npm run build
+
+# Build Vue UI
+FROM --platform=$BUILDPLATFORM node:22-alpine AS vue-builder
+WORKDIR /app
+COPY ui-vue/package*.json ./
+RUN npm ci
+COPY ui-vue/ ./
+RUN npm run build
+
+# Combine UI builds
+FROM --platform=$BUILDPLATFORM node:22-alpine AS ui-combiner
+WORKDIR /ui
+# Copy React build and rename index.html
+COPY --from=react-builder /app/build ./
+RUN mv index.html index-react.html
+# Copy Vue build assets (but not index.html yet)
+COPY --from=vue-builder /app/build/assets ./assets/
+# Copy Vue index.html and rename it
+COPY --from=vue-builder /app/build/index.html ./index-vue.html
+# Copy loader as main index.html
+COPY ui/loader.html ./index.html
 
 # Build Backend
 FROM --platform=$BUILDPLATFORM node:22-alpine AS backend-builder
@@ -34,8 +55,8 @@ LABEL com.docker.desktop.extension.icon="/icons/fleet-icon.svg"
 LABEL io.rancher-desktop.fleet.type="base"
 LABEL io.rancher-desktop.fleet.version="1.0"
 
-# Copy UI build (for extension installation)
-COPY --from=ui-builder /app/build /ui
+# Copy combined UI build (React + Vue with loader)
+COPY --from=ui-combiner /ui /ui
 
 # Copy backend build and dependencies
 WORKDIR /backend
