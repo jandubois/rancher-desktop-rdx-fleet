@@ -13,6 +13,9 @@ import LinkCard from './LinkCard.vue';
 import DividerCard from './DividerCard.vue';
 import GitRepoCard from './GitRepoCard.vue';
 import FleetStatusCard from './FleetStatusCard.vue';
+import HtmlCard from './HtmlCard.vue';
+import AuthGitHubCard from './AuthGitHubCard.vue';
+import AuthAppCoCard from './AuthAppCoCard.vue';
 
 // Card registry - maps type to component
 export const cardRegistry: Partial<Record<CardType, Component>> = {
@@ -22,6 +25,9 @@ export const cardRegistry: Partial<Record<CardType, Component>> = {
   'link': LinkCard,
   'divider': DividerCard,
   'gitrepo': GitRepoCard,
+  'html': HtmlCard,
+  'auth-github': AuthGitHubCard,
+  'auth-appco': AuthAppCoCard,
 };
 
 // Special cards that render once (like FleetStatus)

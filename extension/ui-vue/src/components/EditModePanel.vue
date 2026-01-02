@@ -12,6 +12,7 @@ import { setUIFramework } from '../utils/storage';
 import EditModeEditTab from './EditModeEditTab.vue';
 import EditModeLoadTab from './EditModeLoadTab.vue';
 import EditModeBuildTab from './EditModeBuildTab.vue';
+import EditModeExtensionsTab from './EditModeExtensionsTab.vue';
 
 const manifestStore = useManifestStore();
 const { manifest } = storeToRefs(manifestStore);
@@ -111,6 +112,7 @@ function switchToReact() {
             <v-tab :value="0">Edit</v-tab>
             <v-tab :value="1">Load</v-tab>
             <v-tab :value="2">Build</v-tab>
+            <v-tab :value="3">Extensions</v-tab>
           </v-tabs>
 
           <v-divider />
@@ -136,6 +138,13 @@ function switchToReact() {
             <!-- Build Tab -->
             <v-tabs-window-item :value="2">
               <EditModeBuildTab />
+            </v-tabs-window-item>
+
+            <!-- Extensions Tab -->
+            <v-tabs-window-item :value="3">
+              <EditModeExtensionsTab
+                :own-header-background="manifest.branding?.palette?.header?.background"
+              />
             </v-tabs-window-item>
           </v-tabs-window>
         </v-card-text>
