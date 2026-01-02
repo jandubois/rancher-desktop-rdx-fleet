@@ -7,6 +7,7 @@ import rehypeRaw from 'rehype-raw';
 import { CardProps } from './types';
 import { MarkdownCardSettings } from '../manifest/types';
 import { registerCard } from './registry';
+import { CardTitle } from './CardTitle';
 
 export const MarkdownCard: React.FC<CardProps<MarkdownCardSettings>> = ({
   definition,
@@ -19,11 +20,7 @@ export const MarkdownCard: React.FC<CardProps<MarkdownCardSettings>> = ({
   if (editMode && onSettingsChange) {
     return (
       <Box>
-        {definition.title && (
-          <Typography variant="h6" gutterBottom>
-            {definition.title}
-          </Typography>
-        )}
+        <CardTitle title={definition.title} />
         <TextField
           multiline
           fullWidth
@@ -57,11 +54,7 @@ export const MarkdownCard: React.FC<CardProps<MarkdownCardSettings>> = ({
 
   return (
     <Box>
-      {definition.title && (
-        <Typography variant="h6" gutterBottom>
-          {definition.title}
-        </Typography>
-      )}
+      <CardTitle title={definition.title} />
       <Box
         sx={{
           '& a': { color: 'primary.main' },

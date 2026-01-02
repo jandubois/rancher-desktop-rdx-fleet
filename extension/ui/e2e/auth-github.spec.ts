@@ -41,8 +41,8 @@ test.describe('GitHub Authentication Flow', () => {
     await page.goto('/');
     await page.waitForLoadState('load');
 
-    // Wait for the auth card to render
-    await expect(page.getByText('GitHub Authentication')).toBeVisible();
+    // Wait for the auth card title to render (use heading role to avoid matching loading text)
+    await expect(page.getByRole('heading', { name: 'GitHub Authentication' })).toBeVisible();
   });
 
   test('should show description about authentication benefits', async ({ page }) => {

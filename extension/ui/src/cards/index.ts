@@ -1,5 +1,7 @@
 export * from './types';
 export { CardWrapper } from './CardWrapper';
+export { CardTitle } from './CardTitle';
+export { EmptyStateCard } from './EmptyStateCard';
 export {
   registerCard,
   getCardComponent,

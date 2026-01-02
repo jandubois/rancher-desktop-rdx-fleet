@@ -25,6 +25,12 @@ export interface FleetState {
   message?: string;  // Status message for initializing state
 }
 
+/** Result of adding a GitRepo */
+export interface AddGitRepoResult {
+  success: boolean;
+  error?: string;
+}
+
 export interface GitRepo {
   name: string;
   repo: string;

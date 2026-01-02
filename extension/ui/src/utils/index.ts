@@ -1,6 +1,14 @@
 // Utility exports
 export { getErrorMessage } from './errors';
 export { KUBE_CONTEXT, FLEET_NAMESPACE } from './constants';
+export {
+  SUPPORTED_IMAGE_MIME_TYPES,
+  getExtensionForMimeType,
+  getMimeTypeForExtension,
+  isSvgMimeType,
+  isSvgDataUrl,
+} from './mimeTypes';
+export type { SupportedImageMimeType } from './mimeTypes';
 
 // Re-export bundle utilities from GitHubService (used by dependency resolver)
 // Note: The full GitHubService is being deprecated in favor of backend path discovery.

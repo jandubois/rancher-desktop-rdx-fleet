@@ -43,6 +43,7 @@ import {
   type HarmonyType,
 } from '../utils/paletteGenerator';
 import { extractColorsFromSvg, hexToRgb, getColorNames, type ExtractedColor } from '../utils/colorExtractor';
+import { isSvgMimeType, getMimeTypeForExtension } from '../utils/mimeTypes';
 
 // Default Fleet icon SVG content for color extraction
 const DEFAULT_FLEET_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
@@ -387,7 +388,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
       const customIcon = iconState;
       const dataUrl = `data:${customIcon.mimeType};base64,${customIcon.data}`;
 
-      if (customIcon.mimeType === 'image/svg+xml') {
+      if (isSvgMimeType(customIcon.mimeType)) {
         const svgContent = atob(customIcon.data);
         const colors = extractColorsFromSvg(svgContent);
         if (colors[0]) return colors[0];
@@ -704,11 +705,7 @@ export function EditModePanel({ manifest, cards, cardOrder, iconState, iconHeigh
         const [iconPath, iconData] = result.icons.entries().next().value as [string, string];
         const filename = iconPath.split('/').pop() || 'icon.png';
         const ext = filename.split('.').pop()?.toLowerCase() || 'png';
-        const mimeType = ext === 'svg' ? 'image/svg+xml'
-          : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
-          : ext === 'gif' ? 'image/gif'
-          : ext === 'webp' ? 'image/webp'
-          : 'image/png';
+        const mimeType = getMimeTypeForExtension(ext);
 
         onIconStateChange({
           data: iconData,
