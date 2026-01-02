@@ -209,6 +209,23 @@ export const useManifestStore = defineStore('manifest', () => {
     clearExtensionState();
   }
 
+  function updatePalette(newPalette: import('../types/palette').ColorPalette) {
+    manifest.value = {
+      ...manifest.value,
+      branding: {
+        ...manifest.value.branding,
+        palette: newPalette,
+      },
+    };
+  }
+
+  function loadManifest(newManifest: Manifest) {
+    manifest.value = newManifest;
+    manifestCards.value = newManifest.cards || DEFAULT_MANIFEST.cards;
+    cardOrder.value = (newManifest.cards || DEFAULT_MANIFEST.cards).map(c => c.id);
+    dynamicCardTitles.value = {};
+  }
+
   return {
     // State
     manifest,
@@ -251,5 +268,7 @@ export const useManifestStore = defineStore('manifest', () => {
     restoreSnapshot,
     clearSnapshot,
     reset,
+    updatePalette,
+    loadManifest,
   };
 });

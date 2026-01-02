@@ -19,6 +19,7 @@ import { setUIFramework } from './utils/storage';
 
 import DynamicCard from './components/DynamicCard.vue';
 import FleetStatusCard from './components/cards/FleetStatusCard.vue';
+import EditModePanel from './components/EditModePanel.vue';
 import type { CardDefinition } from './types/manifest';
 
 // Store access with storeToRefs for reactive destructuring
@@ -213,6 +214,9 @@ watch(editMode, (isEditing) => {
     <!-- Main Content -->
     <v-main>
       <v-container fluid class="pa-4">
+        <!-- Edit Mode Panel (shown when in edit mode) -->
+        <EditModePanel v-if="editMode" />
+
         <!-- Fleet Status Card -->
         <FleetStatusCard v-if="showFleetStatus" />
 
