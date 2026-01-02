@@ -39,6 +39,11 @@ describe('MarkdownCard', () => {
           content: '# Hello World',
         },
       },
+      global: {
+        provide: {
+          editMode: false,
+        },
+      },
     });
 
     expect(wrapper.find('.markdown-content').exists()).toBe(true);
@@ -53,6 +58,11 @@ describe('MarkdownCard', () => {
           content: '**Bold text**',
         },
       },
+      global: {
+        provide: {
+          editMode: false,
+        },
+      },
     });
 
     const markdown = wrapper.find('.mock-markdown');
@@ -65,18 +75,29 @@ describe('MarkdownCard', () => {
         id: 'test-markdown',
         settings: {},
       },
+      global: {
+        provide: {
+          editMode: false,
+        },
+      },
     });
 
-    const markdown = wrapper.find('.mock-markdown');
-    expect(markdown.text()).toBe('');
+    // Empty content shows "no content" message
+    expect(wrapper.find('.no-content').exists()).toBe(true);
   });
 
   it('should handle undefined settings', () => {
     const wrapper = mount(MarkdownCard, {
       props: { id: 'test-markdown' },
+      global: {
+        provide: {
+          editMode: false,
+        },
+      },
     });
 
-    expect(wrapper.find('.markdown-content').exists()).toBe(true);
+    // No settings also shows "no content" message
+    expect(wrapper.find('.no-content').exists()).toBe(true);
   });
 
   it('should pass title to CardWrapper', () => {
@@ -85,8 +106,32 @@ describe('MarkdownCard', () => {
         id: 'test-markdown',
         title: 'My Markdown Card',
       },
+      global: {
+        provide: {
+          editMode: false,
+        },
+      },
     });
 
     expect(wrapper.find('.mock-card-wrapper').exists()).toBe(true);
+  });
+
+  it('should render edit mode with textarea', () => {
+    const wrapper = mount(MarkdownCard, {
+      props: {
+        id: 'test-markdown',
+        title: 'Test Card',
+        settings: {
+          content: '# Hello World',
+        },
+      },
+      global: {
+        provide: {
+          editMode: true,
+        },
+      },
+    });
+
+    expect(wrapper.find('.edit-container').exists()).toBe(true);
   });
 });
