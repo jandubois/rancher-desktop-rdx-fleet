@@ -37,12 +37,6 @@ const baseArgs = [
 // This is required due to IPC permission restrictions in VMs
 const chromiumArgs = isGitHubActions ? baseArgs : [...baseArgs, '--single-process'];
 
-// Use the full Chromium browser (not headless_shell) for better stability
-const chromiumPath = path.join(
-  process.env.HOME || '',
-  '.cache/ms-playwright/chromium-1194/chrome-linux/chrome'
-);
-
 export default defineConfig({
   testDir: './e2e',
 
@@ -86,7 +80,6 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         launchOptions: {
-          executablePath: chromiumPath,
           args: chromiumArgs,
           env: {
             ...process.env,
