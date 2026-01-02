@@ -62,7 +62,7 @@ import {
   DependencyDialogState,
   ConfirmDialog,
 } from './components';
-import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver, useBackendStatus, useBackendInit } from './hooks';
+import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, useDependencyResolver, useBackendStatus, useBackendInit, useBuilderState } from './hooks';
 import { useServices } from './context';
 import { extractDominantColor, extractColorsFromSvg } from './utils/colorExtractor';
 import { generatePaletteFromColor } from './utils/paletteGenerator';
@@ -75,12 +75,9 @@ function App() {
   // Get services from context (kubernetesService is no longer needed - backend handles K8s ops)
   const { gitHubService, commandExecutor } = useServices();
 
-  // Manifest and edit mode state - prefer cached state from localStorage
+  // Manifest and runtime state - prefer cached state from localStorage
   const [manifest, setManifest] = useState<Manifest>(
     () => cachedInitialState?.manifest ?? DEFAULT_MANIFEST
-  );
-  const [editMode, setEditMode] = useState(
-    () => cachedInitialState?.editMode ?? false
   );
   const [manifestCards, setManifestCards] = useState<CardDefinition[]>(
     () => cachedInitialState?.manifestCards ?? DEFAULT_MANIFEST.cards
@@ -99,31 +96,35 @@ function App() {
     () => cachedInitialState?.dynamicCardTitles ?? {}
   );
 
-  // Icon state for extension builder: null = default, CustomIcon = custom, 'deleted' = no icon
-  const [iconState, setIconState] = useState<IconState>(
-    () => cachedInitialState?.iconState ?? null
-  );
-
-  // Icon height for extension builder (customizable in edit mode)
-  const [iconHeight, setIconHeight] = useState<number>(
-    () => cachedInitialState?.iconHeight ?? DEFAULT_ICON_HEIGHT
-  );
-
-  // Title validation warning from build tab
-  const [titleWarning, setTitleWarning] = useState<string | null>(null);
-
-  // Reset to defaults confirmation dialog state
-  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
-
-  // Edit mode snapshot for undo/cancel functionality
-  const [editModeSnapshot, setEditModeSnapshot] = useState<EditModeSnapshot | null>(
-    () => cachedInitialState?.editModeSnapshot ?? null
-  );
-
-  // Active tab in edit mode panel
-  const [activeEditTab, setActiveEditTab] = useState<number>(
-    () => cachedInitialState?.activeEditTab ?? 0
-  );
+  // Builder state (edit mode, icon, snapshot, etc.) - consolidated into hook
+  const {
+    editMode,
+    iconState,
+    iconHeight,
+    titleWarning,
+    confirmResetOpen,
+    editModeSnapshot,
+    activeEditTab,
+    enterEditMode,
+    applyEditMode,
+    cancelEditMode,
+    setIconState,
+    setIconHeight,
+    setTitleWarning,
+    setActiveEditTab,
+    openResetDialog,
+    closeResetDialog,
+  } = useBuilderState({
+    initial: {
+      editMode: cachedInitialState?.editMode,
+      iconState: cachedInitialState?.iconState,
+      iconHeight: cachedInitialState?.iconHeight,
+      editModeSnapshot: cachedInitialState?.editModeSnapshot,
+      activeEditTab: cachedInitialState?.activeEditTab,
+    },
+    runtimeState: { manifest, manifestCards, cardOrder, dynamicCardTitles },
+    runtimeSetters: { setManifest, setManifestCards, setCardOrder, setDynamicCardTitles },
+  });
 
   // Add repo dialog state
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -511,55 +512,14 @@ function App() {
   // Check if edit mode is allowed
   const editModeAllowed = manifest.layout?.edit_mode !== false;
 
-  // Handle entering edit mode - save snapshot for undo
-  const handleEnterEditMode = useCallback(() => {
-    setEditModeSnapshot({
-      manifest,
-      manifestCards,
-      cardOrder,
-      iconState,
-      iconHeight,
-      dynamicCardTitles,
-    });
-    setEditMode(true);
-  }, [manifest, manifestCards, cardOrder, iconState, iconHeight, dynamicCardTitles]);
-
-  // Handle applying edit mode changes - clear snapshot and exit
-  const handleApplyEditMode = useCallback(() => {
-    // Remove unconverted placeholders from both manifestCards and cardOrder
-    setManifestCards((prev) => prev.filter((c) => c.type !== 'placeholder'));
-    setCardOrder((prev) => {
-      const placeholderIds = manifestCards
-        .filter((c) => c.type === 'placeholder')
-        .map((c) => c.id);
-      return prev.filter((id) => !placeholderIds.includes(id));
-    });
-    setEditModeSnapshot(null);
-    setEditMode(false);
-  }, [manifestCards]);
-
-  // Handle canceling edit mode - restore snapshot and exit
-  const handleCancelEditMode = useCallback(() => {
-    if (editModeSnapshot) {
-      setManifest(editModeSnapshot.manifest);
-      setManifestCards(editModeSnapshot.manifestCards);
-      setCardOrder(editModeSnapshot.cardOrder);
-      setIconState(editModeSnapshot.iconState);
-      setIconHeight(editModeSnapshot.iconHeight);
-      setDynamicCardTitles(editModeSnapshot.dynamicCardTitles);
-    }
-    setEditModeSnapshot(null);
-    setEditMode(false);
-  }, [editModeSnapshot]);
-
   // Handle reset to defaults - restore default manifest, icon, icon height, and clear all repos
   const handleResetToDefaults = useCallback(async () => {
-    setConfirmResetOpen(false);
+    closeResetDialog();
     handleConfigLoaded(DEFAULT_MANIFEST);
     setIconState(null);
     setIconHeight(DEFAULT_ICON_HEIGHT);
     await clearAllGitRepos();
-  }, [handleConfigLoaded, clearAllGitRepos]);
+  }, [handleConfigLoaded, clearAllGitRepos, closeResetDialog, setIconState, setIconHeight]);
 
   // Insert a placeholder card after a given card ID
   const insertCardAfter = (afterCardId: string) => {
@@ -910,7 +870,7 @@ function App() {
                 <Button
                   variant="contained"
                   size="small"
-                  onClick={() => setConfirmResetOpen(true)}
+                  onClick={openResetDialog}
                   startIcon={<RestoreIcon />}
                   color="warning"
                 >
@@ -919,7 +879,7 @@ function App() {
                 <Button
                   variant="contained"
                   size="small"
-                  onClick={handleCancelEditMode}
+                  onClick={cancelEditMode}
                   startIcon={<CloseIcon />}
                   color="error"
                 >
@@ -928,7 +888,7 @@ function App() {
                 <Button
                   variant="contained"
                   size="small"
-                  onClick={handleApplyEditMode}
+                  onClick={applyEditMode}
                   startIcon={<CheckIcon />}
                   color="success"
                 >
@@ -937,7 +897,7 @@ function App() {
               </Box>
             ) : (
               <IconButton
-                onClick={handleEnterEditMode}
+                onClick={enterEditMode}
                 title="Enter edit mode"
                 sx={{ color: palette.header.text }}
               >
@@ -1041,7 +1001,7 @@ function App() {
         confirmLabel="Reset"
         confirmColor="warning"
         onConfirm={handleResetToDefaults}
-        onCancel={() => setConfirmResetOpen(false)}
+        onCancel={closeResetDialog}
       />
 
     </Box>
