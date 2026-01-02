@@ -14,5 +14,14 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/vitest.setup.ts'],
     include: ['src/**/*.{test,spec}.{js,ts,vue}'],
+    deps: {
+      inline: ['vuetify'],
+    },
+    css: false, // Disable CSS processing for faster tests
+    server: {
+      deps: {
+        inline: ['vuetify'],
+      },
+    },
   },
 });
