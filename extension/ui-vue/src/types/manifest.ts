@@ -49,17 +49,17 @@ export interface AppCoCardSettings extends AuthCardSettings {
 }
 
 export interface MarkdownCardSettings {
-  content: string;
+  content?: string;
 }
 
 export interface BundledImage {
   data: string;
-  filename: string;
+  filename?: string;
   mimeType: string;
 }
 
 export interface ImageCardSettings {
-  src: string;
+  src?: string;
   alt?: string;
   bundledImage?: BundledImage;
 }
