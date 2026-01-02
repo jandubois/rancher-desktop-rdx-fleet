@@ -19,6 +19,7 @@ import { CardProps } from './types';
 import { LinkCardSettings, LinkItem } from '../manifest/types';
 import { registerCard } from './registry';
 import { CardTitle } from './CardTitle';
+import { EmptyStateCard } from './EmptyStateCard';
 
 export const LinkCard: React.FC<CardProps<LinkCardSettings>> = ({
   definition,
@@ -148,22 +149,14 @@ export const LinkCard: React.FC<CardProps<LinkCardSettings>> = ({
   }
 
   if (links.length === 0) {
-    return (
-      <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-        <Typography variant="body2">No links configured</Typography>
-      </Box>
-    );
+    return <EmptyStateCard message="No links configured" />;
   }
 
   // Filter out empty links
   const validLinks = links.filter((link) => link.label && link.url);
 
   if (validLinks.length === 0) {
-    return (
-      <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-        <Typography variant="body2">No valid links</Typography>
-      </Box>
-    );
+    return <EmptyStateCard message="No valid links" />;
   }
 
   return (

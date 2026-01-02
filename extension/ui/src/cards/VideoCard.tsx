@@ -6,6 +6,7 @@ import { CardProps } from './types';
 import { VideoCardSettings } from '../manifest/types';
 import { registerCard } from './registry';
 import { CardTitle } from './CardTitle';
+import { EmptyStateCard } from './EmptyStateCard';
 
 // Convert YouTube/Vimeo URLs to embed URLs
 function getEmbedUrl(url: string): { type: 'embed' | 'video'; url: string } {
@@ -74,11 +75,7 @@ export const VideoCard: React.FC<CardProps<VideoCardSettings>> = ({
   }
 
   if (!src) {
-    return (
-      <Box sx={{ p: 2, textAlign: 'center', color: 'text.secondary' }}>
-        <Typography variant="body2">No video configured</Typography>
-      </Box>
-    );
+    return <EmptyStateCard message="No video configured" />;
   }
 
   return (
