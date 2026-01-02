@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { backendService } from '../services/BackendService';
 import { getErrorMessage } from '../utils';
-import { GitRepo, FleetState } from '../types';
+import { GitRepo, FleetState, AddGitRepoResult } from '../types';
 import { CardDefinition, GitRepoCardSettings } from '../manifest';
 
 const STORAGE_KEY = 'fleet-gitrepo-configs';
@@ -27,11 +27,6 @@ interface UseGitRepoManagementOptions {
   onReposLoaded?: (repos: GitRepo[]) => void;
   /** Manifest cards to extract default values from (for custom extensions) */
   manifestCards?: CardDefinition[];
-}
-
-interface AddGitRepoResult {
-  success: boolean;
-  error?: string;
 }
 
 interface UseGitRepoManagementResult {

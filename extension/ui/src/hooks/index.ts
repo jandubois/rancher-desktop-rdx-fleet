@@ -7,7 +7,16 @@ export { useDependencyResolver } from './useDependencyResolver';
 export { useFileUpload, DEFAULT_ACCEPTED_TYPES, DEFAULT_MAX_SIZE } from './useFileUpload';
 export { useBackendStatus } from './useBackendStatus';
 export { useBackendInit } from './useBackendInit';
+export { useBuilderState } from './useBuilderState';
 export type { BundleRegistry, DependencyCategory } from './useDependencyResolver';
 export type { ProcessedFile, FileUploadOptions, UseFileUploadResult } from './useFileUpload';
 export type { UseBackendStatusOptions, UseBackendStatusResult } from './useBackendStatus';
 export type { BackendInitStatus, UseBackendInitOptions } from './useBackendInit';
+export type {
+  BuilderStateInitial,
+  RuntimeStateRefs,
+  RuntimeStateSetters,
+  BuilderState,
+  BuilderActions,
+  UseBuilderStateResult,
+} from './useBuilderState';

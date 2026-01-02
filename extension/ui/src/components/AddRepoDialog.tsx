@@ -8,11 +8,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Alert from '@mui/material/Alert';
 import Typography from '@mui/material/Typography';
-
-interface AddGitRepoResult {
-  success: boolean;
-  error?: string;
-}
+import { AddGitRepoResult } from '../types';
 
 interface AddRepoDialogProps {
   open: boolean;

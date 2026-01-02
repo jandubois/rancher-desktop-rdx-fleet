@@ -7,6 +7,7 @@ import { backendService, IconResult } from '../services/BackendService';
 import type { CustomIcon } from '../components/IconUpload';
 import type { IconState } from '../components/EditableHeaderIcon';
 import { DEFAULT_ICON_HEIGHT } from './extensionStateStorage';
+import { getExtensionForMimeType, getMimeTypeForExtension } from './mimeTypes';
 
 // Collected bundled image with its target path
 interface CollectedBundledImage {
@@ -157,12 +158,7 @@ export function getIconPath(config: ExtensionConfig): string | null {
 
   // Custom icon uploaded
   if (isCustomIcon(iconState)) {
-    const ext = iconState.mimeType === 'image/svg+xml' ? 'svg'
-      : iconState.mimeType === 'image/png' ? 'png'
-      : iconState.mimeType === 'image/jpeg' ? 'jpg'
-      : iconState.mimeType === 'image/gif' ? 'gif'
-      : iconState.mimeType === 'image/webp' ? 'webp'
-      : 'png';
+    const ext = getExtensionForMimeType(iconState.mimeType);
     return `/icons/custom-icon.${ext}`;
   }
 
@@ -338,23 +334,7 @@ docker build --build-arg BASE_IMAGE=ghcr.io/rancher-sandbox/fleet-gitops-extensi
 
 // Get the custom icon filename based on its MIME type
 function getCustomIconFilename(customIcon: CustomIcon): string {
-  const ext = customIcon.mimeType === 'image/svg+xml' ? 'svg'
-    : customIcon.mimeType === 'image/png' ? 'png'
-    : customIcon.mimeType === 'image/jpeg' ? 'jpg'
-    : customIcon.mimeType === 'image/gif' ? 'gif'
-    : customIcon.mimeType === 'image/webp' ? 'webp'
-    : 'png';
-  return `custom-icon.${ext}`;
-}
-
-// Get extension for a MIME type
-function getExtensionForMimeType(mimeType: string): string {
-  return mimeType === 'image/svg+xml' ? 'svg'
-    : mimeType === 'image/png' ? 'png'
-    : mimeType === 'image/jpeg' ? 'jpg'
-    : mimeType === 'image/gif' ? 'gif'
-    : mimeType === 'image/webp' ? 'webp'
-    : 'png';
+  return `custom-icon.${getExtensionForMimeType(customIcon.mimeType)}`;
 }
 
 // Sanitize filename for safe bundling
@@ -883,11 +863,7 @@ export function restoreBundledImages(
           // Determine MIME type from filename
           const filename = imagePath.split('/').pop() || 'image.png';
           const ext = filename.split('.').pop()?.toLowerCase() || 'png';
-          const mimeType = ext === 'svg' ? 'image/svg+xml'
-            : ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
-            : ext === 'gif' ? 'image/gif'
-            : ext === 'webp' ? 'image/webp'
-            : 'image/png';
+          const mimeType = getMimeTypeForExtension(ext);
 
           // Restore the bundledImage data
           const restoredImage: BundledImage = {

@@ -138,6 +138,16 @@ export class BackendService {
   }
 
   /**
+   * Ensure vmService is available, throwing if not.
+   */
+  private ensureVmService(): VmService {
+    if (!this.vmService) {
+      throw new Error('vm.service not available');
+    }
+    return this.vmService;
+  }
+
+  /**
    * Check if the backend is reachable
    */
   async isAvailable(): Promise<boolean> {
@@ -156,20 +166,14 @@ export class BackendService {
    * Get backend health status
    */
   async getHealth(): Promise<BackendHealth> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.get('/health') as BackendHealth;
+    return await this.ensureVmService().get('/health') as BackendHealth;
   }
 
   /**
    * Get extension identity (container ID, extension name, etc.)
    */
   async getIdentity(): Promise<ExtensionIdentity> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.get('/identity') as ExtensionIdentity;
+    return await this.ensureVmService().get('/identity') as ExtensionIdentity;
   }
 
   /**
@@ -182,40 +186,28 @@ export class BackendService {
     debugInfo?: string[];
     ownExtensionImage?: string;
   }): Promise<OwnershipStatus> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/init', data) as OwnershipStatus;
+    return await this.ensureVmService().post('/api/init', data) as OwnershipStatus;
   }
 
   /**
    * Get initialization status from backend
    */
   async getInitStatus(): Promise<InitStatus> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.get('/api/init') as InitStatus;
+    return await this.ensureVmService().get('/api/init') as InitStatus;
   }
 
   /**
    * Get detailed ownership debug info
    */
   async getOwnershipDebugInfo(): Promise<OwnershipDebugInfo> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.get('/api/ownership') as OwnershipDebugInfo;
+    return await this.ensureVmService().get('/api/ownership') as OwnershipDebugInfo;
   }
 
   /**
    * Manually re-run ownership check
    */
   async recheckOwnership(): Promise<OwnershipStatus> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    const data = await this.vmService.post('/api/ownership/check', {}) as { ownership: OwnershipStatus };
+    const data = await this.ensureVmService().post('/api/ownership/check', {}) as { ownership: OwnershipStatus };
     return data.ownership;
   }
 
@@ -223,10 +215,7 @@ export class BackendService {
    * Transfer ownership to another extension
    */
   async transferOwnership(newOwner: string): Promise<OwnershipStatus> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    const data = await this.vmService.post('/api/ownership/transfer', { newOwner }) as { ownership: OwnershipStatus };
+    const data = await this.ensureVmService().post('/api/ownership/transfer', { newOwner }) as { ownership: OwnershipStatus };
     return data.ownership;
   }
 
@@ -287,10 +276,7 @@ export class BackendService {
     error?: string;
     message?: string;
   }> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.get('/api/fleet/state') as {
+    return await this.ensureVmService().get('/api/fleet/state') as {
       status: 'checking' | 'not-installed' | 'installing' | 'running' | 'error';
       version?: string;
       error?: string;
@@ -320,10 +306,7 @@ export class BackendService {
    * @returns Build result with success status and output
    */
   async buildImage(request: BuildRequest): Promise<BuildResult> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/build', request) as BuildResult;
+    return await this.ensureVmService().post('/api/build', request) as BuildResult;
   }
 
   /**
@@ -333,10 +316,7 @@ export class BackendService {
    * @returns Pushability check result
    */
   async checkPushable(imageName: string): Promise<PushableCheckResult> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/build/push/check', { imageName }) as PushableCheckResult;
+    return await this.ensureVmService().post('/api/build/push/check', { imageName }) as PushableCheckResult;
   }
 
   /**
@@ -347,10 +327,7 @@ export class BackendService {
    * @returns Push result with success status and output
    */
   async pushImage(imageName: string, auth?: { username: string; password: string }): Promise<PushResult> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/build/push', { imageName, auth }) as PushResult;
+    return await this.ensureVmService().post('/api/build/push', { imageName, auth }) as PushResult;
   }
 
   // ============================================
@@ -362,21 +339,15 @@ export class BackendService {
    * Uses the backend to extract icons from Docker images.
    */
   async getFleetIcons(): Promise<FleetIconsResponse> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.get('/api/icons') as FleetIconsResponse;
+    return await this.ensureVmService().get('/api/icons') as FleetIconsResponse;
   }
 
   /**
    * Extract icon from a specific image.
    */
   async extractIcon(imageName: string, iconPath: string): Promise<IconResult | null> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
     try {
-      return await this.vmService.post('/api/icons/extract', { imageName, iconPath }) as IconResult;
+      return await this.ensureVmService().post('/api/icons/extract', { imageName, iconPath }) as IconResult;
     } catch {
       return null;
     }
@@ -387,10 +358,7 @@ export class BackendService {
    * The backend can read files directly since it runs inside the extension container.
    */
   async getLocalIcon(): Promise<{ iconPath: string | null; data: string | null; mimeType: string | null; isDefault?: boolean }> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.get('/api/icons/local') as { iconPath: string | null; data: string | null; mimeType: string | null; isDefault?: boolean };
+    return await this.ensureVmService().get('/api/icons/local') as { iconPath: string | null; data: string | null; mimeType: string | null; isDefault?: boolean };
   }
 
   // ============================================
@@ -401,10 +369,7 @@ export class BackendService {
    * List all GitRepos from the cluster
    */
   async listGitRepos(): Promise<GitRepo[]> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    const response = await this.vmService.get('/api/gitrepos') as { items: GitRepo[] };
+    const response = await this.ensureVmService().get('/api/gitrepos') as { items: GitRepo[] };
     return response.items;
   }
 
@@ -412,11 +377,8 @@ export class BackendService {
    * Get a specific GitRepo by name
    */
   async getGitRepo(name: string): Promise<GitRepo | null> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
     try {
-      return await this.vmService.get(`/api/gitrepos/${encodeURIComponent(name)}`) as GitRepo;
+      return await this.ensureVmService().get(`/api/gitrepos/${encodeURIComponent(name)}`) as GitRepo;
     } catch (error) {
       // Return null if not found
       if (error instanceof Error && error.message.includes('404')) {
@@ -430,21 +392,15 @@ export class BackendService {
    * Create or update a GitRepo
    */
   async applyGitRepo(request: GitRepoRequest): Promise<GitRepo> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/gitrepos', request) as GitRepo;
+    return await this.ensureVmService().post('/api/gitrepos', request) as GitRepo;
   }
 
   /**
    * Delete a GitRepo by name
    */
   async deleteGitRepo(name: string): Promise<void> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
     // Use POST with _method override since vm.service may not support DELETE
-    await this.vmService.post(`/api/gitrepos/${encodeURIComponent(name)}/delete`, {});
+    await this.ensureVmService().post(`/api/gitrepos/${encodeURIComponent(name)}/delete`, {});
   }
 
   /**
@@ -463,10 +419,7 @@ export class BackendService {
     failed: Array<{ name: string; error: string }>;
     message: string;
   }> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/gitrepos/sync-defaults', { defaults }) as {
+    return await this.ensureVmService().post('/api/gitrepos/sync-defaults', { defaults }) as {
       success: boolean;
       created: string[];
       failed: Array<{ name: string; error: string }>;
@@ -482,11 +435,8 @@ export class BackendService {
    * Check if a registry secret exists
    */
   async registrySecretExists(name: string): Promise<boolean> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
     try {
-      const response = await this.vmService.get(`/api/secrets/registry/${encodeURIComponent(name)}`) as { exists: boolean };
+      const response = await this.ensureVmService().get(`/api/secrets/registry/${encodeURIComponent(name)}`) as { exists: boolean };
       return response.exists;
     } catch {
       return false;
@@ -497,32 +447,23 @@ export class BackendService {
    * Create or update a registry secret
    */
   async createRegistrySecret(request: RegistrySecretRequest): Promise<SecretInfo> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/secrets/registry', request) as SecretInfo;
+    return await this.ensureVmService().post('/api/secrets/registry', request) as SecretInfo;
   }
 
   /**
    * Delete a registry secret
    */
   async deleteRegistrySecret(name: string): Promise<void> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
     // Use POST with delete endpoint since vm.service may not support DELETE
-    await this.vmService.post(`/api/secrets/registry/${encodeURIComponent(name)}/delete`, {});
+    await this.ensureVmService().post(`/api/secrets/registry/${encodeURIComponent(name)}/delete`, {});
   }
 
   /**
    * Check if AppCo registry secret exists
    */
   async appCoSecretExists(): Promise<boolean> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
     try {
-      const response = await this.vmService.get('/api/secrets/appco') as { exists: boolean };
+      const response = await this.ensureVmService().get('/api/secrets/appco') as { exists: boolean };
       return response.exists;
     } catch {
       return false;
@@ -533,21 +474,15 @@ export class BackendService {
    * Create or update AppCo registry secret
    */
   async createAppCoRegistrySecret(username: string, password: string): Promise<SecretInfo> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/secrets/appco', { username, password }) as SecretInfo;
+    return await this.ensureVmService().post('/api/secrets/appco', { username, password }) as SecretInfo;
   }
 
   /**
    * Delete AppCo registry secret
    */
   async deleteAppCoRegistrySecret(): Promise<void> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
     // Use POST with delete endpoint since vm.service may not support DELETE
-    await this.vmService.post('/api/secrets/appco/delete', {});
+    await this.ensureVmService().post('/api/secrets/appco/delete', {});
   }
 
   // ============================================
@@ -562,10 +497,7 @@ export class BackendService {
    * @returns Discovery result with paths and timing info
    */
   async discoverPaths(request: DiscoverPathsRequest): Promise<DiscoverPathsResult> {
-    if (!this.vmService) {
-      throw new Error('vm.service not available');
-    }
-    return await this.vmService.post('/api/git/discover', request) as DiscoverPathsResult;
+    return await this.ensureVmService().post('/api/git/discover', request) as DiscoverPathsResult;
   }
 }
 

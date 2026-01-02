@@ -9,7 +9,6 @@
 import { createContext, useContext, useMemo, ReactNode } from 'react';
 import { ddClient } from '../lib/ddClient';
 import {
-  KubernetesService,
   DdClientExecutor,
   CommandExecutor,
   GitHubService,
@@ -21,7 +20,6 @@ import {
 
 /** Services available through context */
 export interface Services {
-  kubernetesService: KubernetesService;
   gitHubService: GitHubService;
   credentialService: CredentialService;
   appCoService: AppCoService;
@@ -69,7 +67,6 @@ export function ServiceProvider({ children, services }: ServiceProviderProps) {
     const httpClient = services?.httpClient ?? new FetchHttpClient();
 
     // Create default services if not provided
-    const kubernetesService = services?.kubernetesService ?? new KubernetesService(commandExecutor);
     const gitHubService = services?.gitHubService ?? new GitHubService(httpClient);
     const credentialService = services?.credentialService ?? new CredentialService(commandExecutor);
     const appCoService = services?.appCoService ?? new AppCoService(httpClient);
@@ -77,7 +74,6 @@ export function ServiceProvider({ children, services }: ServiceProviderProps) {
     return {
       commandExecutor,
       httpClient,
-      kubernetesService,
       gitHubService,
       credentialService,
       appCoService,
@@ -102,13 +98,6 @@ export function useServices(): Services {
     throw new Error('useServices must be used within a ServiceProvider');
   }
   return context;
-}
-
-/**
- * Hook to access the KubernetesService.
- */
-export function useKubernetesService(): KubernetesService {
-  return useServices().kubernetesService;
 }
 
 /**

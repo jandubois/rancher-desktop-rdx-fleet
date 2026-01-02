@@ -5,6 +5,7 @@
  * @see https://lokeshdhakar.com/projects/color-thief/
  */
 import ColorThief from 'colorthief';
+import { isSvgDataUrl } from './mimeTypes';
 
 /**
  * Represents a color with RGB values
@@ -224,7 +225,7 @@ export async function extractColorsFromBase64(
   const opts = { ...defaultOptions, ...options };
 
   // Check if it's an SVG
-  if (base64Data.includes('data:image/svg+xml')) {
+  if (isSvgDataUrl(base64Data)) {
     try {
       // Decode base64 SVG content
       const base64Content = base64Data.split(',')[1];
@@ -273,7 +274,7 @@ export async function extractDominantColor(
   quality = 10
 ): Promise<ExtractedColor | null> {
   // Check if it's an SVG
-  if (base64Data.includes('data:image/svg+xml')) {
+  if (isSvgDataUrl(base64Data)) {
     try {
       const base64Content = base64Data.split(',')[1];
       const svgContent = atob(base64Content);

@@ -66,6 +66,7 @@ import { useFleetStatus, useGitRepoManagement, usePalette, usePathDiscovery, use
 import { useServices } from './context';
 import { extractDominantColor, extractColorsFromSvg } from './utils/colorExtractor';
 import { generatePaletteFromColor } from './utils/paletteGenerator';
+import { isSvgMimeType } from './utils/mimeTypes';
 
 // Cache the initial state load so all useState initializers see the same value
 const cachedInitialState = getInitialState();
@@ -420,7 +421,7 @@ function App() {
 
       try {
         let baseColor;
-        if (customIcon.mimeType === 'image/svg+xml') {
+        if (isSvgMimeType(customIcon.mimeType)) {
           // Extract from SVG
           const svgContent = atob(customIcon.data);
           const colors = extractColorsFromSvg(svgContent);
